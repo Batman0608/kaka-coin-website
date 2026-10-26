@@ -2,8 +2,11 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Văn phòng ảo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/style.css">
   <script type="importmap">
     { "imports": {
@@ -13,66 +16,108 @@
   </script>
 </head>
 <body>
-  <!-- Đăng nhập / đăng ký -->
+  <!-- APP-BODY:START -->
+  <!-- Đăng nhập / tạo văn phòng -->
   <section id="auth" class="auth hidden">
-    <div class="auth-card">
+    <div class="auth-card card">
       <h1>Văn phòng ảo</h1>
       <p class="muted">Đăng nhập để vào đúng văn phòng của bạn. Mỗi tài khoản là một văn phòng riêng.</p>
       <div class="tabs" id="authTabs">
-        <button class="tab active" data-mode="login">Đăng nhập</button>
-        <button class="tab" data-mode="register">Tạo văn phòng mới</button>
+        <button class="chip tab active" data-mode="login" type="button">Đăng nhập</button>
+        <button class="chip tab" data-mode="register" type="button">Tạo văn phòng mới</button>
       </div>
-      <form id="authForm">
-        <label>Tên đăng nhập <input name="username" autocomplete="username" required></label>
-        <label>Mật khẩu <input name="password" type="password" autocomplete="current-password" required minlength="8"></label>
-        <div class="reg-only hidden">
-          <label>Tên văn phòng <input name="officeName" placeholder="Ví dụ: Văn phòng Long Phú"></label>
-          <label>Tên công ty <input name="companyName" placeholder="Ví dụ: Long Phu Auto"></label>
-          <label>Mã mời (nếu chủ hệ thống yêu cầu) <input name="inviteCode"></label>
+      <form id="authForm" class="form">
+        <label>Tên đăng nhập <input id="authUser" name="username" autocomplete="username" required></label>
+        <label>Mật khẩu <input id="authPass" name="password" type="password" autocomplete="current-password" required minlength="8"></label>
+        <div class="reg-only form hidden">
+          <label>Tên văn phòng <input id="authOffice" name="officeName" placeholder="Ví dụ: Văn phòng Long Phu Auto"></label>
+          <label>Tên công ty <input id="authCompany" name="companyName" placeholder="Ví dụ: Long Phu Auto"></label>
+          <label>Mã mời (nếu chủ hệ thống yêu cầu) <input id="authInvite" name="inviteCode"></label>
         </div>
-        <button type="submit" class="primary" id="authSubmit">Đăng nhập</button>
+        <button type="submit" class="btn gold block" id="authSubmit">Đăng nhập</button>
         <p class="error" id="authError" role="alert"></p>
       </form>
     </div>
   </section>
 
   <!-- Văn phòng -->
-  <section id="app" class="app hidden">
-    <header class="topbar">
-      <div class="brand"><span id="officeName">Văn phòng</span> <span class="muted" id="companyName"></span></div>
-      <div class="topinfo">
-        <span id="clock">--:--</span>
-        <span id="weather" class="muted">Thời tiết TP.HCM: đang tải…</span>
-        <span id="sessionState" class="badge">Đã đăng nhập</span>
-        <button id="logoutBtn" class="ghost">Đăng xuất</button>
+  <div id="app" class="app hidden">
+    <aside id="drawer" class="drawer" aria-label="Nhân viên và khu vực">
+      <div class="sheet-head"><h2>Nhân viên &amp; khu vực</h2><button class="close-btn" type="button" data-close="drawer" aria-label="Đóng danh sách nhân viên">×</button></div>
+      <div class="drawer-body">
+        <div id="staffGroups"></div>
+        <h3 class="eyebrow group-title">Khu vực trong văn phòng</h3>
+        <div id="zoneChips" class="chips" style="padding: 0 8px"></div>
+        <div id="overview" class="overview"></div>
       </div>
-    </header>
-
-    <aside class="left" aria-label="Nhân sự theo nhóm">
-      <div id="staffGroups"></div>
-      <div class="overview" id="overview"></div>
     </aside>
 
-    <main class="center">
-      <div id="office3d" role="img" aria-label="Sơ đồ văn phòng 3D: hai dãy bàn nhân viên, Quản lý ngồi giữa phía dưới. Có thể chọn nhân viên ở danh sách bên trái."></div>
-      <div class="hint muted">Bấm vào nhân viên trong văn phòng để mở panel riêng. Kéo chuột để xoay, cuộn để phóng to.</div>
+    <main class="main">
+      <header class="hero">
+        <div class="hero-top">
+          <button id="drawerBtn" class="btn sm" type="button" aria-controls="drawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Nhân viên</button>
+          <span id="sessionState" class="pill">Đã đăng nhập</span>
+          <button id="logoutBtn" class="btn sm" type="button">Đăng xuất</button>
+        </div>
+        <h1 id="officeName">Văn phòng ảo</h1>
+        <p id="officeMeta" class="meta"></p>
+        <div class="info-pill"><b id="clock">--:--:--</b><span aria-hidden="true">·</span><span>TP. Hồ Chí Minh</span><span aria-hidden="true">·</span><span id="weather" class="muted">đang tải thời tiết…</span></div>
+        <div class="hero-actions">
+          <button class="btn gold" type="button" data-open="tasks:new">+ Giao việc chung / Họp</button>
+          <button class="btn outline" type="button" data-open="group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Chat nhóm công ty (<span id="groupCount">0</span>)</span></button>
+          <button class="btn" type="button" data-open="overview">Chi tiết</button>
+        </div>
+        <div id="notice" class="notice hidden" role="status"></div>
+      </header>
+
+      <section class="office-card" aria-label="Văn phòng 3D">
+        <div class="office-toolbar">
+          <select id="musicSel" aria-label="Chọn nhạc nền"></select>
+          <button id="musicBtn" class="btn gold sm" type="button">▶ Phát</button>
+          <button id="meetingBtn" class="btn navy sm" type="button">Gọi toàn nhân viên họp</button>
+        </div>
+        <div id="stage" class="stage">
+          <div id="office3d" role="img" aria-label="Văn phòng 3D: dãy bàn làm việc, Quản lý ngồi giữa phía dưới, khu thư giãn, bàn họp và kệ trưng bày. Chọn nhân viên ở danh sách nhân viên."></div>
+          <span class="stage-hint" id="stageHint">Chạm nhân viên để mở chi tiết · kéo để xoay</span>
+          <div class="stage-ctl">
+            <button id="camReset" class="icon-btn" type="button" aria-label="Về góc nhìn toàn cảnh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button>
+            <button id="camPan" class="icon-btn" type="button" aria-label="Kéo để di chuyển thay vì xoay" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>
+            <button id="stageFull" class="icon-btn" type="button" aria-label="Toàn màn hình"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+          </div>
+          <button id="stageExit" class="btn sm navy stage-exit hidden" type="button">× Thoát toàn màn hình</button>
+          <div id="presets" class="presets"></div>
+        </div>
+        <button id="enterBtn" class="btn gold block" type="button">Vào văn phòng 3D &amp; bật nhạc</button>
+      </section>
+
+      <nav class="quick" aria-label="Lối tắt">
+        <button class="btn" type="button" data-open="tasks">Họp / Việc chung</button>
+        <button class="btn" type="button" data-open="group">Chat nhóm công ty</button>
+        <button class="btn" type="button" data-open="links">Liên kết phần mềm</button>
+        <button class="btn" type="button" data-open="zalo">Hàng chờ Zalo</button>
+        <button class="btn" type="button" data-open="slips">Phiếu bán hàng</button>
+        <button class="btn" type="button" data-open="reports">Báo cáo 21:00</button>
+        <button class="btn" type="button" data-open="settings">Cài đặt</button>
+      </nav>
     </main>
 
-    <aside class="right">
-      <nav class="tabs" id="mainTabs" aria-label="Các khu vực văn phòng">
-        <button class="tab active" data-view="staff">Nhân viên</button>
-        <button class="tab" data-view="group">Chat nhóm</button>
-        <button class="tab" data-view="tasks">Việc</button>
-        <button class="tab" data-view="slips">Phiếu bán</button>
-        <button class="tab" data-view="zalo">Zalo</button>
-        <button class="tab" data-view="reports">Báo cáo</button>
-        <button class="tab" data-view="settings">Cài đặt</button>
-      </nav>
-      <div id="panel" class="panel"></div>
+    <div id="backdrop" class="backdrop hidden"></div>
+    <aside id="sheet" class="sheet" aria-label="Chi tiết" aria-live="off">
+      <div class="sheet-head"><h2 id="sheetTitle">Chi tiết</h2><button class="close-btn mobile-only" type="button" data-close="sheet">× Đóng</button></div>
+      <div id="panel" class="sheet-body"></div>
     </aside>
-  </section>
+
+    <nav class="bottom-nav" aria-label="Điều hướng">
+      <button type="button" data-open="group" aria-label="Chat nhóm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4c4.97 0 9 3.13 9 7s-4.03 7-9 7c-1.2 0-2.35-.18-3.4-.52L4 20l1.3-3.6C3.86 15.07 3 13.12 3 11c0-3.87 4.03-7 9-7z"/></svg></button>
+      <button type="button" data-open="slips" aria-label="Phiếu bán hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 4v16M11 9h6M11 13h6"/></svg></button>
+      <button type="button" data-open="reports" aria-label="Báo cáo cuối ngày"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></button>
+      <button type="button" data-open="tasks" aria-label="Việc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></button>
+      <button type="button" data-open="more" aria-label="Thêm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><path d="M17 3.5l3.5 6h-7z"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><circle cx="17" cy="17" r="3"/></svg></button>
+    </nav>
+  </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <!-- APP-BODY:END -->
   <script type="module" src="/app.js"></script>
 </body>
 </html>

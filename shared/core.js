@@ -64,7 +64,37 @@ export const defaultTraining = (s) => `Trách nhiệm: ${s.responsibilities}\nPh
 
 export function signCodeFor(index) {
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `KY-${String(index + 1).padStart(3, '0')}-${rand}`;
+  return `LPA-KY-${String(index + 1).padStart(3, '0')}-${rand}`;
+}
+
+// Màu riêng mặc định của từng nhân viên (ảnh đại diện, áo nhân vật 3D, nhãn trên đầu).
+export const STAFF_COLORS = {
+  'STAFF-001': '#f2a516', 'STAFF-002': '#e2645a', 'STAFF-003': '#c03fd6', 'STAFF-004': '#e23b3b', 'STAFF-005': '#7fa6f0',
+  'STAFF-006': '#c78ae6', 'STAFF-007': '#5fcf7e', 'STAFF-008': '#2fd1b4', 'STAFF-009': '#1f9bb5', 'STAFF-010': '#7a3fe0',
+};
+export const COLOR_CHOICES = ['#f2a516', '#e2645a', '#c03fd6', '#e23b3b', '#7fa6f0', '#c78ae6', '#5fcf7e', '#2fd1b4', '#1f9bb5', '#7a3fe0', '#f07fb0', '#9aa64a'];
+
+// Trạng thái nhân viên. Người dùng đổi nhanh được; khi đang suy nghĩ hoặc đang có việc thì hệ thống tự hiện.
+export const STAFF_STATUSES = { sleeping: 'Đang ngủ', thinking: 'Đang suy nghĩ', working: 'Đang làm việc', resting: 'Đang nghỉ', error: 'Báo lỗi' };
+
+export function validateProfile({ shortLabel, color }) {
+  const out = {};
+  if (shortLabel !== undefined) {
+    const v = String(shortLabel).trim().replace(/\s+/g, ' ');
+    if (!v) throw new Error('Nhãn trên đầu không được để trống.');
+    if (v.split(' ').length > 3 || v.length > 18) throw new Error('Nhãn trên đầu tối đa 3 chữ (18 ký tự).');
+    out.shortLabel = v;
+  }
+  if (color !== undefined) {
+    if (!/^#[0-9a-f]{6}$/i.test(String(color))) throw new Error('Màu không hợp lệ.');
+    out.color = String(color).toLowerCase();
+  }
+  return out;
+}
+
+// Lưu tối đa 6 phiên bản đào tạo gần nhất để xem lại và khôi phục.
+export function pushTrainingHistory(history, version, text) {
+  return [{ version, text, at: new Date().toISOString() }, ...(history || []).filter((h) => h.version !== version)].slice(0, 6);
 }
 
 // ---------- Chọn người theo chuyên môn ----------

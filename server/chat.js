@@ -48,11 +48,11 @@ export function isBusy(accountId, channel) {
   return busy.has(`${accountId}:${channel}`);
 }
 
-export async function groupChat(accountId, text) {
+export async function groupChat(accountId, text, targetId = null) {
   const key = `${accountId}:group`;
   addMessage(accountId, 'group', 'user', text);
   const staffById = Object.fromEntries(listStaff(accountId).map((s) => [s.id, s]));
-  const target = addressedStaff(accountId, text);
+  const target = (targetId && getStaff(accountId, targetId)) || addressedStaff(accountId, text);
   const responders = target ? [target] : pickRelevantStaffIds(text).map((id) => staffById[id]);
   busy.add(key);
   try {

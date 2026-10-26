@@ -5,10 +5,11 @@ import {
   ROSTER, MANAGER_ID, CSKH_ID, SALE_ID, KHO_ID, KE_TOAN_ID, signCodeFor, defaultTraining,
   pickRelevantStaffIds, isMarketing, addressedStaffId, kindOfText, buildThinkingPrompt, buildRealData,
   executionPlan, assertSlipCanBeCreated, WAREHOUSE_FLOW, REPORT_HOUR, hcmDate, hcmHour,
+  STAFF_COLORS, STAFF_STATUSES, validateProfile, pushTrainingHistory,
   CSKH_REPORT_QUESTION, MANAGER_REPORT_QUESTION, reportSnapshot,
 } from '../shared/core.js';
 import {
-  runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard,
+  runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard, planSteps,
   GROUP_CRITIQUE_INSTRUCTION, groupConclusionQuestion, consultDecisionQuestion,
 } from '../shared/deliberation.js';
 
@@ -93,6 +94,7 @@ function office() {
       id: s.id, name: s.name, role: s.role, group: s.grp, shortLabel: s.shortLabel, signCode: signCodeFor(i),
       trainingText: defaultTraining(s), trainingVersion: 1, mainSoftware: s.mainSoftware,
       responsibilities: s.responsibilities, seat: { deskIndex: s.deskIndex, zone: s.zone }, lastBrainLabel: null,
+      manualStatus: 'resting', color: STAFF_COLORS[s.id], trainingHistory: [],
     })),
   };
   store.docs.set('office', fresh);
@@ -100,7 +102,10 @@ function office() {
   return fresh;
 }
 const saveOffice = () => store.save('office');
-const staffList = () => office().staff;
+// Văn phòng tạo từ bản cũ chưa có các trường mới thì bổ sung giá trị mặc định.
+const staffList = () => office().staff.map((s) => Object.assign(s, {
+  manualStatus: s.manualStatus || 'resting', color: s.color || STAFF_COLORS[s.id], trainingHistory: s.trainingHistory || [],
+}));
 const getStaff = (id) => staffList().find((s) => s.id === id) || null;
 const staffById = () => Object.fromEntries(staffList().map((s) => [s.id, s]));
 
@@ -121,6 +126,7 @@ function realData() {
 
 // ---------- Bộ não: Claude qua tài khoản claude.ai ----------
 const working = new Map();
+const said = new Map(); // câu vừa nói của từng nhân viên, cho bong bóng thoại 3D
 let samplePromise = null;
 const getSample = () => (samplePromise ||= (globalThis.claude ? globalThis.claude.use('sample') : Promise.resolve(null)));
 
@@ -154,6 +160,7 @@ async function think(staff, ctx) {
     const r = await sample(prompt, opts);
     const label = `Claude qua tài khoản claude.ai (${r.modelTierApplied})${r.truncated ? ' — câu trả lời bị cắt do quá dài' : ''}`;
     staff.lastBrainLabel = label; saveOffice();
+    if (!/^\s*[{[`]/.test(r.text)) said.set(staff.id, { text: r.text.replace(/\s+/g, ' ').slice(0, 140), at: now() });
     return { text: r.text.trim(), brainLabel: label, providerErrors: [] };
   } catch (e) {
     const msg = `${SAMPLE_ERRORS[e?.code] || 'Lỗi khi gọi Claude.'} [mã: ${e?.code || 'unknown'}] ${e?.message || ''}`.trim();
@@ -424,7 +431,34 @@ on('PUT', '/api/staff/(STAFF-\\d+)/training', (b, [id]) => {
   if (!s) throw fail('Không tìm thấy nhân viên.');
   const text = String(b?.trainingText || '').trim();
   if (!text) throw fail('Đào tạo không được để trống.');
-  s.trainingText = text.slice(0, 20000); s.trainingVersion++;
+  saveTraining(s, text);
+  return s;
+});
+function saveTraining(s, text) {
+  if (text.length > 20000) throw fail('Đào tạo quá dài (tối đa 20000 ký tự).');
+  s.trainingHistory = pushTrainingHistory(s.trainingHistory, s.trainingVersion, s.trainingText);
+  s.trainingText = text; s.trainingVersion++;
+  saveOffice();
+}
+on('POST', '/api/staff/(STAFF-\\d+)/training/restore', (b, [id]) => {
+  const s = getStaff(id);
+  if (!s) throw fail('Không tìm thấy nhân viên.');
+  const h = (s.trainingHistory || []).find((x) => x.version === Number(b.version));
+  if (!h) throw fail('Không tìm thấy phiên bản đào tạo này.');
+  saveTraining(s, h.text);
+  return s;
+});
+on('PUT', '/api/staff/(STAFF-\\d+)/status', (b, [id]) => {
+  const s = getStaff(id);
+  if (!s) throw fail('Không tìm thấy nhân viên.');
+  if (!STAFF_STATUSES[b.status]) throw fail('Trạng thái không hợp lệ.');
+  s.manualStatus = b.status; saveOffice();
+  return s;
+});
+on('PUT', '/api/staff/(STAFF-\\d+)/profile', (b, [id]) => {
+  const s = getStaff(id);
+  if (!s) throw fail('Không tìm thấy nhân viên.');
+  try { Object.assign(s, validateProfile(b)); } catch (e) { throw fail(e.message); }
   saveOffice();
   return s;
 });
@@ -470,8 +504,9 @@ on('DELETE', '/api/links/([\\w-]+)', (b, [id]) => {
 on('GET', '/api/messages/(.+)', (b, [ch]) => ({ messages: listMessages(decodeURIComponent(ch)), busy: busy.has(decodeURIComponent(ch)) }));
 on('POST', '/api/chat/group', (b) => {
   const text = textOf(b);
+  if (b.target && !getStaff(String(b.target))) throw fail('Không tìm thấy nhân viên.');
   addMessage('group', 'user', text);
-  const target = addressedStaffId(staffList(), text);
+  const target = (b.target && String(b.target)) || addressedStaffId(staffList(), text);
   const responders = target ? [target] : pickRelevantStaffIds(text);
   // Người sau xét từng câu trả lời trước; cuối cùng Phúc kết luận ý của ai tốt nhất.
   bg(withBusy('group', async () => {
@@ -514,7 +549,7 @@ on('POST', '/api/staff/(STAFF-\\d+)/consult', (b, [ownerId]) => {
 });
 
 // Việc
-on('GET', '/api/tasks', () => tasksAll().map(publicTask));
+on('GET', '/api/tasks', () => tasksAll().map((t) => ({ ...publicTask(t), planSteps: planSteps(t.session?.finalPlan, staffList()) })));
 on('POST', '/api/tasks', (b) => {
   if (!['individual', 'general'].includes(b.kind)) throw fail('Loại việc không hợp lệ.');
   if (!b.title?.trim()) throw fail('Thiếu tên việc.');
@@ -713,7 +748,8 @@ on('POST', '/api/reports', () => { if (reportRunning) throw fail('Báo cáo đan
 on('GET', '/api/activity', () => {
   const today = hcmDate();
   const reportDue = hcmHour() >= REPORT_HOUR && !listDoc('reports').list.some((r) => r.date === today);
-  return { working: [...working.keys()], reportDue, storageWarning: store.writeError };
+  const recent = Object.fromEntries([...said].filter(([, v]) => Date.now() - Date.parse(v.at) < 90000));
+  return { working: [...working.keys()], said: recent, reportDue, storageWarning: store.writeError };
 });
 on('GET', '/api/overview', () => {
   const z = zaloDoc();
@@ -721,6 +757,8 @@ on('GET', '/api/overview', () => {
     staff: staffList().length, tasks: tasksAll().length, softwareLinks: listDoc('links').list.length,
     zaloQueued: z.queue.filter((q) => q.status === 'queued').length, zaloError: z.queue.filter((q) => q.status === 'error').length,
     slips: listDoc('slips').list.length,
+    groupMessages: listMessages('group').length,
+    openTasks: tasksAll().filter((t) => t.status !== 'done').length,
   };
 });
 

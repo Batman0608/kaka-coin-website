@@ -1,6 +1,10 @@
 // 10 nhân sự cố định theo đặc tả. Mỗi tài khoản mới được tạo một bản riêng của danh sách này.
 import { db } from './db.js';
-import { ROSTER, MANAGER_ID, signCodeFor, defaultTraining, pickRelevantStaffIds, isMarketing } from '../shared/core.js';
+import { ROSTER, MANAGER_ID, signCodeFor, defaultTraining, pickRelevantStaffIds, isMarketing, STAFF_COLORS } from '../shared/core.js';
+
+for (const col of ['manual_status TEXT', 'color TEXT', 'training_history TEXT']) {
+  try { db.exec(`ALTER TABLE staff ADD COLUMN ${col}`); } catch { /* đã có */ }
+}
 
 export { ROSTER, MANAGER_ID, pickRelevantStaffIds, isMarketing };
 
@@ -20,6 +24,8 @@ export function rowToStaff(r) {
     signCode: r.sign_code, trainingText: r.training_text, trainingVersion: r.training_version,
     mainSoftware: r.main_software, responsibilities: r.responsibilities,
     seat: { deskIndex: r.desk_index, zone: r.zone }, lastBrainLabel: r.last_brain_label,
+    manualStatus: r.manual_status || 'resting', color: r.color || STAFF_COLORS[r.id] || '#f2a516',
+    trainingHistory: r.training_history ? JSON.parse(r.training_history) : [],
   };
 }
 

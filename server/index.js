@@ -8,13 +8,15 @@ import { hashPassword, verifyPassword, randomToken, sha256, putSecret, deleteSec
 import { seedStaff, listStaff, getStaff } from './roster.js';
 import {
   listConfigs, publicConfig, checkConfig, listModelsForKey, selectBrain, API_ROLES, PROVIDERS,
-  CLAUDE_DEFAULT_MODEL, BrainError, providerErrorText, assertPublicBaseUrl, workingStaff,
+  CLAUDE_DEFAULT_MODEL, BrainError, providerErrorText, assertPublicBaseUrl, workingStaff, recentSaid,
 } from './brain.js';
 import {
   createTask, getTaskRow, rowToTask, startGeneralTask, getSession, userSaysInSession, closeByButton,
   executeTask, finishSession, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions,
 } from './tasks.js';
 import { groupChat, privateChat, consultColleagues, listMessages, isBusy } from './chat.js';
+import { STAFF_STATUSES, validateProfile, pushTrainingHistory } from '../shared/core.js';
+import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
 import { listReports, generateReport, isGenerating, startReportScheduler } from './reports.js';
@@ -33,7 +35,7 @@ const indexHtml = fs.readFileSync(path.join(here, '..', 'public', 'index.html'),
 const importMap = /<script type="importmap">([\s\S]*?)<\/script>/.exec(indexHtml)?.[1] ?? '';
 const importMapHash = crypto.createHash('sha256').update(importMap).digest('base64');
 const CSP = [
-  "default-src 'self'", `script-src 'self' 'sha256-${importMapHash}'`, "style-src 'self' 'unsafe-inline'",
+  "default-src 'self'", `script-src 'self' 'sha256-${importMapHash}'`, "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
   "img-src 'self' data: blob:", "connect-src 'self' https://api.open-meteo.com", "frame-ancestors 'none'",
   "base-uri 'self'", "form-action 'self'", "object-src 'none'",
 ].join('; ');
@@ -197,13 +199,45 @@ app.get('/api/staff', auth, wrap((req, res) => {
   res.json(listStaff(req.accountId).map((s) => staffView(req.accountId, s)));
 }));
 
+function saveTraining(accountId, s, text) {
+  if (!text) throw new Error('Đào tạo không được để trống.');
+  if (text.length > 20000) throw new Error('Đào tạo quá dài (tối đa 20000 ký tự).');
+  // Lưu bản hiện tại vào lịch sử trước khi thay bằng bản mới.
+  const history = pushTrainingHistory(s.trainingHistory, s.trainingVersion, s.trainingText);
+  db.prepare('UPDATE staff SET training_text = ?, training_version = training_version + 1, training_history = ? WHERE account_id = ? AND id = ?')
+    .run(text, JSON.stringify(history), accountId, s.id);
+}
+
 app.put('/api/staff/:id/training', auth, wrap((req, res) => {
   const s = getStaff(req.accountId, req.params.id);
   if (!s) throw new Error('Không tìm thấy nhân viên.');
-  const text = String(req.body?.trainingText || '').trim();
-  if (!text) throw new Error('Đào tạo không được để trống.');
-  db.prepare('UPDATE staff SET training_text = ?, training_version = training_version + 1 WHERE account_id = ? AND id = ?')
-    .run(text, req.accountId, s.id);
+  saveTraining(req.accountId, s, String(req.body?.trainingText || '').trim());
+  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+}));
+
+app.post('/api/staff/:id/training/restore', auth, wrap((req, res) => {
+  const s = getStaff(req.accountId, req.params.id);
+  if (!s) throw new Error('Không tìm thấy nhân viên.');
+  const h = s.trainingHistory.find((x) => x.version === Number(req.body?.version));
+  if (!h) throw new Error('Không tìm thấy phiên bản đào tạo này.');
+  saveTraining(req.accountId, s, h.text);
+  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+}));
+
+app.put('/api/staff/:id/status', auth, wrap((req, res) => {
+  const s = getStaff(req.accountId, req.params.id);
+  if (!s) throw new Error('Không tìm thấy nhân viên.');
+  if (!STAFF_STATUSES[req.body?.status]) throw new Error('Trạng thái không hợp lệ.');
+  db.prepare('UPDATE staff SET manual_status = ? WHERE account_id = ? AND id = ?').run(req.body.status, req.accountId, s.id);
+  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+}));
+
+app.put('/api/staff/:id/profile', auth, wrap((req, res) => {
+  const s = getStaff(req.accountId, req.params.id);
+  if (!s) throw new Error('Không tìm thấy nhân viên.');
+  const p = validateProfile(req.body || {});
+  if (p.shortLabel) db.prepare('UPDATE staff SET short_label = ? WHERE account_id = ? AND id = ?').run(p.shortLabel, req.accountId, s.id);
+  if (p.color) db.prepare('UPDATE staff SET color = ? WHERE account_id = ? AND id = ?').run(p.color, req.accountId, s.id);
   res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
 }));
 
@@ -335,7 +369,9 @@ function textOf(body, field = 'text') {
 
 app.post('/api/chat/group', auth, wrap(async (req, res) => {
   const text = textOf(req.body);
-  groupChat(req.accountId, text).catch((e) => console.error(e));
+  const target = req.body?.target ? String(req.body.target) : null;
+  if (target && !getStaff(req.accountId, target)) throw new Error('Không tìm thấy nhân viên.');
+  groupChat(req.accountId, text, target).catch((e) => console.error(e));
   res.json({ ok: true });
 }));
 
@@ -354,8 +390,14 @@ app.post('/api/staff/:id/consult', auth, wrap(async (req, res) => {
 }));
 
 // ---------- Việc ----------
+// Danh sách việc kèm các bước trong bản chốt (để xem trực tiếp nhân viên đang làm bước nào).
 app.get('/api/tasks', auth, wrap((req, res) => {
-  res.json(db.prepare('SELECT * FROM tasks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId).map(rowToTask));
+  const plans = Object.fromEntries(db.prepare('SELECT id, final_plan FROM debate_sessions WHERE account_id = ? AND final_plan IS NOT NULL').all(req.accountId)
+    .map((r) => [r.id, JSON.parse(r.final_plan)]));
+  res.json(db.prepare('SELECT * FROM tasks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId).map((r) => {
+    const t = rowToTask(r);
+    return { ...t, planSteps: planSteps(plans[t.debateSessionId], listStaff(req.accountId)) };
+  }));
 }));
 
 app.post('/api/tasks', auth, wrap((req, res) => {
@@ -472,7 +514,7 @@ app.post('/api/reports', auth, wrap((req, res) => {
 }));
 
 // Nhân viên đang suy nghĩ — cho văn phòng 3D
-app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId) })));
+app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId) })));
 
 // ---------- Tổng quan ----------
 app.get('/api/overview', auth, wrap((req, res) => {
@@ -485,6 +527,8 @@ app.get('/api/overview', auth, wrap((req, res) => {
     zaloQueued: count("SELECT COUNT(*) n FROM zalo_queue WHERE account_id = ? AND status = 'queued'"),
     zaloError: count("SELECT COUNT(*) n FROM zalo_queue WHERE account_id = ? AND status = 'error'"),
     slips: count('SELECT COUNT(*) n FROM sales_slips WHERE account_id = ?'),
+    groupMessages: count("SELECT COUNT(*) n FROM messages WHERE account_id = ? AND channel = 'group'"),
+    openTasks: count("SELECT COUNT(*) n FROM tasks WHERE account_id = ? AND status NOT IN ('done')"),
   });
 }));
 

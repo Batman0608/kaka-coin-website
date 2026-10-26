@@ -262,6 +262,15 @@ export async function runJudge(io) {
   return { text, plan };
 }
 
+// Các bước trong bản chốt, dạng gọn để giao diện hiển thị tiến trình theo từng người.
+export function planSteps(plan, allStaff) {
+  if (!plan) return [];
+  return arr(plan.keHoach).map((k, i) => {
+    const s = resolveStaff(k.nguoiThucHien, allStaff);
+    return { key: `b${i + 1}`, label: `Bước ${k.buoc ?? i + 1}: ${str(k.viec, 300)}`, staffId: s?.id || null, staffName: s?.name || str(k.nguoiThucHien), criteria: str(k.tieuChiDat) };
+  });
+}
+
 // ---------- Thực hiện theo bản chốt + Quản lý kiểm tra từng kết quả ----------
 export function resolveStaff(name, allStaff) {
   const n = str(name).toLocaleLowerCase('vi');

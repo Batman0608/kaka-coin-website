@@ -196,8 +196,14 @@ function imagesOf(ctx) {
  * nếu bộ não riêng lỗi thì ghi nguyên văn lỗi, thử Claude mặc định kèm nhãn dự phòng + lý do;
  * nếu vẫn lỗi thì ném BrainError để nơi gọi giữ nguyên trạng thái việc.
  */
-// Nhân viên đang suy nghĩ (để văn phòng 3D hiển thị người đang làm việc).
+// Nhân viên đang suy nghĩ và câu vừa nói (để văn phòng 3D hiển thị người đang làm việc và bong bóng thoại thật).
 const working = new Map();
+const said = new Map();
+export function recentSaid(accountId, withinMs = 90000) {
+  const out = {};
+  for (const [k, v] of said) if (k.startsWith(accountId + ':') && Date.now() - Date.parse(v.at) < withinMs) out[k.slice(accountId.length + 1)] = v;
+  return out;
+}
 export function workingStaff(accountId) {
   return [...working.keys()].filter((k) => k.startsWith(accountId + ':')).map((k) => k.slice(accountId.length + 1));
 }
@@ -206,7 +212,10 @@ export async function thinkWithBrain(accountId, staff, brain, ctx) {
   const key = `${accountId}:${staff.id}`;
   working.set(key, (working.get(key) || 0) + 1);
   try {
-    return await thinkOnce(accountId, staff, brain, ctx);
+    const r = await thinkOnce(accountId, staff, brain, ctx);
+    // Câu trả lời dạng JSON (các vòng phản biện) không hợp làm bong bóng thoại.
+    if (!/^\s*[{[`]/.test(r.text)) said.set(key, { text: r.text.replace(/\s+/g, ' ').slice(0, 140), at: new Date().toISOString() });
+    return r;
   } finally {
     const n = working.get(key) - 1;
     if (n > 0) working.set(key, n); else working.delete(key);

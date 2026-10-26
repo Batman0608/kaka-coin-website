@@ -83,8 +83,8 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
 server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
           reports.js (báo cáo 21:00) · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
-trial/    index.html · main.js · backend.js — bản trải nghiệm chạy trong Claude
-public/   index.html · app.js (3 cột, panel) · office3d.js (Three.js, sàn 26x18) · style.css
+trial/    main.js · backend.js — bản trải nghiệm chạy trong Claude (trang được sinh từ public/index.html khi đóng gói)
+public/   index.html · app.js (giao diện: ngăn kéo nhân viên, văn phòng 3D, bảng chi tiết) · office3d.js (Three.js, sàn 30x20) · music.js (nhạc nền tự tạo) · style.css
 bridge/   zalo-bridge.js (chạy trên máy người dùng)
 test/     checklist.js · fake-provider.js
 .claude/skills/  bộ skill kỹ thuật từ addyosmani/agent-skills (MIT)
