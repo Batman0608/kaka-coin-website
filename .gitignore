@@ -1,44 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đồng Coin KAKA - Trí Tuệ Nhân Tạo AI</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-
-<body>
-    <header>
-        <h1>Đồng Coin KAKA</h1>
-        <p>Khám phá sức mạnh của Trí Tuệ Nhân Tạo và hấp dẫn với KAKA Coin!</p>
-    </header>
-
-    <section id="about">
-        <h2>Về Chúng Tôi</h2>
-        <p>Dự án KAKA nổi bật với sự kết hợp giữa đồng coin và Trí Tuệ Nhân Tạo AI.</p>
-        <p>Chúng tôi cam kết mang đến trải nghiệm độc đáo và giải trí cho cộng đồng của mình.</p>
-    </section>
-
-    <section id="milestones">
-        <h2>Mốc Giao Đoạn</h2>
-        <ul>
-            <li>💡 Ra mắt: Tháng 3, 2024</li>
-            <li>🚀 Bắt đầu ICO: Tháng 4, 2024</li>
-            <li>🌐 Đăng ký sàn giao dịch: Tháng 5, 2024</li>
-            <li>🎉 Sự kiện ra mắt: Tháng 6, 2024</li>
-        </ul>
-    </section>
-
-    <section id="contact">
-        <h2>Liên Hệ Chúng Tôi</h2>
-        <p>Email: info@kakacoin.com</p>
-        <p>Địa chỉ: 123 Đường ABC, Thành phố XYZ</p>
-    </section>
-
-    <footer>
-        <p>&copy; 2024 Đồng Coin KAKA. Đã đăng ký Bản quyền.</p>
-    </footer>
-</body>
-
-</html>
+node_modules/
+data/
+*.db
+*.db-wal
+*.db-shm
+.app-secret
+.env
+.env.*
+!.env.example

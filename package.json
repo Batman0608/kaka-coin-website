@@ -1,0 +1,20 @@
+{
+  "name": "van-phong-ao",
+  "version": "1.0.0",
+  "description": "Văn phòng ảo nhiều tài khoản — 10 nhân sự AI, mặc định dùng Claude, có thể gắn API riêng cho từng người",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning test/checklist.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "express": "^4.22.3",
+    "three": "^0.160.0"
+  }
+}

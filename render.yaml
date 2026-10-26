@@ -1,0 +1,19 @@
+# Triển khai 1 bấm trên Render (render.com → New → Blueprint → chọn repo này).
+# Cần gói có ổ đĩa bền vững (starter trở lên) để dữ liệu văn phòng không mất khi deploy lại.
+services:
+  - type: web
+    name: van-phong-ao
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APP_SECRET
+        generateValue: true
+      - key: REGISTRATION_CODE
+        sync: false

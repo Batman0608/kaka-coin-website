@@ -1,0 +1,73 @@
+# Văn phòng ảo — 10 nhân sự AI
+
+Ứng dụng web dựng theo đặc tả "Code lõi văn phòng ảo". Mở bằng trình duyệt ở bất kỳ máy nào, đăng nhập là vào đúng văn phòng của mình. **Mỗi tài khoản là một văn phòng riêng**: nhân sự, đào tạo, API, việc, phiếu bán và hàng chờ Zalo đều tách biệt.
+
+- **10 nhân sự cố định:** An, Bình, Tuấn (Marketing); Sơn, Dũng, Hà, Phúc (Vận hành và kiểm soát); Chi, Trang, Minh (Hỗ trợ và kỹ thuật). Phúc là Quản lý, ngồi giữa phía dưới, giữa hai dãy bàn.
+- **Bộ não mặc định là Claude** (`claude-opus-5-5`), dùng `ANTHROPIC_API_KEY` của server. Muốn đổi bộ não cho ai thì vào **Nhân viên → Bộ não / API** và gắn key Claude, OpenAI hoặc nhà cung cấp tương thích OpenAI (Gemini, DeepSeek, OpenRouter…). Có thể gắn nhiều API theo vai trò: chung, thiết kế hình ảnh, viết bài, phân tích chuyên sâu, kênh Zalo.
+- Thứ tự chọn bộ não: API chuyên môn đã kiểm tra đạt → API chung → API mặc định công ty (**Cài đặt**) → Claude mặc định. Mỗi câu trả lời đều ghi nhãn bộ não đã dùng; khi phải dùng dự phòng thì nhãn ghi kèm lý do.
+- **Kiểm tra key chỉ liệt kê model**, không gửi câu hỏi thử. Khi gọi chat lỗi, giao diện hiện nguyên văn lý do nhà cung cấp trả về (ví dụ HTTP 400, số dư tín dụng quá thấp).
+
+## Chạy thử trên máy
+
+```bash
+npm install
+cp .env.example .env          # rồi điền ANTHROPIC_API_KEY
+export $(grep -v '^#' .env | xargs)
+npm start                     # http://localhost:3000
+```
+
+Cần Node.js 22.13 trở lên. Cơ sở dữ liệu SQLite nằm ở `DATA_DIR` (mặc định `./data`).
+
+## Đưa lên mạng để có link dùng ở mọi máy
+
+Dữ liệu nằm trong file SQLite, nên nơi hosting **phải có ổ đĩa bền vững**. Nếu không có, dữ liệu sẽ mất mỗi lần deploy lại.
+
+**Render (dễ nhất):** render.com → New → Blueprint → chọn repo này. File `render.yaml` đã cấu hình Docker, ổ đĩa `/data` và các biến môi trường. Điền `ANTHROPIC_API_KEY` khi được hỏi. Link có dạng `https://van-phong-ao.onrender.com`.
+
+**Railway / Fly.io / VPS:** dùng `Dockerfile` và gắn volume vào `/data`.
+
+Biến môi trường:
+
+| Biến | Ý nghĩa |
+|---|---|
+| `ANTHROPIC_API_KEY` | Key Claude cho bộ não mặc định (mọi văn phòng trên server dùng chung, chi phí tính vào key này) |
+| `APP_SECRET` | Chuỗi ngẫu nhiên dài để mã hoá key API của người dùng. Đừng đổi sau khi đã có dữ liệu |
+| `REGISTRATION_CODE` | Nếu đặt, người tạo văn phòng mới phải nhập mã mời này, tránh người lạ dùng key của bạn |
+| `ALLOW_REGISTRATION=false` | Tắt hẳn việc tạo văn phòng mới |
+| `NODE_ENV=production` | Bật cookie Secure và HSTS (bắt buộc khi chạy HTTPS) |
+
+## Cầu nối Zalo
+
+Zalo chạy qua cầu nối local trên máy của bạn, dùng chính ứng dụng Zalo của bạn. Trong tab **Zalo**, tạo mã `LPA-ZALO-XXXXXX` (dùng 1 lần, hiệu lực 30 phút), rồi chạy trên máy:
+
+```bash
+node bridge/zalo-bridge.js https://link-van-phong-cua-ban LPA-ZALO-XXXXXX
+```
+
+Bản hiện tại chạy ở chế độ xác nhận thủ công: cầu nối in nội dung cần gửi, bạn gửi bằng Zalo, gõ `y` thì biên nhận được trả về văn phòng. Nhiệm vụ báo xong mà không có biên nhận sẽ bị từ chối. Mỗi lúc chỉ một nhiệm vụ được gửi. Khi cầu nối tắt, nhiệm vụ nằm chờ, không bị mất.
+
+## Kiểm thử
+
+```bash
+npm test
+```
+
+Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fanpage, hỏi đích danh, tham vấn, kiểm tra đạt nhưng chat lỗi 400, bộ não lỗi, tranh luận việc chung, Quản lý dừng việc, phiếu thiếu thông tin, Zalo không biên nhận, dữ liệu bền vững) cùng các ca bảo mật. Bộ test dùng nhà cung cấp giả lập (`test/fake-provider.js`), không tốn tín dụng thật; mọi câu trả lời giả đều có nhãn `[TEST]`.
+
+## Bảo mật
+
+- Mật khẩu băm bằng scrypt. Phiên đăng nhập dùng cookie HttpOnly, SameSite=Lax, Secure khi chạy production. Khi phiên hết hạn, ứng dụng không tự đăng nhập lại mà yêu cầu người dùng tự đăng nhập.
+- Key API và mã truy cập phần mềm được mã hoá AES-256-GCM ở server. Giao diện chỉ hiện 4 ký tự cuối.
+- Có CSP và các security header khác, chặn yêu cầu ghi dữ liệu từ origin lạ (chống CSRF), giới hạn 10 lần đăng nhập sai trong 15 phút, và chặn Base URL trỏ vào địa chỉ nội bộ (chống SSRF).
+- **Cài đặt → Xoá văn phòng** xoá vĩnh viễn toàn bộ dữ liệu của tài khoản.
+
+## Cấu trúc
+
+```
+server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, giao thức suy nghĩ, gọi nhà cung cấp)
+          tasks.js (việc, tranh luận 10 phút, quyền dừng) · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+public/   index.html · app.js (3 cột, panel) · office3d.js (Three.js, sàn 26x18) · style.css
+bridge/   zalo-bridge.js (chạy trên máy người dùng)
+test/     checklist.js · fake-provider.js
+.claude/skills/  bộ skill kỹ thuật từ addyosmani/agent-skills (MIT)
+```
