@@ -4,10 +4,16 @@
   --mkt: #e07a3f; --ops: #2f6fdf; --sup: #2d8a4e;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #12151b; --surface: #1a1e26; --surface-2: #222733; --text: #e6e9ef; --muted: #98a1b3;
     --border: #2e3442; --accent: #5b8ef0; --danger: #e06262; --ok: #4fb874; --warn: #d9a23f;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1e26; --surface-2: #222733; --text: #e6e9ef; --muted: #98a1b3;
+  --border: #2e3442; --accent: #5b8ef0; --danger: #e06262; --ok: #4fb874; --warn: #d9a23f;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -44,12 +50,14 @@ button:disabled { opacity: .5; cursor: default; }
 .auth-card .primary { width: 100%; margin-top: 10px; padding: 9px; }
 
 /* Bố cục 3 cột */
-.app { display: grid; height: 100vh; grid-template-columns: 230px 1fr 440px; grid-template-rows: 48px 1fr;
+.app { display: grid; height: 100%; grid-template-columns: 230px 1fr 470px; grid-template-rows: 48px 1fr;
   grid-template-areas: "top top top" "left center right"; }
+.app > * { min-width: 0; }
 .topbar { grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px;
   background: var(--surface); border-bottom: 1px solid var(--border); }
 .brand { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topinfo { display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+.topinfo { display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.topinfo > * { overflow-wrap: anywhere; }
 .left { grid-area: left; overflow: auto; padding: 10px; border-right: 1px solid var(--border); background: var(--surface); }
 .center { grid-area: center; position: relative; min-height: 300px; }
 #office3d { position: absolute; inset: 0; }
@@ -64,7 +72,7 @@ button:disabled { opacity: .5; cursor: default; }
 .overview { margin-top: 14px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; }
 
 .tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding: 6px 6px 0; }
-.tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 6px 9px; color: var(--muted); }
+.tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 6px 7px; color: var(--muted); }
 .tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .panel { flex: 1; overflow: auto; padding: 12px; min-height: 0; }
 .panel h2 { font-size: 17px; margin: 0 0 6px; }
@@ -90,13 +98,17 @@ button:disabled { opacity: .5; cursor: default; }
 .composer textarea { min-height: 40px; }
 .typing { font-size: 12px; color: var(--muted); font-style: italic; }
 
-.toast { position: fixed; right: 16px; bottom: 16px; max-width: 420px; background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 8px; z-index: 50; white-space: pre-wrap; }
+.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--text) 35%, transparent); display: grid; place-items: center; padding: 16px; z-index: 60; }
+.dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-width: 420px; width: 100%; display: grid; gap: 12px; }
+.dialog .row { justify-content: flex-end; }
+.notice { margin: 0; padding: 6px 14px; font-size: 13px; background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--text); border-bottom: 1px solid var(--border); }
+.toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: 420px; background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 8px; z-index: 50; white-space: pre-wrap; }
 
 @media (max-width: 1100px) {
   .app { grid-template-columns: 200px 1fr 380px; }
 }
 @media (max-width: 820px) {
-  .app { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto 300px auto;
+  .app { height: auto; min-height: 100%; grid-template-columns: 1fr; grid-template-rows: auto auto 300px auto;
     grid-template-areas: "top" "left" "center" "right"; }
   .topbar { flex-wrap: wrap; padding: 8px 16px; }
   .left { border-right: none; padding: 8px 16px; }

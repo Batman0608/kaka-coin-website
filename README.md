@@ -2,10 +2,24 @@
 
 Ứng dụng web dựng theo đặc tả "Code lõi văn phòng ảo". Mở bằng trình duyệt ở bất kỳ máy nào, đăng nhập là vào đúng văn phòng của mình. **Mỗi tài khoản là một văn phòng riêng**: nhân sự, đào tạo, API, việc, phiếu bán và hàng chờ Zalo đều tách biệt.
 
+- **Báo cáo cuối ngày 21:00:** Chi chuẩn bị đề xuất CSKH (chờ bạn duyệt), Phúc tổng hợp toàn văn phòng. Server tự tạo báo cáo cho văn phòng có hoạt động trong ngày; bạn cũng có thể bấm tạo bất cứ lúc nào.
+- **Quy trình Marketing 5 bước** khi thực hiện việc Marketing: Tuấn → An → Tuấn + Bình → Bình → Bình + Tuấn, Phúc giám sát.
+- **Dữ kiện thật nội bộ:** mỗi lượt trả lời đều nhận số liệu văn phòng đang có (phiếu, việc, hàng chờ, phần mềm đã liên kết). Nguồn chưa kết nối (giá, tồn kho KiotViet, số liệu Fanpage) được ghi rõ là "chưa cập nhật".
 - **10 nhân sự cố định:** An, Bình, Tuấn (Marketing); Sơn, Dũng, Hà, Phúc (Vận hành và kiểm soát); Chi, Trang, Minh (Hỗ trợ và kỹ thuật). Phúc là Quản lý, ngồi giữa phía dưới, giữa hai dãy bàn.
 - **Bộ não mặc định là Claude** (`claude-opus-5-5`), dùng `ANTHROPIC_API_KEY` của server. Muốn đổi bộ não cho ai thì vào **Nhân viên → Bộ não / API** và gắn key Claude, OpenAI hoặc nhà cung cấp tương thích OpenAI (Gemini, DeepSeek, OpenRouter…). Có thể gắn nhiều API theo vai trò: chung, thiết kế hình ảnh, viết bài, phân tích chuyên sâu, kênh Zalo.
 - Thứ tự chọn bộ não: API chuyên môn đã kiểm tra đạt → API chung → API mặc định công ty (**Cài đặt**) → Claude mặc định. Mỗi câu trả lời đều ghi nhãn bộ não đã dùng; khi phải dùng dự phòng thì nhãn ghi kèm lý do.
 - **Kiểm tra key chỉ liệt kê model**, không gửi câu hỏi thử. Khi gọi chat lỗi, giao diện hiện nguyên văn lý do nhà cung cấp trả về (ví dụ HTTP 400, số dư tín dụng quá thấp).
+
+## Bản trải nghiệm (chạy trong Claude)
+
+Bản trải nghiệm dùng chung giao diện và logic nghiệp vụ với bản server, nhưng chạy ngay trong claude.ai dưới dạng Artifact:
+
+- Không cần đăng nhập riêng: tài khoản claude.ai chính là tài khoản văn phòng. Dữ liệu của mỗi tài khoản nằm trong nhánh riêng tư của tài khoản đó.
+- Bộ não của mọi nhân viên là Claude, gọi qua tài khoản claude.ai của người xem và dùng hạn mức của tài khoản đó. Lần đầu dùng, Claude sẽ hỏi bạn cho phép. Phúc (Quản lý) dùng mức model cao nhất.
+- Những phần chỉ có ở bản server: gắn API riêng cho từng nhân viên, lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), cầu nối Zalo, thời tiết thật, và báo cáo tự chạy đúng 21:00 (bản trải nghiệm nhắc bạn bấm tạo báo cáo).
+- Phiên tranh luận tối đa 2 vòng thay vì 4, để tiết kiệm hạn mức.
+
+Đóng gói lại sau khi sửa code: `node scripts/build-trial.js`. Lệnh này tạo `dist-trial/`; thư mục này được publish thành Artifact. Backend của bản trải nghiệm nằm ở `trial/backend.js`.
 
 ## Chạy thử trên máy
 
@@ -64,8 +78,10 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 ## Cấu trúc
 
 ```
-server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, giao thức suy nghĩ, gọi nhà cung cấp)
-          tasks.js (việc, tranh luận 10 phút, quyền dừng) · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
+server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
+          reports.js (báo cáo 21:00) · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+trial/    index.html · main.js · backend.js — bản trải nghiệm chạy trong Claude
 public/   index.html · app.js (3 cột, panel) · office3d.js (Three.js, sàn 26x18) · style.css
 bridge/   zalo-bridge.js (chạy trên máy người dùng)
 test/     checklist.js · fake-provider.js

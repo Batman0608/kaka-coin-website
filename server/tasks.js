@@ -2,6 +2,7 @@
 import { db, now, newId } from './db.js';
 import { getStaff, pickRelevantStaffIds, MANAGER_ID, isMarketing } from './roster.js';
 import { selectBrain, thinkWithBrain, kindOfText } from './brain.js';
+import { executionPlan } from '../shared/core.js';
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
 const MAX_ROUNDS = Number(process.env.DEBATE_MAX_ROUNDS || 4);
@@ -214,20 +215,22 @@ export async function executeTask(accountId, taskId, plan) {
   updateTask(accountId, taskId, { status: 'in_progress', last_error: null });
   const row = getTaskRow(accountId, taskId);
   const outputs = [];
-  for (const id of JSON.parse(row.assignee_ids)) {
+  // Việc Marketing đi đúng 5 bước (Tuấn → An → Tuấn+Bình → Bình → Bình+Tuấn, Phúc giám sát).
+  for (const turn of executionPlan(rowToTask(row))) {
     if (isTaskBlocked(accountId, taskId)) return;
-    const staff = getStaff(accountId, id);
+    const staff = getStaff(accountId, turn.staffId);
+    const base = plan
+      ? `Bắt tay làm phần việc của bạn theo bản chốt sau và trả về kết quả cụ thể của phần bạn:\n${plan}`
+      : `Thực hiện việc "${row.title}"${row.description ? `: ${row.description}` : ''} và trả về kết quả cụ thể.`;
     try {
       const r = await thinkWithBrain(accountId, staff, selectBrain(accountId, staff, row.task_kind), {
         ...taskContext(getTaskRow(accountId, taskId)),
-        question: plan
-          ? `Bắt tay làm phần việc của bạn theo bản chốt sau và trả về kết quả cụ thể của phần bạn:\n${plan}`
-          : `Thực hiện việc "${row.title}"${row.description ? `: ${row.description}` : ''} và trả về kết quả cụ thể.`,
-        priorTurns: outputs.map((o) => ({ nguoi: o.staffName, noiDung: o.text })),
+        question: turn.label ? `${turn.label} của quy trình Marketing 5 bước: ${turn.ask}\n${base}` : base,
+        priorTurns: outputs.map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text || o.error })),
       });
-      outputs.push({ staffId: id, staffName: staff.name, text: r.text, brainLabel: r.brainLabel, errors: r.providerErrors, at: now() });
+      outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, text: r.text, brainLabel: r.brainLabel, errors: r.providerErrors, at: now() });
     } catch (e) {
-      outputs.push({ staffId: id, staffName: staff.name, error: e.message, brainLabel: e.brainLabel, at: now() });
+      outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, error: e.message, brainLabel: e.brainLabel, at: now() });
     }
     updateTask(accountId, taskId, { outputs: JSON.stringify(outputs) });
   }

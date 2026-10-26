@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword, randomToken, sha256, putSecret, deleteSec
 import { seedStaff, listStaff, getStaff } from './roster.js';
 import {
   listConfigs, publicConfig, checkConfig, listModelsForKey, selectBrain, API_ROLES, PROVIDERS,
-  CLAUDE_DEFAULT_MODEL, BrainError, providerErrorText, assertPublicBaseUrl,
+  CLAUDE_DEFAULT_MODEL, BrainError, providerErrorText, assertPublicBaseUrl, workingStaff,
 } from './brain.js';
 import {
   createTask, getTaskRow, rowToTask, startGeneralTask, getSession, userSaysInSession, closeByButton,
@@ -17,6 +17,7 @@ import {
 import { groupChat, privateChat, consultColleagues, listMessages, isBusy } from './chat.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
+import { listReports, generateReport, isGenerating, startReportScheduler } from './reports.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SESSION_DAYS = 30;
@@ -461,6 +462,17 @@ app.post('/bridge/next', bridgeAuth, wrap((req, res) => res.json({ item: zalo.cl
 app.post('/bridge/result', bridgeAuth, wrap((req, res) => res.json(zalo.reportResult(req.accountId, req.body?.id, req.body || {}))));
 app.post('/bridge/reply', bridgeAuth, wrap((req, res) => res.json(zalo.recordReply(req.accountId, req.body?.id, req.body?.reply))));
 
+// ---------- Báo cáo cuối ngày ----------
+app.get('/api/reports', auth, wrap((req, res) => res.json({ reports: listReports(req.accountId), generating: isGenerating(req.accountId) })));
+app.post('/api/reports', auth, wrap((req, res) => {
+  if (isGenerating(req.accountId)) throw new Error('Báo cáo đang được tạo.');
+  generateReport(req.accountId, 'manual').catch((e) => console.error(e));
+  res.json({ ok: true });
+}));
+
+// Nhân viên đang suy nghĩ — cho văn phòng 3D
+app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId) })));
+
 // ---------- Tổng quan ----------
 app.get('/api/overview', auth, wrap((req, res) => {
   const a = req.accountId;
@@ -490,5 +502,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       console.warn('Chưa đặt ANTHROPIC_API_KEY: nhân viên chưa gắn API riêng sẽ báo lỗi bộ não cho tới khi đặt.');
     }
     resumeRunningSessions();
+    startReportScheduler();
   });
 }

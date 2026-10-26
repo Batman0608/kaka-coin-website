@@ -2,25 +2,11 @@
 import { db, now, nextCounter } from './db.js';
 import { getStaff } from './roster.js';
 import { isTaskBlocked } from './tasks.js';
+import { assertSlipCanBeCreated, WAREHOUSE_FLOW, SALE_ID, KHO_ID, KE_TOAN_ID } from '../shared/core.js';
 
-export const REQUIRED = ['customerName', 'customerPhone', 'customerAddress', 'productNameAndCode', 'quantity', 'paymentMethod'];
-const LABELS = {
-  customerName: 'tên khách', customerPhone: 'số điện thoại', customerAddress: 'địa chỉ',
-  productNameAndCode: 'sản phẩm và mã', quantity: 'số lượng', paymentMethod: 'phương thức thanh toán',
-};
-const SALE = 'STAFF-004', KHO = 'STAFF-005', KE_TOAN = 'STAFF-006';
-const WAREHOUSE_FLOW = ['pending', 'stock_checked', 'preparing', 'delivered', 'delivery_photo_recorded'];
+export { assertSlipCanBeCreated };
 
-export function assertSlipCanBeCreated(input) {
-  for (const field of REQUIRED) {
-    let v = input[field];
-    if (typeof v === 'string') v = v.trim();
-    if (field === 'quantity') v = Number(v);
-    if (v === undefined || v === null || v === '' || v === 0 || Number.isNaN(v)) {
-      throw new Error(`Thiếu thông tin bắt buộc để tạo phiếu: ${field} (${LABELS[field]}). Sale phải hỏi thêm khách.`);
-    }
-  }
-}
+const SALE = SALE_ID, KHO = KHO_ID, KE_TOAN = KE_TOAN_ID;
 
 function rowToSlip(r) {
   return {

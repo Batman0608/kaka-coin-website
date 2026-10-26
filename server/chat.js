@@ -1,6 +1,7 @@
 // Chat nhóm, hỏi riêng từng nhân viên và tham vấn đồng nghiệp.
 import { db, now, newId } from './db.js';
 import { listStaff, getStaff, pickRelevantStaffIds } from './roster.js';
+import { addressedStaffId } from '../shared/core.js';
 import { selectBrain, thinkWithBrain, kindOfText } from './brain.js';
 
 export function addMessage(accountId, channel, sender, text, brainLabel = null, isError = false) {
@@ -25,16 +26,8 @@ function recentTurns(accountId, channel, staffById) {
 
 // Hỏi đích danh: tên nhân viên đứng đầu câu hoặc có @Tên → chỉ người đó trả lời.
 export function addressedStaff(accountId, text) {
-  const staff = listStaff(accountId);
-  const t = text.trim();
-  const lower = t.toLocaleLowerCase('vi');
-  for (const s of staff) {
-    const n = s.name.toLocaleLowerCase('vi');
-    if (lower.includes(`@${n}`)) return s;
-    const re = new RegExp(`^(anh |chị |em |bạn )?${n}(\\s|,|:|ơi|$)`, 'u');
-    if (re.test(lower)) return s;
-  }
-  return null;
+  const id = addressedStaffId(listStaff(accountId), text);
+  return id ? getStaff(accountId, id) : null;
 }
 
 async function answerAs(accountId, staff, channel, question, staffById) {

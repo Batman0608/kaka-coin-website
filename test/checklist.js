@@ -9,7 +9,7 @@ import { startFakeProvider } from './fake-provider.js';
 const fake = await startFakeProvider();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vpa-test-'));
 Object.assign(process.env, {
-  DATA_DIR: dir, ANTHROPIC_BASE_URL: fake.url, ANTHROPIC_API_KEY: 'sk-ant-default-PLACEHOLDER',
+  DATA_DIR: dir, VPA_ANTHROPIC_BASE_URL: fake.url, ANTHROPIC_API_KEY: 'sk-ant-default-PLACEHOLDER',
   APP_SECRET: 'test-secret', DEBATE_MINUTES: process.env.DEBATE_MINUTES || '10',
 });
 
@@ -141,9 +141,15 @@ await B('/api/register', { username: 'test-b', password: 'matkhau-test-2', offic
   const t = (await A('/api/tasks', { title: 'Lên chiến dịch quảng cáo cho sản phẩm mới', kind: 'general', attachments: [{ fileName: 'sp.png', mimeType: 'image/png', data: img, productName: 'Bơm xe (TEST)', priceNote: '350.000đ' }] })).data;
   const d = await waitFor(async () => { const r = (await A(`/api/tasks/${t.id}`)).data; return r.task.status === 'done' && r; }, 15000);
   const s = d.session;
-  check('Ca tranh luận việc chung (tự chốt)', s.status === 'closed_by_keyword' && s.finalSummary && d.task.outputs.length === d.task.assigneeIds.length
+  check('Ca tranh luận việc chung (tự chốt)', s.status === 'closed_by_keyword' && s.finalSummary && d.task.outputs.length >= d.task.assigneeIds.length
     && fake.state.calls.some((c) => c.body.messages[0].content.some((b) => b.type === 'image')) && s.turns[0].staffId === 'STAFF-003',
     `Người tham gia: ${d.task.assigneeIds.join(', ')}; ${s.turns.length} lượt; đóng: ${s.status}; Phúc chốt; ${d.task.outputs.length} kết quả thực hiện; ảnh + giá đã gửi vào bối cảnh`);
+  const steps = d.task.outputs.map((o) => `${o.step?.slice(0, 6)}:${o.staffName}`);
+  const expected = ['Bước 1:Tuấn', 'Bước 2:An', 'Bước 3:Tuấn', 'Bước 3:Bình', 'Bước 4:Bình', 'Bước 5:Bình', 'Bước 5:Tuấn', 'Bước 5:Phúc'];
+  check('Quy trình Marketing 5 bước khi thực hiện', JSON.stringify(steps) === JSON.stringify(expected), steps.join(' → '));
+  const sys = fake.state.calls.at(-1).body.system;
+  check('Dữ kiện thật nội bộ trong mỗi lượt, nguồn chưa nối ghi "chưa cập nhật"', /"phieuBanHang"/.test(sys) && /chưa cập nhật/.test(sys),
+    `Lượt gần nhất mang dữ kiện: ${/Dữ kiện thật đã có: (.{0,160})/.exec(sys)?.[1]}…`);
   const t2 = (await A('/api/tasks', { title: 'Kế hoạch bán hàng quý (TEST)', kind: 'general' })).data;
   await A(`/api/tasks/${t2.id}/say`, { text: 'chốt công việc' });
   const d2 = await waitFor(async () => { const r = (await A(`/api/tasks/${t2.id}`)).data; return r.session.status !== 'running' && r; });
@@ -235,6 +241,18 @@ let zIds = [];
   const link = (await A2('/api/staff')).data.find((s) => s.id === 'STAFF-005').softwareLinks[0];
   check('Ca dữ liệu bền vững', after.staff === 10 && after.tasks === before.tasks && after.softwareLinks === linksBefore && zAfter === zBefore && link.accessCodeLast4 === 'LDER' && !JSON.stringify(link).includes('ma-truy-cap'),
     `Sau khi mở lại: ${after.staff} nhân sự, ${after.tasks} việc, ${after.softwareLinks} liên kết (chỉ hiện ···${link.accessCodeLast4}), hàng chờ Zalo khớp: ${zAfter === zBefore}`);
+}
+
+// --- Báo cáo cuối ngày + hoạt động 3D ---
+{
+  const R = client(base); // server vừa khởi động lại ở ca trên
+  await R('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const r0 = await R('/api/reports', {});
+  const d = await waitFor(async () => { const r = (await R('/api/reports')).data; return !r.generating && r.reports[0]?.summary && r; }, 10000);
+  const rep = d?.reports[0];
+  const act = (await R('/api/activity')).data;
+  check('Báo cáo cuối ngày: Chi đề xuất, Phúc tổng hợp', r0.status === 200 && rep?.cskhText?.includes('Chi') && rep.summary.includes('Phúc') && rep.brainLabel && Array.isArray(act.working),
+    `Chi: "${rep?.cskhText?.slice(0, 70)}…"; Phúc: "${rep?.summary?.slice(0, 70)}…"; /api/activity → ${JSON.stringify(act)}`);
 }
 
 // --- Bảo mật (theo skill security-and-hardening) ---

@@ -19,14 +19,21 @@ const WAREHOUSE_NEXT = { pending: 'stock_checked', stock_checked: 'preparing', p
 const state = { me: null, staff: [], selected: 'STAFF-007', view: 'staff', sub: 'chat', refresh: null, office: null, taskDetail: null };
 
 // ---------- API ----------
-async function api(path, opts = {}) {
+// Mặc định gọi server thật; bản trải nghiệm thay bằng backend chạy trong trình duyệt (cùng hợp đồng API).
+async function fetchTransport(path, { method, body }) {
   const res = await fetch(path, {
-    method: opts.method || (opts.body ? 'POST' : 'GET'),
-    headers: opts.body ? { 'content-type': 'application/json' } : {},
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    method,
+    headers: body ? { 'content-type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });
-  const data = await res.json().catch(() => ({}));
+  return { status: res.status, ok: res.ok, data: await res.json().catch(() => ({})) };
+}
+const transport = globalThis.__VPA_TRANSPORT__ || fetchTransport;
+
+async function api(path, opts = {}) {
+  const res = await transport(path, { method: opts.method || (opts.body ? 'POST' : 'GET'), body: opts.body });
+  const data = res.data;
   if (res.status === 401 && !path.startsWith('/api/login')) {
     showAuth(data.expired ? 'Phiên đăng nhập đã hết hạn. Vui lòng tự đăng nhập lại.' : '');
     throw new Error(data.error || 'Chưa đăng nhập');
@@ -40,6 +47,23 @@ function toast(msg, ms = 4000) {
   t.textContent = msg; t.classList.remove('hidden');
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => t.classList.add('hidden'), ms);
+}
+
+// Hộp xác nhận ngay trong trang (khung Artifact không hiện confirm() của trình duyệt).
+function askConfirm(message, okLabel = 'Đồng ý') {
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = `<div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cfMsg">
+      <p id="cfMsg" style="margin:0">${esc(message)}</p>
+      <div class="row"><button type="button" data-a="no">Huỷ</button><button type="button" class="danger" data-a="yes">${esc(okLabel)}</button></div></div>`;
+    const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    ov.addEventListener('click', (e) => { const a = e.target.closest('[data-a]')?.dataset.a; if (a) done(a === 'yes'); else if (e.target === ov) done(false); });
+    document.addEventListener('keydown', onKey);
+    document.body.append(ov);
+    $('[data-a="no"]', ov).focus();
+  });
 }
 
 async function act(fn, okMsg) {
@@ -87,6 +111,7 @@ function tickClock() {
   $('#clock').textContent = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short', day: '2-digit', month: '2-digit' });
 }
 async function loadWeather() {
+  if (state.me?.trial) { $('#weather').textContent = 'Thời tiết TP.HCM: chưa cập nhật'; $('#weather').title = 'Bản trải nghiệm không kết nối mạng ngoài'; return; }
   try {
     const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=10.82&longitude=106.63&current=temperature_2m,relative_humidity_2m,weather_code&timezone=Asia%2FHo_Chi_Minh');
     if (!r.ok) throw new Error();
@@ -107,7 +132,7 @@ function renderLeft() {
     ${list.map((s) => `
       <button class="staff-item ${s.id === state.selected && state.view === 'staff' ? 'active' : ''}" data-staff="${s.id}">
         <span class="dot" style="background:${GROUP_COLOR[s.group]}"></span>
-        <span>${esc(s.name)} <small>${esc(s.role)} · ${esc(s.currentBrain.source === 'claude_fallback' ? 'Claude mặc định' : 'API riêng')}</small></span>
+        <span>${esc(s.name)} <small>${esc(s.role)} · ${esc({ claude_fallback: 'Claude mặc định', claude_account: 'Claude' }[s.currentBrain.source] || 'API riêng')}</small></span>
       </button>`).join('')}`).join('');
 }
 $('#staffGroups').addEventListener('click', (e) => {
@@ -144,7 +169,7 @@ function setView(view) {
   for (const t of $('#mainTabs').children) t.classList.toggle('active', t.dataset.view === view);
   renderLeft();
   state.office?.select(view === 'staff' ? state.selected : null);
-  ({ staff: viewStaff, group: viewGroup, tasks: viewTasks, slips: viewSlips, zalo: viewZalo, settings: viewSettings })[view]();
+  ({ staff: viewStaff, group: viewGroup, tasks: viewTasks, slips: viewSlips, zalo: viewZalo, reports: viewReports, settings: viewSettings })[view]();
 }
 
 const staffById = (id) => state.staff.find((s) => s.id === id);
@@ -202,7 +227,7 @@ const SUBS = [['chat', 'Hỏi riêng'], ['tasks', 'Việc'], ['brain', 'Bộ nã
 function viewStaff() {
   const s = staffById(state.selected);
   if (!s) return mount('<p class="muted">Chọn một nhân viên.</p>');
-  const brainBadge = s.currentBrain.source === 'claude_fallback' ? 'warn' : 'ok';
+  const brainBadge = s.currentBrain.source === 'claude_fallback' ? 'warn' : 'ok'; // claude_account (bản trải nghiệm) là bộ não chính, không phải dự phòng
   const head = document.createElement('div');
   head.innerHTML = `
     <h2>${esc(s.name)} — ${esc(s.role)}</h2>
@@ -269,6 +294,11 @@ function subBrain(s, body) {
 
 // Trình quản lý API dùng chung cho nhân viên và API mặc định công ty.
 function apiConfigEditor(ownerId, body, title) {
+  if (state.me.trial) {
+    body.innerHTML = `<div class="card"><strong>Bản trải nghiệm</strong>
+      <p class="kv">Bộ não hiện tại: Claude qua tài khoản claude.ai của bạn. Gắn API riêng (Claude, OpenAI, Gemini…) theo vai trò, kiểm tra key và chọn model có ở bản server khi đưa ra ngoài.</p></div>`;
+    return null;
+  }
   body.innerHTML = `
     <p class="kv">Thứ tự chọn bộ não: API chuyên môn khớp loại việc và đã kiểm tra đạt → API chung → API mặc định công ty → Claude mặc định (dự phòng, có ghi lý do).<br>
     <b>Kiểm tra key chỉ liệt kê model</b>, không gửi câu hỏi thử. Kiểm tra đạt không có nghĩa gọi trả lời sẽ thành công (số dư, hạn mức, quyền model chỉ bị kiểm tra khi gọi thật).</p>
@@ -325,7 +355,7 @@ function apiConfigEditor(ownerId, body, title) {
       await act(() => api(`/api/api-config/${id}`, { method: 'PUT', body: { enabled: b.dataset.enabled !== '1' } }));
       refresh(); loadStaff();
     } else if (b.dataset.act === 'delete') {
-      if (confirm('Xoá API này? Key sẽ bị xoá khỏi server.')) { await act(() => api(`/api/api-config/${id}`, { method: 'DELETE' })); refresh(); loadStaff(); }
+      if (await askConfirm('Xoá API này? Key sẽ bị xoá khỏi server.', 'Xoá')) { await act(() => api(`/api/api-config/${id}`, { method: 'DELETE' })); refresh(); loadStaff(); }
     }
   });
   list.addEventListener('change', async (e) => {
@@ -363,7 +393,7 @@ function subSoftware(s, body) {
       <datalist id="swList"><option>KiotViet</option><option>Fanpage</option><option>Meta Ads</option><option>Messenger</option><option>Zalo</option></datalist>
       <label>Đường dẫn <input name="url" required placeholder="https://"></label>
       <label>Phạm vi quyền <input name="permissionScope" placeholder="Ví dụ: chỉ đọc tồn kho"></label>
-      <label>Mã truy cập (chỉ nhập ở đây, chỉ hiện 4 ký tự cuối) <input name="accessCode" type="password" autocomplete="off"></label>
+      <label>Mã truy cập (chỉ nhập ở đây, chỉ hiện 4 ký tự cuối${state.me.trial ? '; bản trải nghiệm chỉ giữ 4 ký tự cuối, không lưu mã đầy đủ' : ''}) <input name="accessCode" type="password" autocomplete="off"></label>
       <label>Trạng thái <select name="status"><option value="not_connected">Chưa kết nối</option><option value="connected">Đã kết nối</option><option value="expired">Hết hạn</option></select></label>
       <button class="primary">Thêm</button>
     </form>`;
@@ -380,7 +410,7 @@ function subSoftware(s, body) {
   };
   body.addEventListener('click', async (e) => {
     if (e.target.dataset.open) api(`/api/links/${e.target.dataset.open}`, { method: 'PUT', body: { opened: true } });
-    if (e.target.dataset.del && confirm('Xoá liên kết?')) { render(await api(`/api/links/${e.target.dataset.del}`, { method: 'DELETE' })); loadOverview(); }
+    if (e.target.dataset.del && await askConfirm('Xoá liên kết phần mềm này?', 'Xoá')) { render(await api(`/api/links/${e.target.dataset.del}`, { method: 'DELETE' })); loadOverview(); }
   });
   body.addEventListener('change', async (e) => {
     if (e.target.dataset.status) render(await api(`/api/links/${e.target.dataset.status}`, { method: 'PUT', body: { status: e.target.value } }));
@@ -543,7 +573,7 @@ function viewTaskDetail(id) {
       $('#sayForm', wrap).classList.toggle('hidden', s.status !== 'running');
     }
     $('#outputs', wrap).innerHTML = t.outputs.length ? `<h3>Kết quả thực hiện</h3>${t.outputs.map((o) => `
-      <div class="msg ${o.error ? 'err' : ''}"><div class="who">${esc(o.staffName)}</div><div class="body">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>
+      <div class="msg ${o.error ? 'err' : ''}"><div class="who">${o.step ? `${esc(o.step)} · ` : ''}${esc(o.staffName)}</div><div class="body">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>
       ${o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''}</div>`).join('')}` : '';
   }
   mount(wrap, refresh);
@@ -634,12 +664,13 @@ function viewZalo() {
   const wrap = document.createElement('div');
   wrap.innerHTML = `<h2>Hàng chờ Zalo</h2>
     <p class="kv">Zalo chạy qua cầu nối local trên máy tính của bạn, dùng chính ứng dụng Zalo của bạn. Văn phòng là nguồn sự thật; cầu nối chỉ gửi, nhận và trả biên nhận. Không đưa mật khẩu hay mã QR Zalo qua chat.</p>
+    ${state.me.trial ? '<p class="kv"><b>Bản trải nghiệm:</b> hàng chờ, duyệt nội dung và mã liên kết hoạt động đầy đủ, nhưng cầu nối chỉ kết nối được với bản server, nên worker luôn hiện "Đã tắt" và lệnh gửi bị từ chối, đúng như quy tắc khi worker tắt.</p>' : ''}
     <div class="card" id="worker"></div>
     <div class="card"><div class="row"><strong class="grow">Mã liên kết cầu nối</strong><button id="newCode" class="primary">Tạo mã (30 phút, dùng 1 lần)</button></div>
       <div id="codes"></div><button id="revokeBridges" class="danger" style="margin-top:6px">Ngắt mọi cầu nối đã liên kết</button></div>
     <h3>Nhiệm vụ</h3><div id="queue"></div>`;
   $('#newCode', wrap).onclick = async () => { await act(() => api('/api/zalo/link-codes', { body: {} })); refresh(); };
-  $('#revokeBridges', wrap).onclick = async () => { if (confirm('Ngắt mọi cầu nối?')) { await act(() => api('/api/zalo/bridges/revoke', { body: {} })); refresh(); } };
+  $('#revokeBridges', wrap).onclick = async () => { if (await askConfirm('Ngắt mọi cầu nối Zalo đã liên kết?', 'Ngắt')) { await act(() => api('/api/zalo/bridges/revoke', { body: {} })); refresh(); } };
   wrap.addEventListener('click', async (e) => {
     if (e.target.dataset.revoke) { await act(() => api(`/api/zalo/link-codes/${e.target.dataset.revoke}/revoke`, { body: {} })); refresh(); }
   });
@@ -659,6 +690,7 @@ function viewZalo() {
 function viewSettings() {
   const wrap = document.createElement('div');
   const cd = state.me.claudeDefault;
+  if (state.me.trial) return viewTrialSettings(wrap);
   wrap.innerHTML = `<h2>Cài đặt văn phòng</h2>
     <div class="card"><strong>Bộ não mặc định</strong>
       <p class="kv">Nhân viên chưa gắn API riêng dùng Claude <code>${esc(cd.model)}</code> do server cung cấp —
@@ -681,7 +713,7 @@ function viewSettings() {
     </form>`;
   $('#delForm', wrap).addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!confirm('Xoá vĩnh viễn văn phòng này?')) return;
+    if (!await askConfirm('Xoá vĩnh viễn văn phòng này? Không khôi phục được.', 'Xoá vĩnh viễn')) return;
     if (await act(() => api('/api/me', { method: 'DELETE', body: { password: e.target.password.value } }))) showAuth('Đã xoá văn phòng.');
   });
   $('#accForm', wrap).addEventListener('submit', async (e) => {
@@ -695,12 +727,87 @@ function viewSettings() {
   mount(wrap, refresh);
 }
 
+// Bản trải nghiệm: không mật khẩu (đăng nhập bằng tài khoản claude.ai), không gắn API ngoài.
+function viewTrialSettings(wrap) {
+  wrap.innerHTML = `<h2>Cài đặt văn phòng</h2>
+    <div class="card"><strong>Bản trải nghiệm</strong>
+      <p class="kv">Văn phòng này chạy trong Claude: bộ não của mọi nhân viên là Claude qua tài khoản claude.ai của bạn (dùng hạn mức của tài khoản, lần đầu sẽ hỏi bạn cho phép). Dữ liệu lưu riêng cho tài khoản của bạn.</p>
+      <p class="kv">Gắn API riêng cho từng nhân viên, mã truy cập phần mềm đầy đủ và cầu nối Zalo chỉ có ở bản server (khi đưa ra ngoài).</p></div>
+    <h3>Tài khoản</h3>
+    <form class="card" id="accForm">
+      <label>Tên văn phòng <input name="officeName" value="${esc(state.me.officeName)}"></label>
+      <label>Tên công ty (nhân viên dùng trong câu trả lời) <input name="companyName" value="${esc(state.me.companyName)}"></label>
+      <button class="primary">Lưu</button>
+    </form>
+    <form class="card" id="delForm">
+      <strong>Xoá dữ liệu văn phòng</strong>
+      <p class="kv">Xoá toàn bộ việc, tin nhắn, phiếu, hàng chờ và đào tạo; văn phòng trở về trạng thái ban đầu.</p>
+      <button class="danger">Xoá và làm lại từ đầu</button>
+    </form>`;
+  $('#accForm', wrap).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (await act(() => api('/api/me', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }), 'Đã lưu.')) await loadMe();
+  });
+  $('#delForm', wrap).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!await askConfirm('Xoá toàn bộ dữ liệu văn phòng và làm lại từ đầu?', 'Xoá dữ liệu')) return;
+    if (await act(() => api('/api/me', { method: 'DELETE', body: {} }), 'Đã xoá dữ liệu.')) { await loadMe(); await loadStaff(); setView('staff'); }
+  });
+  mount(wrap, null);
+}
+
+// ---------- Báo cáo cuối ngày ----------
+function viewReports() {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<h2>Báo cáo cuối ngày</h2>
+    <p class="kv">Lúc 21:00 (giờ Việt Nam), Chi chuẩn bị đề xuất CSKH (chờ bạn duyệt, không tự gửi) và Phúc tổng hợp báo cáo toàn văn phòng.
+    ${state.me.trial ? 'Ở bản trải nghiệm, báo cáo được tạo khi văn phòng đang mở sau 21:00, hoặc khi bạn bấm nút.' : 'Server tự tạo cho văn phòng có hoạt động trong ngày.'}</p>
+    <button class="primary" id="mkReport">Tạo báo cáo ngay</button>
+    <div id="reports"></div>`;
+  $('#mkReport', wrap).onclick = async () => { await act(() => api('/api/reports', { body: {} }), 'Đang tạo báo cáo…'); refresh(); };
+  async function refresh() {
+    const d = await api('/api/reports');
+    $('#mkReport', wrap).disabled = d.generating;
+    $('#reports', wrap).innerHTML = (d.generating ? '<p class="typing">Chi và Phúc đang làm báo cáo…</p>' : '') + (d.reports.length ? d.reports.map((r) => `
+      <div class="card">
+        <div class="row"><strong class="grow">Báo cáo ${esc(r.date)}</strong><span class="badge">${r.trigger === 'schedule' ? 'Tự động 21:00' : 'Tạo tay'}</span></div>
+        <div class="kv">${esc(fmtTime(r.createdAt))}</div>
+        ${r.summary ? `<div class="msg"><div class="who">Phúc — tổng hợp</div><div class="body">${esc(r.summary)}</div><div class="brain">Bộ não: ${esc(r.brainLabel)}</div></div>` : ''}
+        ${r.cskhText ? `<div class="msg"><div class="who">Chi — đề xuất CSKH (chờ duyệt)</div><div class="body">${esc(r.cskhText)}</div><div class="brain">Bộ não: ${esc(r.cskhBrain)}</div></div>` : ''}
+        ${r.error ? `<div class="error">Bộ não lỗi, phần này chưa có: ${esc(r.error)}</div>` : ''}
+        ${!r.summary && !r.cskhText && !r.error ? '<p class="typing">Đang tạo…</p>' : ''}
+      </div>`).join('') : '<p class="muted">Chưa có báo cáo.</p>');
+  }
+  mount(wrap, refresh);
+}
+
 // ---------- Khởi động ----------
 async function loadMe() {
   state.me = await api('/api/me');
   $('#officeName').textContent = state.me.officeName;
   $('#companyName').textContent = `· ${state.me.companyName} · ${state.me.username}`;
+  $('#logoutBtn').classList.toggle('hidden', !!state.me.trial);
+  $('#sessionState').textContent = state.me.trial ? 'Bản trải nghiệm' : 'Đã đăng nhập';
   document.title = `${state.me.officeName} — Văn phòng ảo`;
+}
+
+function showNotice(text) {
+  let n = $('#notice');
+  if (!text) { n?.remove(); return; }
+  if (!n) { n = document.createElement('p'); n.id = 'notice'; n.className = 'notice'; n.setAttribute('role', 'status'); $('.right').prepend(n); }
+  n.textContent = text;
+}
+
+// Nhân viên đang suy nghĩ thì nhún nhảy trên văn phòng 3D.
+async function loadActivity() {
+  const a = await api('/api/activity').catch(() => null);
+  if (!a) return;
+  if (state.office) for (const s of state.staff) state.office.setBusy(s.id, a.working.includes(s.id));
+  showNotice(a.storageWarning || state.me?.storageWarning || '');
+  if (a.reportDue && state.reportNagged !== new Date().toDateString()) {
+    state.reportNagged = new Date().toDateString();
+    toast('Đã đến giờ báo cáo cuối ngày 21:00. Mở tab Báo cáo và bấm "Tạo báo cáo ngay".', 9000);
+  }
 }
 
 async function boot() {
@@ -724,6 +831,7 @@ async function boot() {
     try {
       await state.refresh?.();
       loadOverview();
+      loadActivity();
     } catch { /* 401 đã được xử lý trong api() */ }
   }, 3000);
 }

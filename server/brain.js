@@ -4,6 +4,10 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import { db, now } from './db.js';
 import { getSecret } from './secrets.js';
+import { buildThinkingPrompt, kindOfText } from '../shared/core.js';
+import { realDataFor } from './realdata.js';
+
+export { buildThinkingPrompt, kindOfText };
 
 export const CLAUDE_DEFAULT_MODEL = process.env.CLAUDE_DEFAULT_MODEL || 'claude-opus-5-5';
 export const API_ROLES = ['general', 'image_design', 'writing', 'deep_analysis', 'zalo_channel'];
@@ -74,41 +78,20 @@ export function selectBrain(accountId, staff, kind = 'general') {
   return claudeFallback(staff, 'nhân viên chưa gắn API riêng');
 }
 
-// ---------- Giao thức suy nghĩ bắt buộc ----------
-export function buildThinkingPrompt(staff, companyName, ctx) {
-  return `
-Bạn là ${staff.name}, vai trò ${staff.role} tại ${companyName}.
-Đào tạo riêng của bạn (phiên bản ${staff.trainingVersion}): ${staff.trainingText}
-
-GIAO THỨC SUY NGHĨ BẮT BUỘC, theo đúng thứ tự:
-1. Đọc đúng câu hỏi: "${ctx.question}". Trả lời đúng câu hỏi này, không trả lời câu hỏi khác.
-2. Tách rõ hai nhóm: dữ kiện ĐÃ CÓ trong bối cảnh và dữ kiện CHƯA BIẾT.
-   Chưa biết thì nói rõ là chưa biết, không bịa số liệu, giá, tồn kho hay kết quả.
-3. Phân tích CHỈ trong chuyên môn của bạn (${staff.role}).
-   Không nói thay phần việc của người khác. Phần của người khác thì nêu tên người phụ trách.
-4. Đưa phương án CỤ THỂ thuộc phần việc của bạn, kèm bước tiếp theo rõ ràng và mốc kiểm tra của bạn.
-5. Nếu lượt trước có ý kiến của đồng nghiệp, phản biện hoặc bổ sung có lý do, không lặp lại nguyên văn.
-
-Đồng nghiệp: An (Nội dung), Bình (Quảng cáo), Tuấn (Phân tích thị trường), Sơn (Sale), Dũng (Kho), Hà (Kế toán), Phúc (Quản lý), Chi (Tư vấn và CSKH), Trang (Nhân sự và Hiệu suất), Minh (Pháp lý và Rủi ro).
-Trả lời bằng tiếng Việt, ngắn gọn, đi thẳng vào việc.${ctx.extraInstructions ? `\n\n${ctx.extraInstructions}` : ''}
-
-Bối cảnh việc: ${JSON.stringify(ctx.currentTask ?? null)}
-Sản phẩm và giá đính kèm: ${JSON.stringify((ctx.attachments || []).map((a) => ({ fileName: a.fileName, productName: a.productName, priceNote: a.priceNote })))}
-Dữ kiện thật đã có: ${JSON.stringify(ctx.realData || {})}
-Các lượt nói trước: ${JSON.stringify(ctx.priorTurns || [])}
-`.trim();
-}
-
 // ---------- Gọi nhà cung cấp ----------
+// Địa chỉ API đặt tường minh: không để SDK tự đọc ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN của môi trường
+// (nơi chạy có thể đặt các biến đó cho công cụ khác). VPA_ANTHROPIC_BASE_URL chỉ dùng cho kiểm thử.
+const ANTHROPIC_BASE = process.env.VPA_ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+
 function anthropicClient(key) {
-  const opts = { maxRetries: 1, timeout: 5 * 60 * 1000 };
-  if (process.env.ANTHROPIC_BASE_URL) opts.baseURL = process.env.ANTHROPIC_BASE_URL;
+  const opts = { maxRetries: 1, timeout: 5 * 60 * 1000, baseURL: ANTHROPIC_BASE };
   if (key && key.startsWith('sk-ant-oat')) {
     // Token OAuth: gửi qua Authorization: Bearer kèm beta oauth.
     return new Anthropic({ ...opts, apiKey: null, authToken: key, defaultHeaders: { 'anthropic-beta': 'oauth-2025-04-20' } });
   }
-  if (key) return new Anthropic({ ...opts, apiKey: key });
-  return new Anthropic(opts); // dùng ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN của server
+  if (key) return new Anthropic({ ...opts, apiKey: key, authToken: null });
+  // Bộ não mặc định của server
+  return new Anthropic({ ...opts, apiKey: process.env.ANTHROPIC_API_KEY || null, authToken: process.env.ANTHROPIC_API_KEY ? null : (process.env.ANTHROPIC_AUTH_TOKEN || null) });
 }
 
 // Trích nguyên văn lý do nhà cung cấp trả về, không chỉ mã HTTP.
@@ -213,9 +196,26 @@ function imagesOf(ctx) {
  * nếu bộ não riêng lỗi thì ghi nguyên văn lỗi, thử Claude mặc định kèm nhãn dự phòng + lý do;
  * nếu vẫn lỗi thì ném BrainError để nơi gọi giữ nguyên trạng thái việc.
  */
+// Nhân viên đang suy nghĩ (để văn phòng 3D hiển thị người đang làm việc).
+const working = new Map();
+export function workingStaff(accountId) {
+  return [...working.keys()].filter((k) => k.startsWith(accountId + ':')).map((k) => k.slice(accountId.length + 1));
+}
+
 export async function thinkWithBrain(accountId, staff, brain, ctx) {
+  const key = `${accountId}:${staff.id}`;
+  working.set(key, (working.get(key) || 0) + 1);
+  try {
+    return await thinkOnce(accountId, staff, brain, ctx);
+  } finally {
+    const n = working.get(key) - 1;
+    if (n > 0) working.set(key, n); else working.delete(key);
+  }
+}
+
+async function thinkOnce(accountId, staff, brain, ctx) {
   const account = db.prepare('SELECT company_name FROM accounts WHERE id = ?').get(accountId);
-  const system = buildThinkingPrompt(staff, account?.company_name || 'công ty', ctx);
+  const system = buildThinkingPrompt(staff, account?.company_name || 'công ty', { ...ctx, realData: ctx.realData ?? realDataFor(accountId) });
   const userText = ctx.question;
   const images = imagesOf(ctx);
   const providerErrors = [];
@@ -277,12 +277,4 @@ export async function checkConfig(accountId, cfg) {
     db.prepare('UPDATE api_configs SET last_check_at = ?, last_check_ok = 0, last_provider_error = ? WHERE id = ?').run(now(), msg, cfg.id);
     return { ok: false, error: msg };
   }
-}
-
-// Phân loại việc → loại bộ não chuyên môn.
-export function kindOfText(text) {
-  if (/thiết kế|hình ảnh|ảnh bìa|banner|poster|logo|design/i.test(text)) return 'image_design';
-  if (/viết bài|soạn bài|caption|nội dung|content|kịch bản|hook/i.test(text)) return 'writing';
-  if (/phân tích sâu|phân tích chuyên sâu|báo cáo phân tích|đánh giá chuyên sâu|nghiên cứu/i.test(text)) return 'deep_analysis';
-  return 'general';
 }
