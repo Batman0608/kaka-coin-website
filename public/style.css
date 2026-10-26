@@ -102,6 +102,12 @@ button:disabled { opacity: .5; cursor: default; }
 .dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-width: 420px; width: 100%; display: grid; gap: 12px; }
 .dialog .row { justify-content: flex-end; }
 .notice { margin: 0; padding: 6px 14px; font-size: 13px; background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--text); border-bottom: 1px solid var(--border); }
+.phase { margin: 14px 0 2px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.table-wrap { overflow-x: auto; margin: 8px 0; }
+table.score { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.score caption { text-align: left; margin-bottom: 4px; }
+table.score th, table.score td { border-bottom: 1px solid var(--border); padding: 5px 6px; text-align: left; }
+table.score tr.lead td { font-weight: 600; background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
 .toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: 420px; background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 8px; z-index: 50; white-space: pre-wrap; }
 
 @media (max-width: 1100px) {

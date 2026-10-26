@@ -12,7 +12,7 @@ import {
 } from './brain.js';
 import {
   createTask, getTaskRow, rowToTask, startGeneralTask, getSession, userSaysInSession, closeByButton,
-  executeTask, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions,
+  executeTask, finishSession, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions,
 } from './tasks.js';
 import { groupChat, privateChat, consultColleagues, listMessages, isBusy } from './chat.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
@@ -373,7 +373,7 @@ app.post('/api/tasks', auth, wrap((req, res) => {
   }));
   const id = createTask(req.accountId, { title, description, kind, assigneeIds, attachments: atts, taskKind });
   if (kind === 'general') startGeneralTask(req.accountId, id);
-  else executeTask(req.accountId, id, null).catch((e) => console.error(e));
+  else executeTask(req.accountId, id).catch((e) => console.error(e));
   res.json(rowToTask(getTaskRow(req.accountId, id)));
 }));
 
@@ -390,10 +390,11 @@ app.post('/api/tasks/:id/retry', auth, wrap((req, res) => {
   if (row.status === 'stopped_by_manager') throw new Error('Việc đang bị Quản lý dừng. Cần Quản lý hoặc người dùng cho phép mở lại.');
   if (row.kind === 'general') {
     const s = row.debate_session_id && getSession(req.accountId, row.debate_session_id);
-    if (s && s.status !== 'running' && s.finalSummary) executeTask(req.accountId, row.id, s.finalSummary).catch(console.error);
+    if (s && s.status !== 'running' && s.finalSummary) executeTask(req.accountId, row.id).catch(console.error);
+    else if (s && s.status !== 'running') finishSession(req.accountId, s.id).catch(console.error);
     else startGeneralTask(req.accountId, row.id);
   } else {
-    executeTask(req.accountId, row.id, null).catch(console.error);
+    executeTask(req.accountId, row.id).catch(console.error);
   }
   res.json({ ok: true });
 }));

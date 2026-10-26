@@ -70,10 +70,14 @@ await B('/api/register', { username: 'test-b', password: 'matkhau-test-2', offic
 // --- Ca Fanpage ---
 {
   await A('/api/chat/group', { text: 'Cả nhóm ơi, làm sao tăng like Fanpage?' });
-  const msgs = await waitFor(async () => { const m = (await A('/api/messages/group')).data; return !m.busy && m.messages.length >= 4 && m; });
+  const msgs = await waitFor(async () => { const m = (await A('/api/messages/group')).data; return !m.busy && m.messages.length >= 5 && m; });
   const answers = msgs.messages.filter((m) => m.sender !== 'user');
   const order = answers.map((m) => m.sender);
   const texts = answers.map((m) => m.text);
+  const groupCalls = fake.state.calls.slice(-4).map((c) => c.body.system);
+  check('Chat nhóm: người sau xét từng câu trả lời trước, Phúc kết luận ý tốt nhất', !/xét LẦN LƯỢT TỪNG câu trả lời của đồng nghiệp/.test(groupCalls[0])
+    && groupCalls.slice(1, 3).every((x) => /xét LẦN LƯỢT TỪNG câu trả lời của đồng nghiệp/.test(x)) && order.at(-1) === 'STAFF-007' && /ghi rõ ý đó của ai/.test(groupCalls[3]),
+    `Thứ tự: ${order.join(' → ')}; Bình và An được yêu cầu xét từng câu trước; Phúc kết luận cuối`);
   check('Ca Fanpage', order[0] === 'STAFF-003' && order.includes('STAFF-001') && order.includes('STAFF-002') && !order.includes('STAFF-006')
     && new Set(texts).size === texts.length && answers.every((m) => m.brainLabel),
     `Người trả lời theo thứ tự: ${order.join(', ')} (Tuấn đầu tiên, không có Kế toán); ${new Set(texts).size}/${texts.length} câu khác nhau; mỗi câu có nhãn bộ não`);
@@ -133,6 +137,9 @@ await B('/api/register', { username: 'test-b', password: 'matkhau-test-2', offic
   await A(`/api/tasks/${t.id}/retry`, {});
   const d2 = await waitFor(async () => { const r = (await A(`/api/tasks/${t.id}`)).data.task; return r.status === 'done' && r; });
   check('Thử lại sau khi bộ não hồi phục', d2?.status === 'done', `Sau thử lại: ${d2?.status}`);
+  const steps = d2.outputs.map((o) => `${o.step} (${o.staffName})`);
+  check('Việc riêng: bản nháp → đồng nghiệp phản biện từng điểm → bản cuối', d2.outputs.length === 3 && d2.outputs[1].staffId !== 'STAFF-006' && /Phản biện của/.test(d2.outputs[1].step) && /▸/.test(d2.outputs[1].text),
+    steps.join(' → '));
 }
 
 // --- Ca tranh luận việc chung ---
@@ -144,12 +151,33 @@ await B('/api/register', { username: 'test-b', password: 'matkhau-test-2', offic
   check('Ca tranh luận việc chung (tự chốt)', s.status === 'closed_by_keyword' && s.finalSummary && d.task.outputs.length >= d.task.assigneeIds.length
     && fake.state.calls.some((c) => c.body.messages[0].content.some((b) => b.type === 'image')) && s.turns[0].staffId === 'STAFF-003',
     `Người tham gia: ${d.task.assigneeIds.join(', ')}; ${s.turns.length} lượt; đóng: ${s.status}; Phúc chốt; ${d.task.outputs.length} kết quả thực hiện; ảnh + giá đã gửi vào bối cảnh`);
-  const steps = d.task.outputs.map((o) => `${o.step?.slice(0, 6)}:${o.staffName}`);
-  const expected = ['Bước 1:Tuấn', 'Bước 2:An', 'Bước 3:Tuấn', 'Bước 3:Bình', 'Bước 4:Bình', 'Bước 5:Bình', 'Bước 5:Tuấn', 'Bước 5:Phúc'];
-  check('Quy trình Marketing 5 bước khi thực hiện', JSON.stringify(steps) === JSON.stringify(expected), steps.join(' → '));
+  const phases = s.turns.filter((x) => x.phase).map((x) => x.phase);
+  const count = (p) => phases.filter((x) => x === p).length;
+  const n = d.task.assigneeIds.length;
+  check('Phản biện chéo đủ 4 vòng rồi Phúc chọn', ['propose', 'critique', 'revise', 'score'].every((p) => count(p) === n) && count('judge') === 1
+    && phases.indexOf('critique') > phases.lastIndexOf('propose') && phases.indexOf('judge') > phases.lastIndexOf('score'),
+    `Các vòng: ${['propose', 'critique', 'revise', 'score', 'judge'].map((p) => `${p}×${count(p)}`).join(', ')}`);
+  const proposeCalls = fake.state.calls.filter((c) => /VÒNG 1 — ĐỀ XUẤT ĐỘC LẬP/.test(c.body.system));
+  const critiqueCalls = fake.state.calls.filter((c) => /VÒNG 2 — PHẢN BIỆN CHÉO/.test(c.body.system));
+  const ownExcluded = critiqueCalls.every((c) => { const who = /Bạn là (.+?), vai trò/.exec(c.body.system)[1]; const ids = /Mã đề xuất cần xét: ([P\d, ]+)/.exec(c.body.system)[1].match(/P\d+/g); return ids.length === n - 1 && !new RegExp(`### P\\d \\(${who} `).test(c.body.system); });
+  check('Đề xuất độc lập; phản biện từng đề xuất của người khác, không tự phản biện', proposeCalls.length >= n && proposeCalls.every((c) => /Các lượt nói trước: \[\]/.test(c.body.system)) && ownExcluded,
+    `Đề xuất độc lập của ${[...new Set(proposeCalls.map((c) => /Bạn là (.+?),/.exec(c.body.system)[1]))].join(', ')} (lượt trước trống); mỗi người phản biện ${n - 1} đề xuất của người khác`);
+  check('Bảng điểm phản biện và chấm lại (không tự chấm)', d.session.scoreboard.length === n && d.session.scoreboard.every((b) => b.critiqueScore !== null && b.finalScore !== null && b.revised),
+    d.session.scoreboard.map((b) => `${b.proposalId} ${b.authorName}: ${b.critiqueScore} → ${b.finalScore}`).join('; '));
+  const ex = d.task.outputs.map((o) => `${o.step?.split(':')[0]}:${o.staffName}`);
+  check('Ý của ai tốt thì dùng: giao bước theo ý tưởng, không theo vai trò; Phúc kiểm tra từng kết quả', ex[0] === 'Bước 1:An' && ex[1] === 'Bước 2:Tuấn' && /Phúc kiểm tra/.test(d.task.outputs.at(-1).step) && /Bước 1: ĐẠT/.test(d.task.outputs.at(-1).text) && /ý của An/.test(s.finalSummary),
+    `${ex.join(' → ')}; bản chốt: "${s.finalSummary.split('\n').find((l) => l.includes('của An'))}"`);
   const sys = fake.state.calls.at(-1).body.system;
   check('Dữ kiện thật nội bộ trong mỗi lượt, nguồn chưa nối ghi "chưa cập nhật"', /"phieuBanHang"/.test(sys) && /chưa cập nhật/.test(sys),
     `Lượt gần nhất mang dữ kiện: ${/Dữ kiện thật đã có: (.{0,160})/.exec(sys)?.[1]}…`);
+  fake.state.failReview = true;
+  const tr = (await A('/api/tasks', { title: 'Tăng tương tác Fanpage tuần này (TEST)', kind: 'general', assigneeIds: ['STAFF-001', 'STAFF-003'] })).data;
+  const dr = await waitFor(async () => { const r = (await A(`/api/tasks/${tr.id}`)).data; return r.task.status === 'returned_for_redo' && r; }, 15000);
+  fake.state.failReview = false;
+  await A(`/api/tasks/${tr.id}/retry`, {});
+  const dr2 = await waitFor(async () => { const r = (await A(`/api/tasks/${tr.id}`)).data; return r.task.status === 'done' && r; }, 15000);
+  check('Phúc kiểm tra thấy bước chưa đạt → trả làm lại kèm lý do, làm lại thì đạt', dr?.task.status === 'returned_for_redo' && /Bước 1/.test(dr.task.returnReason) && dr.task.passCriteria && dr2?.task.status === 'done',
+    `Trả lại: "${dr?.task.returnReason}" — tiêu chí: "${dr?.task.passCriteria}"; sau làm lại: ${dr2?.task.status}`);
   const t2 = (await A('/api/tasks', { title: 'Kế hoạch bán hàng quý (TEST)', kind: 'general' })).data;
   await A(`/api/tasks/${t2.id}/say`, { text: 'chốt công việc' });
   const d2 = await waitFor(async () => { const r = (await A(`/api/tasks/${t2.id}`)).data; return r.session.status !== 'running' && r; });

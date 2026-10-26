@@ -1,12 +1,11 @@
-// Việc riêng / việc chung, phiên tranh luận tự động tối đa 10 phút, quyền dừng của Quản lý.
+// Việc riêng / việc chung, phiên phản biện tự động tối đa 10 phút, quyền dừng của Quản lý.
 import { db, now, newId } from './db.js';
-import { getStaff, pickRelevantStaffIds, MANAGER_ID, isMarketing } from './roster.js';
+import { getStaff, listStaff, pickRelevantStaffIds, MANAGER_ID, isMarketing } from './roster.js';
 import { selectBrain, thinkWithBrain, kindOfText } from './brain.js';
 import { executionPlan } from '../shared/core.js';
+import { runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard } from '../shared/deliberation.js';
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
-const MAX_ROUNDS = Number(process.env.DEBATE_MAX_ROUNDS || 4);
-const CONSENSUS = '[ĐỒNG THUẬN]';
 
 export function rowToTask(r) {
   return {
@@ -62,24 +61,40 @@ function taskContext(row) {
   };
 }
 
-// ---------- Phiên tranh luận ----------
+// ---------- Phiên tranh luận: đề xuất → phản biện chéo → sửa → chấm lại → Phúc chọn ----------
+try { db.exec('ALTER TABLE debate_turns ADD COLUMN meta TEXT'); } catch { /* đã có */ }
+try { db.exec('ALTER TABLE debate_sessions ADD COLUMN final_plan TEXT'); } catch { /* đã có */ }
+
 const running = new Set();
+const finishing = new Set();
+const executing = new Set();
+
+function sessionTurns(sessionId) {
+  return db.prepare('SELECT * FROM debate_turns WHERE session_id = ? ORDER BY created_at, rowid').all(sessionId)
+    .map((t) => ({ id: t.id, staffId: t.staff_id, text: t.text, brainLabel: t.brain_label, createdAt: t.created_at, meta: t.meta ? JSON.parse(t.meta) : null }));
+}
 
 export function getSession(accountId, id) {
   const s = db.prepare('SELECT * FROM debate_sessions WHERE account_id = ? AND id = ?').get(accountId, id);
   if (!s) return null;
-  const turns = db.prepare('SELECT * FROM debate_turns WHERE session_id = ? ORDER BY created_at, rowid').all(id)
-    .map((t) => ({ id: t.id, staffId: t.staff_id, text: t.text, brainLabel: t.brain_label, createdAt: t.created_at }));
-  return { id: s.id, taskId: s.task_id, startedAt: s.started_at, deadlineAt: s.deadline_at, status: s.status, finalSummary: s.final_summary, turns, runnerActive: running.has(id) };
+  const turns = sessionTurns(id);
+  const row = getTaskRow(accountId, s.task_id);
+  const participants = JSON.parse(row.assignee_ids).map((x) => getStaff(accountId, x)).filter(Boolean);
+  return {
+    id: s.id, taskId: s.task_id, startedAt: s.started_at, deadlineAt: s.deadline_at, status: s.status, finalSummary: s.final_summary,
+    turns: turns.map((t) => ({ ...t, phase: t.meta?.phase || null, meta: undefined })),
+    scoreboard: scoreboard(turns, participants, (x) => getStaff(accountId, x)?.name || x),
+    runnerActive: running.has(id) || finishing.has(id) || executing.has(s.task_id),
+  };
 }
 
-function appendTurn(accountId, sessionId, staffId, text, brainLabel) {
-  db.prepare('INSERT INTO debate_turns (id, account_id, session_id, staff_id, text, brain_label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(newId('DT-'), accountId, sessionId, staffId, text, brainLabel, now());
+function appendTurn(accountId, sessionId, staffId, text, brainLabel, meta = null) {
+  db.prepare('INSERT INTO debate_turns (id, account_id, session_id, staff_id, text, brain_label, created_at, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(newId('DT-'), accountId, sessionId, staffId, text, brainLabel, now(), meta ? JSON.stringify(meta) : null);
 }
 
-function sessionStatus(id) {
-  return db.prepare('SELECT status FROM debate_sessions WHERE id = ?').get(id)?.status;
+function sessionRow(id) {
+  return db.prepare('SELECT * FROM debate_sessions WHERE id = ?').get(id);
 }
 
 export function startGeneralTask(accountId, taskId) {
@@ -87,67 +102,61 @@ export function startGeneralTask(accountId, taskId) {
   if (!row) throw new Error('Không tìm thấy việc.');
   if (row.status === 'stopped_by_manager') throw new Error('Việc đang bị Quản lý dừng.');
   let sessionId = row.debate_session_id;
-  if (!sessionId || sessionStatus(sessionId) !== 'running') {
+  if (!sessionId || sessionRow(sessionId)?.status !== 'running') {
     sessionId = newId('DS-');
     const start = new Date();
     const deadline = new Date(start.getTime() + DEBATE_MINUTES * 60 * 1000);
     db.prepare('INSERT INTO debate_sessions (id, account_id, task_id, started_at, deadline_at, status) VALUES (?, ?, ?, ?, ?, ?)')
       .run(sessionId, accountId, taskId, start.toISOString(), deadline.toISOString(), 'running');
-    updateTask(accountId, taskId, { debate_session_id: sessionId, status: 'debating', last_error: null });
+    updateTask(accountId, taskId, { debate_session_id: sessionId, status: 'debating', last_error: null, outputs: '[]' });
   }
   runDebate(accountId, sessionId).catch((e) => console.error('debate', e));
   return sessionId;
 }
 
-const toPrior = (turns) => turns.map((t) => ({ nguoi: t.staffId === 'user' ? 'Người dùng' : (t.staffName || t.staffId), noiDung: t.text }));
+// Bộ não của nhân viên, có ghi lỗi nhà cung cấp vào phiên để người dùng thấy.
+function thinker(accountId, sessionId, taskKind) {
+  return async (staff, ctx) => {
+    const r = await thinkWithBrain(accountId, staff, selectBrain(accountId, staff, staff.id === MANAGER_ID ? 'deep_analysis' : taskKind), ctx);
+    if (sessionId) for (const pe of r.providerErrors) appendTurn(accountId, sessionId, 'system', `Lỗi bộ não của ${staff.name} (${pe.label}): ${pe.error}`, 'hệ thống');
+    return r;
+  };
+}
 
-function priorTurnsFor(accountId, sessionId) {
-  const s = getSession(accountId, sessionId);
-  return toPrior(s.turns.filter((t) => t.staffId !== 'system').map((t) => ({ ...t, staffName: getStaff(accountId, t.staffId)?.name })));
+function debateIo(accountId, sessionId) {
+  const s = sessionRow(sessionId);
+  const row = getTaskRow(accountId, s.task_id);
+  const task = rowToTask(row);
+  return {
+    task,
+    participants: task.assigneeIds.map((x) => getStaff(accountId, x)).filter(Boolean),
+    allStaff: listStaff(accountId),
+    manager: getStaff(accountId, MANAGER_ID),
+    turns: () => sessionTurns(sessionId),
+    think: thinker(accountId, sessionId, row.task_kind),
+    record: (staffId, text, brainLabel, meta) => appendTurn(accountId, sessionId, staffId, text, brainLabel, meta),
+    recordError: (staff, message, label) => {
+      appendTurn(accountId, sessionId, 'system', `Bộ não của ${staff.name} lỗi: ${message}`, label || 'hệ thống');
+      updateTask(accountId, s.task_id, { last_error: `${staff.name}: ${message}` });
+    },
+    baseCtx: () => taskContext(getTaskRow(accountId, s.task_id)),
+    isOpen: () => sessionRow(sessionId).status === 'running' && Date.now() < Date.parse(s.deadline_at),
+    isStopped: () => isTaskBlocked(accountId, s.task_id),
+  };
 }
 
 export async function runDebate(accountId, sessionId) {
   if (running.has(sessionId)) return;
   running.add(sessionId);
   try {
-    const s = getSession(accountId, sessionId);
-    const row = getTaskRow(accountId, s.taskId);
-    const participants = JSON.parse(row.assignee_ids).map((id) => getStaff(accountId, id)).filter(Boolean);
-    let round = 0;
-    while (sessionStatus(sessionId) === 'running' && Date.now() < Date.parse(s.deadlineAt) && round < MAX_ROUNDS) {
-      round++;
-      let agreed = 0;
-      let failures = 0;
-      for (const staff of participants) {
-        if (sessionStatus(sessionId) !== 'running' || Date.now() >= Date.parse(s.deadlineAt)) break;
-        if (isTaskBlocked(accountId, s.taskId)) return; // Quản lý đã dừng
-        const ctx = {
-          ...taskContext(getTaskRow(accountId, s.taskId)),
-          question: `Việc chung: ${row.title}${row.description ? ` — ${row.description}` : ''}. Trình bày phần của bạn trong phiên tranh luận (vòng ${round}).`,
-          priorTurns: priorTurnsFor(accountId, sessionId),
-          extraInstructions: `Đây là phiên tranh luận việc chung giữa: ${participants.map((p) => `${p.name} (${p.role})`).join(', ')}. ` +
-            `Nếu bạn thấy phương án chung đã đủ tốt để bắt tay làm và không còn gì cần phản biện, kết thúc câu trả lời bằng đúng dòng ${CONSENSUS}.`,
-        };
-        try {
-          const brain = selectBrain(accountId, staff, row.task_kind);
-          const r = await thinkWithBrain(accountId, staff, brain, ctx);
-          for (const pe of r.providerErrors) appendTurn(accountId, sessionId, 'system', `Lỗi bộ não của ${staff.name} (${pe.label}): ${pe.error}`, 'hệ thống');
-          if (sessionStatus(sessionId) !== 'running' && !r.text) break;
-          appendTurn(accountId, sessionId, staff.id, r.text, r.brainLabel);
-          if (r.text.includes(CONSENSUS)) agreed++;
-        } catch (e) {
-          failures++;
-          appendTurn(accountId, sessionId, 'system', `Bộ não của ${staff.name} lỗi: ${e.message}`, e.brainLabel || 'hệ thống');
-          updateTask(accountId, s.taskId, { last_error: `${staff.name}: ${e.message}` });
-        }
-      }
-      if (failures === participants.length) return; // giữ nguyên trạng thái để thử lại
-      const converged = agreed === participants.length && (round > 1 || participants.length === 1);
-      if (converged && sessionStatus(sessionId) === 'running') closeSession(accountId, sessionId, 'closed_by_keyword', 'Các nhân viên đã đồng thuận phương án.');
-    }
-    if (sessionStatus(sessionId) === 'running') {
-      const reason = Date.now() >= Date.parse(s.deadlineAt) ? 'closed_by_timeout' : 'closed_by_keyword';
-      closeSession(accountId, sessionId, reason, reason === 'closed_by_timeout' ? `Hết ${DEBATE_MINUTES} phút thực tế.` : 'Đã hết số vòng tranh luận tối đa.');
+    const io = debateIo(accountId, sessionId);
+    const result = await runDebatePhases(io);
+    if (result === 'stopped' || result === 'error') return; // giữ nguyên trạng thái để thử lại
+    const s = sessionRow(sessionId);
+    if (s.status === 'running') {
+      const timeout = Date.now() >= Date.parse(s.deadline_at);
+      closeSession(accountId, sessionId, timeout ? 'closed_by_timeout' : 'closed_by_keyword',
+        timeout ? `Hết ${DEBATE_MINUTES} phút thực tế.` : 'Đã đi hết 4 vòng: đề xuất, phản biện chéo, sửa, chấm lại.');
     }
     await finishSession(accountId, sessionId);
   } finally {
@@ -161,9 +170,9 @@ export function closeSession(accountId, sessionId, status, note) {
   return res.changes > 0;
 }
 
-// Người dùng gõ vào phiên: "chốt công việc" / "dừng" đóng phiên; câu khác thành một lượt cho nhân viên đọc.
+// Người dùng gõ vào phiên: "chốt công việc" / "dừng" đóng phiên; câu khác thành góp ý mà các vòng sau phải tính đến.
 export function userSaysInSession(accountId, sessionId, text) {
-  const s = getSession(accountId, sessionId);
+  const s = sessionRow(sessionId);
   if (!s) throw new Error('Không tìm thấy phiên.');
   appendTurn(accountId, sessionId, 'user', text, 'người dùng');
   const t = text.trim().toLowerCase();
@@ -179,66 +188,75 @@ export function closeByButton(accountId, sessionId) {
   }
 }
 
-const finishing = new Set();
-// Quản lý tổng hợp bản chốt, rồi từng nhân viên bắt tay làm phần của mình theo bản chốt.
-async function finishSession(accountId, sessionId) {
+// Phiên đóng: Phúc xét từng đề xuất và chọn ý tốt nhất, rồi thực hiện theo bản chốt.
+export async function finishSession(accountId, sessionId) {
   if (finishing.has(sessionId)) return;
   finishing.add(sessionId);
   try {
-    const s = getSession(accountId, sessionId);
-    if (s.status === 'running' || s.finalSummary) return;
-    const row = getTaskRow(accountId, s.taskId);
-    if (row.status === 'stopped_by_manager') return;
-    const manager = getStaff(accountId, MANAGER_ID);
-    let summary;
+    const s = sessionRow(sessionId);
+    if (s.status === 'running' || s.final_summary) return;
+    if (isTaskBlocked(accountId, s.task_id)) return;
+    const io = debateIo(accountId, sessionId);
     try {
-      const r = await thinkWithBrain(accountId, manager, selectBrain(accountId, manager, 'deep_analysis'), {
-        ...taskContext(row),
-        question: `Tổng hợp BẢN CHỐT của phiên tranh luận việc "${row.title}": ai làm gì, thứ tự, mốc kiểm tra và tiêu chí đạt. Chỉ tổng hợp và đặt mốc kiểm tra, không viết thay phần chuyên môn của người khác.`,
-        priorTurns: priorTurnsFor(accountId, sessionId),
-      });
-      summary = r.text;
-      appendTurn(accountId, sessionId, MANAGER_ID, `BẢN CHỐT:\n${r.text}`, r.brainLabel);
+      const { text, plan } = await runJudge(io);
+      db.prepare('UPDATE debate_sessions SET final_summary = ?, final_plan = ? WHERE id = ?').run(text, plan ? JSON.stringify(plan) : null, sessionId);
     } catch (e) {
-      appendTurn(accountId, sessionId, 'system', `Bộ não của Phúc lỗi khi tổng hợp: ${e.message}`, e.brainLabel || 'hệ thống');
-      updateTask(accountId, s.taskId, { last_error: `Phúc: ${e.message}` });
+      appendTurn(accountId, sessionId, 'system', `Phúc chưa chọn được phương án: ${e.message}`, e.brainLabel || 'hệ thống');
+      updateTask(accountId, s.task_id, { last_error: `Phúc: ${e.message}` });
       return;
     }
-    db.prepare('UPDATE debate_sessions SET final_summary = ? WHERE id = ?').run(summary, sessionId);
-    await executeTask(accountId, s.taskId, summary);
   } finally {
     finishing.delete(sessionId);
   }
+  await executeTask(accountId, sessionRow(sessionId).task_id);
 }
 
-export async function executeTask(accountId, taskId, plan) {
-  updateTask(accountId, taskId, { status: 'in_progress', last_error: null });
-  const row = getTaskRow(accountId, taskId);
-  const outputs = [];
-  // Việc Marketing đi đúng 5 bước (Tuấn → An → Tuấn+Bình → Bình → Bình+Tuấn, Phúc giám sát).
-  for (const turn of executionPlan(rowToTask(row))) {
-    if (isTaskBlocked(accountId, taskId)) return;
-    const staff = getStaff(accountId, turn.staffId);
-    const base = plan
-      ? `Bắt tay làm phần việc của bạn theo bản chốt sau và trả về kết quả cụ thể của phần bạn:\n${plan}`
-      : `Thực hiện việc "${row.title}"${row.description ? `: ${row.description}` : ''} và trả về kết quả cụ thể.`;
-    try {
-      const r = await thinkWithBrain(accountId, staff, selectBrain(accountId, staff, row.task_kind), {
-        ...taskContext(getTaskRow(accountId, taskId)),
-        question: turn.label ? `${turn.label} của quy trình Marketing 5 bước: ${turn.ask}\n${base}` : base,
-        priorTurns: outputs.map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text || o.error })),
-      });
-      outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, text: r.text, brainLabel: r.brainLabel, errors: r.providerErrors, at: now() });
-    } catch (e) {
-      outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, error: e.message, brainLabel: e.brainLabel, at: now() });
+// Thực hiện việc: việc chung theo bản chốt (người làm do Phúc chọn theo năng lực) rồi Phúc kiểm tra từng kết quả;
+// việc riêng qua bản nháp → đồng nghiệp phản biện → bản cuối.
+export async function executeTask(accountId, taskId) {
+  if (executing.has(taskId)) return;
+  executing.add(taskId);
+  try {
+    let row = getTaskRow(accountId, taskId);
+    const fresh = row.status === 'returned_for_redo';
+    updateTask(accountId, taskId, { status: 'in_progress', last_error: null, ...(fresh ? { outputs: '[]' } : {}) });
+    row = getTaskRow(accountId, taskId);
+    const task = rowToTask(row);
+    const outputsIo = {
+      outputs: () => JSON.parse(getTaskRow(accountId, taskId).outputs),
+      pushOutput: (o) => {
+        const list = JSON.parse(getTaskRow(accountId, taskId).outputs).filter((x) => x.key !== o.key);
+        list.push({ ...o, at: now() });
+        updateTask(accountId, taskId, { outputs: JSON.stringify(list) });
+      },
+      isStopped: () => isTaskBlocked(accountId, taskId),
+      baseCtx: () => taskContext(getTaskRow(accountId, taskId)),
+      think: thinker(accountId, row.debate_session_id, row.task_kind),
+    };
+    let result;
+    if (task.kind === 'general') {
+      const s = row.debate_session_id ? sessionRow(row.debate_session_id) : null;
+      const plan = s?.final_plan ? JSON.parse(s.final_plan) : null;
+      const fallback = executionPlan(task).map((t, i) => ({
+        key: `f${i + 1}`, staff: getStaff(accountId, t.staffId), label: t.label || `Phần của ${getStaff(accountId, t.staffId).name}`, ask: t.ask || 'Làm phần việc phù hợp nhất với bạn theo bản chốt.', criteria: '',
+      }));
+      result = await executeWithReview({ ...outputsIo, task, allStaff: listStaff(accountId), manager: getStaff(accountId, MANAGER_ID) }, plan, fallback, s?.final_summary || null);
+    } else {
+      const assignee = getStaff(accountId, task.assigneeIds[0]);
+      result = await runIndividual({ ...outputsIo, task, assignee, reviewer: reviewerFor(task, assignee, listStaff(accountId)) });
     }
-    updateTask(accountId, taskId, { outputs: JSON.stringify(outputs) });
+    // Quản lý có thể dừng đúng lúc bước cuối vừa xong: lệnh dừng luôn thắng, không ghi đè trạng thái.
+    if (result.status === 'stopped' || isTaskBlocked(accountId, taskId)) return;
+    if (result.status === 'returned_for_redo') {
+      updateTask(accountId, taskId, { status: 'returned_for_redo', return_reason: `Phúc kiểm tra: ${result.returnReason}`, pass_criteria: result.passCriteria });
+    } else if (result.status === 'done') {
+      updateTask(accountId, taskId, { status: 'done' });
+    } else {
+      updateTask(accountId, taskId, { status: 'in_progress', last_error: result.error || null });
+    }
+  } finally {
+    executing.delete(taskId);
   }
-  if (isTaskBlocked(accountId, taskId)) return;
-  const failed = outputs.filter((o) => o.error);
-  updateTask(accountId, taskId, failed.length
-    ? { status: 'in_progress', last_error: failed.map((f) => `${f.staffName}: ${f.error}`).join('\n') }
-    : { status: 'done' });
 }
 
 // ---------- Quản lý ----------
@@ -264,7 +282,12 @@ export function managerReturn(accountId, taskId, reason, criteria) {
   updateTask(accountId, taskId, { status: 'returned_for_redo', return_reason: reason.trim(), pass_criteria: criteria.trim() });
 }
 
+// Khởi động lại server: phiên đang chạy chạy tiếp; phiên đã đóng mà Phúc chưa chọn thì chọn tiếp.
 export function resumeRunningSessions() {
-  const rows = db.prepare("SELECT account_id, id FROM debate_sessions WHERE status = 'running'").all();
-  for (const r of rows) runDebate(r.account_id, r.id).catch((e) => console.error(e));
+  for (const r of db.prepare("SELECT account_id, id FROM debate_sessions WHERE status = 'running'").all()) {
+    runDebate(r.account_id, r.id).catch((e) => console.error(e));
+  }
+  for (const r of db.prepare("SELECT s.account_id, s.id FROM debate_sessions s JOIN tasks t ON t.id = s.task_id WHERE s.status != 'running' AND s.final_summary IS NULL AND t.status = 'debating'").all()) {
+    finishSession(r.account_id, r.id).catch((e) => console.error(e));
+  }
 }

@@ -3,7 +3,9 @@
 Ứng dụng web dựng theo đặc tả "Code lõi văn phòng ảo". Mở bằng trình duyệt ở bất kỳ máy nào, đăng nhập là vào đúng văn phòng của mình. **Mỗi tài khoản là một văn phòng riêng**: nhân sự, đào tạo, API, việc, phiếu bán và hàng chờ Zalo đều tách biệt.
 
 - **Báo cáo cuối ngày 21:00:** Chi chuẩn bị đề xuất CSKH (chờ bạn duyệt), Phúc tổng hợp toàn văn phòng. Server tự tạo báo cáo cho văn phòng có hoạt động trong ngày; bạn cũng có thể bấm tạo bất cứ lúc nào.
-- **Quy trình Marketing 5 bước** khi thực hiện việc Marketing: Tuấn → An → Tuấn + Bình → Bình → Bình + Tuấn, Phúc giám sát.
+- **Phản biện chéo khi làm việc chung:** mỗi người đề xuất kế hoạch độc lập → phản biện từng đề xuất của người khác (điểm mạnh, lỗi lập luận, chỗ cần kiểm chứng, rủi ro, chấm điểm) → tác giả trả lời từng ý và sửa, hoặc rút để ủng hộ đề xuất tốt hơn → chấm lại → Phúc xét từng đề xuất, chọn hoặc ghép ý tốt nhất bất kể ai đề xuất và giao bước cho người làm tốt nhất, không bắt buộc đúng vai trò → thực hiện → Phúc kiểm tra từng kết quả theo tiêu chí đạt, chưa đạt thì trả làm lại kèm lý do. Quy trình Marketing 5 bước chỉ còn là tham khảo cho Phúc. Minh vẫn chốt rủi ro pháp lý, Hà vẫn chốt số liệu tài chính.
+- **Việc riêng có kiểm tra chéo:** bản nháp → một đồng nghiệp phản biện từng điểm → người làm trả lời từng ý và nộp bản cuối.
+- **Chat nhóm:** người trả lời sau phải xét từng câu trả lời trước; cuối cùng Phúc kết luận ý của ai tốt nhất.
 - **Dữ kiện thật nội bộ:** mỗi lượt trả lời đều nhận số liệu văn phòng đang có (phiếu, việc, hàng chờ, phần mềm đã liên kết). Nguồn chưa kết nối (giá, tồn kho KiotViet, số liệu Fanpage) được ghi rõ là "chưa cập nhật".
 - **10 nhân sự cố định:** An, Bình, Tuấn (Marketing); Sơn, Dũng, Hà, Phúc (Vận hành và kiểm soát); Chi, Trang, Minh (Hỗ trợ và kỹ thuật). Phúc là Quản lý, ngồi giữa phía dưới, giữa hai dãy bàn.
 - **Bộ não mặc định là Claude** (`claude-opus-5-5`), dùng `ANTHROPIC_API_KEY` của server. Muốn đổi bộ não cho ai thì vào **Nhân viên → Bộ não / API** và gắn key Claude, OpenAI hoặc nhà cung cấp tương thích OpenAI (Gemini, DeepSeek, OpenRouter…). Có thể gắn nhiều API theo vai trò: chung, thiết kế hình ảnh, viết bài, phân tích chuyên sâu, kênh Zalo.
@@ -17,7 +19,7 @@ Bản trải nghiệm dùng chung giao diện và logic nghiệp vụ với bả
 - Không cần đăng nhập riêng: tài khoản claude.ai chính là tài khoản văn phòng. Dữ liệu của mỗi tài khoản nằm trong nhánh riêng tư của tài khoản đó.
 - Bộ não của mọi nhân viên là Claude, gọi qua tài khoản claude.ai của người xem và dùng hạn mức của tài khoản đó. Lần đầu dùng, Claude sẽ hỏi bạn cho phép. Phúc (Quản lý) dùng mức model cao nhất.
 - Những phần chỉ có ở bản server: gắn API riêng cho từng nhân viên, lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), cầu nối Zalo, thời tiết thật, và báo cáo tự chạy đúng 21:00 (bản trải nghiệm nhắc bạn bấm tạo báo cáo).
-- Phiên tranh luận tối đa 2 vòng thay vì 4, để tiết kiệm hạn mức.
+- Một việc chung 3 người tốn khoảng 13 lượt gọi Claude cho phần phản biện và chọn, cộng mỗi bước thực hiện một lượt và một lượt Phúc kiểm tra.
 
 Đóng gói lại sau khi sửa code: `node scripts/build-trial.js`. Lệnh này tạo `dist-trial/`; thư mục này được publish thành Artifact. Backend của bản trải nghiệm nằm ở `trial/backend.js`.
 

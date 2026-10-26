@@ -7,10 +7,12 @@ import {
   executionPlan, assertSlipCanBeCreated, WAREHOUSE_FLOW, REPORT_HOUR, hcmDate, hcmHour,
   CSKH_REPORT_QUESTION, MANAGER_REPORT_QUESTION, reportSnapshot,
 } from '../shared/core.js';
+import {
+  runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard,
+  GROUP_CRITIQUE_INSTRUCTION, groupConclusionQuestion, consultDecisionQuestion,
+} from '../shared/deliberation.js';
 
 const DEBATE_MINUTES = 10;
-const MAX_ROUNDS = 2; // bản trải nghiệm: ít vòng hơn để tiết kiệm hạn mức claude.ai
-const CONSENSUS = '[ĐỒNG THUẬN]';
 const MSG_KEEP = 80;
 
 const now = () => new Date().toISOString();
@@ -179,9 +181,9 @@ function recentTurns(channel) {
     .map((m) => ({ nguoi: m.sender === 'user' ? 'Người dùng' : byId[m.sender]?.name || m.sender, noiDung: m.text }));
 }
 
-async function answerAs(staff, channel, question) {
+async function answerAs(staff, channel, question, extraInstructions) {
   try {
-    const r = await think(staff, { question, priorTurns: recentTurns(channel) });
+    const r = await think(staff, { question, priorTurns: recentTurns(channel), extraInstructions });
     addMessage(channel, staff.id, r.text, r.brainLabel);
   } catch (e) {
     addMessage(channel, staff.id, `Bộ não lỗi, chưa trả lời được: ${e.message}`, e.brainLabel, true);
@@ -196,6 +198,7 @@ async function withBusy(channel, fn) {
 // ---------- Việc & tranh luận ----------
 const running = new Set();
 const finishing = new Set();
+const executing = new Set();
 
 function publicTask(t) {
   return { ...t, session: undefined, attachments: t.attachments.map((a) => ({ ...a, hasImage: imageCache.has(a.id) })) };
@@ -209,15 +212,9 @@ function taskCtx(t) {
   };
 }
 
-function appendTurn(t, staffId, text, brainLabel) {
-  t.session.turns.push({ id: rid('DT-'), staffId, text, brainLabel, createdAt: now() });
+function appendTurn(t, staffId, text, brainLabel, meta = null) {
+  t.session.turns.push({ id: rid('DT-'), staffId, text, brainLabel, meta, createdAt: now() });
   saveTask(t);
-}
-
-function priorTurns(t) {
-  const byId = staffById();
-  return t.session.turns.filter((x) => x.staffId !== 'system')
-    .map((x) => ({ nguoi: x.staffId === 'user' ? 'Người dùng' : byId[x.staffId]?.name || x.staffId, noiDung: x.text }));
 }
 
 function closeSession(t, status, note) {
@@ -231,52 +228,45 @@ function startGeneral(t) {
   if (t.status === 'stopped_by_manager') throw fail('Việc đang bị Quản lý dừng.');
   if (!t.session || t.session.status !== 'running') {
     const start = new Date();
-    t.session = { id: rid('DS-'), startedAt: start.toISOString(), deadlineAt: new Date(start.getTime() + DEBATE_MINUTES * 60000).toISOString(), status: 'running', finalSummary: null, turns: [] };
+    t.session = { id: rid('DS-'), startedAt: start.toISOString(), deadlineAt: new Date(start.getTime() + DEBATE_MINUTES * 60000).toISOString(), status: 'running', finalSummary: null, finalPlan: null, turns: [] };
     t.debateSessionId = t.session.id;
-    t.status = 'debating'; t.lastError = null;
+    t.status = 'debating'; t.lastError = null; t.outputs = [];
     saveTask(t);
   }
-  runDebate(t.id);
+  bg(runDebate(t.id));
+}
+
+function debateIo(taskId) {
+  const t0 = getTask(taskId);
+  return {
+    task: t0,
+    participants: t0.assigneeIds.map(getStaff).filter(Boolean),
+    allStaff: staffList(),
+    manager: getStaff(MANAGER_ID),
+    turns: () => getTask(taskId).session.turns,
+    think,
+    record: (staffId, text, brainLabel, meta) => appendTurn(getTask(taskId), staffId, text, brainLabel, meta),
+    recordError: (staff, message, label) => {
+      const t = getTask(taskId);
+      t.lastError = `${staff.name}: ${message}`;
+      appendTurn(t, 'system', `Bộ não của ${staff.name} lỗi: ${message}`, label || 'hệ thống');
+    },
+    baseCtx: () => taskCtx(getTask(taskId)),
+    isOpen: () => { const s = getTask(taskId).session; return s.status === 'running' && Date.now() < Date.parse(s.deadlineAt); },
+    isStopped: () => isBlocked(taskId),
+  };
 }
 
 async function runDebate(taskId) {
   if (running.has(taskId)) return;
   running.add(taskId);
   try {
-    let t = getTask(taskId);
-    const participants = t.assigneeIds.map(getStaff).filter(Boolean);
-    const deadline = Date.parse(t.session.deadlineAt);
-    let round = 0;
-    while (getTask(taskId).session.status === 'running' && Date.now() < deadline && round < MAX_ROUNDS) {
-      round++;
-      let agreed = 0, failures = 0;
-      for (const staff of participants) {
-        t = getTask(taskId);
-        if (t.session.status !== 'running' || Date.now() >= deadline) break;
-        if (isBlocked(taskId)) return;
-        try {
-          const r = await think(staff, {
-            ...taskCtx(t),
-            question: `Việc chung: ${t.title}${t.description ? ` — ${t.description}` : ''}. Trình bày phần của bạn trong phiên tranh luận (vòng ${round}).`,
-            priorTurns: priorTurns(t),
-            extraInstructions: `Đây là phiên tranh luận việc chung giữa: ${participants.map((p) => `${p.name} (${p.role})`).join(', ')}. Nếu bạn thấy phương án chung đã đủ tốt để bắt tay làm và không còn gì cần phản biện, kết thúc câu trả lời bằng đúng dòng ${CONSENSUS}.`,
-          });
-          appendTurn(getTask(taskId), staff.id, r.text, r.brainLabel);
-          if (r.text.includes(CONSENSUS)) agreed++;
-        } catch (e) {
-          failures++;
-          const cur = getTask(taskId);
-          cur.lastError = `${staff.name}: ${e.message}`;
-          appendTurn(cur, 'system', `Bộ não của ${staff.name} lỗi: ${e.message}`, e.brainLabel || 'hệ thống');
-        }
-      }
-      if (failures === participants.length) return; // giữ nguyên trạng thái để thử lại
-      if (agreed === participants.length && (round > 1 || participants.length === 1)) closeSession(getTask(taskId), 'closed_by_keyword', 'Các nhân viên đã đồng thuận phương án.');
-    }
-    t = getTask(taskId);
+    const result = await runDebatePhases(debateIo(taskId));
+    if (result === 'stopped' || result === 'error') return; // giữ nguyên trạng thái để thử lại
+    const t = getTask(taskId);
     if (t.session.status === 'running') {
-      const timeout = Date.now() >= deadline;
-      closeSession(t, timeout ? 'closed_by_timeout' : 'closed_by_keyword', timeout ? `Hết ${DEBATE_MINUTES} phút thực tế.` : 'Đã hết số vòng tranh luận của bản trải nghiệm.');
+      const timeout = Date.now() >= Date.parse(t.session.deadlineAt);
+      closeSession(t, timeout ? 'closed_by_timeout' : 'closed_by_keyword', timeout ? `Hết ${DEBATE_MINUTES} phút thực tế.` : 'Đã đi hết 4 vòng: đề xuất, phản biện chéo, sửa, chấm lại.');
     }
     await finishSession(taskId);
   } finally {
@@ -289,62 +279,59 @@ async function finishSession(taskId) {
   finishing.add(taskId);
   try {
     const t = getTask(taskId);
-    if (!t.session || t.session.status === 'running' || t.session.finalSummary || t.status === 'stopped_by_manager') return;
-    let summary;
+    if (!t.session || t.session.status === 'running' || t.session.finalSummary || isBlocked(taskId)) return;
     try {
-      const r = await think(getStaff(MANAGER_ID), {
-        ...taskCtx(t),
-        question: `Tổng hợp BẢN CHỐT của phiên tranh luận việc "${t.title}": ai làm gì, thứ tự, mốc kiểm tra và tiêu chí đạt. Chỉ tổng hợp và đặt mốc kiểm tra, không viết thay phần chuyên môn của người khác.`,
-        priorTurns: priorTurns(t),
-      });
-      summary = r.text;
-      appendTurn(getTask(taskId), MANAGER_ID, `BẢN CHỐT:\n${r.text}`, r.brainLabel);
+      const { text, plan } = await runJudge(debateIo(taskId));
+      const cur = getTask(taskId);
+      cur.session.finalSummary = text; cur.session.finalPlan = plan;
+      saveTask(cur);
     } catch (e) {
       const cur = getTask(taskId);
       cur.lastError = `Phúc: ${e.message}`;
-      appendTurn(cur, 'system', `Bộ não của Phúc lỗi khi tổng hợp: ${e.message}`, e.brainLabel || 'hệ thống');
+      appendTurn(cur, 'system', `Phúc chưa chọn được phương án: ${e.message}`, e.brainLabel || 'hệ thống');
       return;
     }
-    const cur = getTask(taskId);
-    cur.session.finalSummary = summary;
-    saveTask(cur);
-    await executeTask(taskId, summary);
   } finally {
     finishing.delete(taskId);
   }
+  await executeTask(taskId);
 }
 
-async function executeTask(taskId, plan) {
-  let t = getTask(taskId);
-  t.status = 'in_progress'; t.lastError = null; t.outputs = [];
-  saveTask(t);
-  for (const turn of executionPlan(t)) {
-    if (isBlocked(taskId)) return;
-    t = getTask(taskId);
-    const staff = getStaff(turn.staffId);
-    const base = plan
-      ? `Bắt tay làm phần việc của bạn theo bản chốt sau và trả về kết quả cụ thể của phần bạn:\n${plan}`
-      : `Thực hiện việc "${t.title}"${t.description ? `: ${t.description}` : ''} và trả về kết quả cụ thể.`;
-    try {
-      const r = await think(staff, {
-        ...taskCtx(t),
-        question: turn.label ? `${turn.label} của quy trình Marketing 5 bước: ${turn.ask}\n${base}` : base,
-        priorTurns: t.outputs.map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text || o.error })),
-      });
-      t = getTask(taskId);
-      t.outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, text: r.text, brainLabel: r.brainLabel, at: now() });
-    } catch (e) {
-      t = getTask(taskId);
-      t.outputs.push({ staffId: staff.id, staffName: staff.name, step: turn.label, error: e.message, brainLabel: e.brainLabel, at: now() });
-    }
+// Việc chung: làm theo bản chốt rồi Phúc kiểm tra từng kết quả. Việc riêng: nháp → đồng nghiệp phản biện → bản cuối.
+async function executeTask(taskId) {
+  if (executing.has(taskId)) return;
+  executing.add(taskId);
+  try {
+    let t = getTask(taskId);
+    if (t.status === 'returned_for_redo') t.outputs = [];
+    t.status = 'in_progress'; t.lastError = null;
     saveTask(t);
+    const io = {
+      task: t, allStaff: staffList(), manager: getStaff(MANAGER_ID), think,
+      outputs: () => getTask(taskId).outputs,
+      pushOutput: (o) => { const cur = getTask(taskId); cur.outputs = cur.outputs.filter((x) => x.key !== o.key).concat({ ...o, at: now() }); saveTask(cur); },
+      isStopped: () => isBlocked(taskId),
+      baseCtx: () => taskCtx(getTask(taskId)),
+    };
+    let result;
+    if (t.kind === 'general') {
+      const fallback = executionPlan(t).map((x, i) => ({
+        key: `f${i + 1}`, staff: getStaff(x.staffId), label: x.label || `Phần của ${getStaff(x.staffId).name}`, ask: x.ask || 'Làm phần việc phù hợp nhất với bạn theo bản chốt.', criteria: '',
+      }));
+      result = await executeWithReview(io, t.session?.finalPlan || null, fallback, t.session?.finalSummary || null);
+    } else {
+      const assignee = getStaff(t.assigneeIds[0]);
+      result = await runIndividual({ ...io, assignee, reviewer: reviewerFor(t, assignee, staffList()) });
+    }
+    if (result.status === 'stopped' || isBlocked(taskId)) return; // lệnh dừng của Quản lý luôn thắng
+    t = getTask(taskId);
+    if (result.status === 'returned_for_redo') Object.assign(t, { status: 'returned_for_redo', returnReason: `Phúc kiểm tra: ${result.returnReason}`, passCriteria: result.passCriteria });
+    else if (result.status === 'done') t.status = 'done';
+    else Object.assign(t, { status: 'in_progress', lastError: result.error || null });
+    saveTask(t);
+  } finally {
+    executing.delete(taskId);
   }
-  if (isBlocked(taskId)) return;
-  t = getTask(taskId);
-  const failed = t.outputs.filter((o) => o.error);
-  if (failed.length) t.lastError = failed.map((f) => `${f.staffName}: ${f.error}`).join('\n');
-  else t.status = 'done';
-  saveTask(t);
 }
 
 // ---------- Phiếu bán hàng ----------
@@ -486,7 +473,11 @@ on('POST', '/api/chat/group', (b) => {
   addMessage('group', 'user', text);
   const target = addressedStaffId(staffList(), text);
   const responders = target ? [target] : pickRelevantStaffIds(text);
-  bg(withBusy('group', async () => { for (const id of responders) await answerAs(getStaff(id), 'group', text); }));
+  // Người sau xét từng câu trả lời trước; cuối cùng Phúc kết luận ý của ai tốt nhất.
+  bg(withBusy('group', async () => {
+    for (const [i, id] of responders.entries()) await answerAs(getStaff(id), 'group', text, i > 0 ? GROUP_CRITIQUE_INSTRUCTION : undefined);
+    if (responders.length >= 2) await answerAs(getStaff(MANAGER_ID), 'group', groupConclusionQuestion(text));
+  }));
   return { ok: true };
 });
 on('POST', '/api/chat/staff/(STAFF-\\d+)', (b, [id]) => {
@@ -515,7 +506,7 @@ on('POST', '/api/staff/(STAFF-\\d+)/consult', (b, [ownerId]) => {
       } catch (e) { addMessage(ch, id, `Bộ não lỗi, chưa cho ý kiến được: ${e.message}`, e.brainLabel, true); }
     }
     try {
-      const r = await think(owner, { question: `Bạn đã hỏi ý kiến đồng nghiệp về: ${question}. Đọc các ý kiến và tự chốt quyết định của bạn.`, priorTurns: opinions });
+      const r = await think(owner, { question: consultDecisionQuestion(question), priorTurns: opinions });
       addMessage(ch, ownerId, `QUYẾT ĐỊNH: ${r.text}`, r.brainLabel);
     } catch (e) { addMessage(ch, ownerId, `Bộ não lỗi, chưa chốt được: ${e.message}`, e.brainLabel, true); }
   }));
@@ -550,22 +541,32 @@ on('POST', '/api/tasks', (b) => {
   };
   saveTask(t);
   if (b.kind === 'general') startGeneral(t);
-  else bg(executeTask(t.id, null));
+  else bg(executeTask(t.id));
   return publicTask(t);
 });
 const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tìm thấy việc.'); return t; };
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
-  return { task: publicTask(t), session: t.session ? { ...t.session, taskId: t.id, runnerActive: running.has(t.id) || finishing.has(t.id) } : null };
+  if (!t.session) return { task: publicTask(t), session: null };
+  const participants = t.assigneeIds.map(getStaff).filter(Boolean);
+  return {
+    task: publicTask(t),
+    session: {
+      ...t.session, finalPlan: undefined, taskId: t.id,
+      turns: t.session.turns.map((x) => ({ ...x, phase: x.meta?.phase || null, meta: undefined })),
+      scoreboard: scoreboard(t.session.turns, participants, (x) => getStaff(x)?.name || x),
+      runnerActive: running.has(t.id) || finishing.has(t.id) || executing.has(t.id),
+    },
+  };
 });
 on('POST', '/api/tasks/([\\w-]+)/retry', (b, [id]) => {
   const t = needTask(id);
   if (t.status === 'stopped_by_manager') throw fail('Việc đang bị Quản lý dừng. Cần Quản lý hoặc người dùng cho phép mở lại.');
   if (t.kind === 'general') {
-    if (t.session && t.session.status !== 'running' && t.session.finalSummary) bg(executeTask(t.id, t.session.finalSummary));
+    if (t.session && t.session.status !== 'running' && t.session.finalSummary) bg(executeTask(t.id));
     else if (t.session && t.session.status !== 'running') bg(finishSession(t.id));
     else startGeneral(t);
-  } else bg(executeTask(t.id, null));
+  } else bg(executeTask(t.id));
   return { ok: true };
 });
 on('POST', '/api/tasks/([\\w-]+)/say', (b, [id]) => {
@@ -730,7 +731,7 @@ async function init() {
   office();
   // Phiên tranh luận còn dở khi đóng trang: chạy tiếp (quá hạn thì đóng theo hết giờ rồi tổng hợp).
   for (const t of tasksAll()) {
-    if (t.session?.status === 'running') runDebate(t.id);
+    if (t.session?.status === 'running') bg(runDebate(t.id));
     else if (t.session && !t.session.finalSummary && t.status === 'debating') bg(finishSession(t.id));
   }
 }

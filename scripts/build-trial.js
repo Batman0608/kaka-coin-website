@@ -10,6 +10,7 @@ const files = {
   'trial/main.js': 'trial/main.js',
   'trial/backend.js': 'trial/backend.js',
   'shared/core.js': 'shared/core.js',
+  'shared/deliberation.js': 'shared/deliberation.js',
   'app.js': 'public/app.js',
   'office3d.js': 'public/office3d.js',
   'style.css': 'public/style.css',

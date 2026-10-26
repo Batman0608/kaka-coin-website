@@ -478,7 +478,7 @@ function subZalo(s, body) {
 function viewGroup() {
   const wrap = document.createElement('div');
   wrap.innerHTML = `<h2>Chat nhóm công ty</h2>
-    <p class="kv">Hỏi đích danh (ví dụ "An ơi…" hoặc "@An") thì chỉ người đó trả lời. Hỏi chung thì các nhân viên liên quan trả lời lần lượt theo chuyên môn.</p>`;
+    <p class="kv">Hỏi đích danh (ví dụ "An ơi…" hoặc "@An") thì chỉ người đó trả lời. Hỏi chung thì các nhân viên liên quan trả lời lần lượt, người sau xét từng câu trả lời trước, rồi Phúc kết luận ý của ai tốt nhất.</p>`;
   const c = chatBox('group', '/api/chat/group', 'Nhắn cả nhóm…');
   wrap.append(c.el);
   mount(wrap, c.refresh);
@@ -491,7 +491,7 @@ function viewTasks() {
   wrap.innerHTML = `<h2>Việc</h2>
     <form class="card" id="gForm">
       <strong>Giao việc chung</strong>
-      <p class="kv">Hệ thống tự chọn nhân viên liên quan, họ tự tranh luận tối đa 10 phút rồi Quản lý chốt và bắt tay làm. Gõ "chốt công việc" hoặc "dừng" trong phiên để chốt sớm.</p>
+      <p class="kv">Hệ thống tự chọn nhân viên liên quan. Mỗi người đề xuất độc lập, phản biện chéo từng đề xuất của người khác, sửa kế hoạch và chấm lại (tối đa 10 phút). Phúc chọn ý tốt nhất bất kể ai đề xuất, giao việc theo năng lực rồi kiểm tra từng kết quả. Gõ "chốt công việc" hoặc "dừng" trong phiên để chốt sớm.</p>
       <label>Tên việc <input name="title" required placeholder="Ví dụ: Làm sao tăng like Fanpage"></label>
       <label>Mô tả <textarea name="description"></textarea></label>
       <details><summary class="kv">Tự chọn người phụ trách (không bắt buộc)</summary>
@@ -517,13 +517,42 @@ function viewTasks() {
       r.readAsDataURL(f);
     })));
     const assigneeIds = [...form.querySelectorAll('input[name=a]:checked')].map((i) => i.value);
-    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds, attachments } }), 'Đã giao việc chung, phiên tranh luận bắt đầu.');
+    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds, attachments } }), 'Đã giao việc chung, phiên phản biện bắt đầu.');
     if (t) { state.taskDetail = t.id; viewTasks(); }
   });
   mount(wrap, async () => {
     const tasks = await api('/api/tasks');
     $('#tList', wrap).innerHTML = tasks.length ? tasks.map(taskCard).join('') : '<p class="muted">Chưa có việc.</p>';
   });
+}
+
+const PHASE_TITLES = {
+  propose: 'Vòng 1 — Đề xuất độc lập', critique: 'Vòng 2 — Phản biện chéo', revise: 'Vòng 3 — Bảo vệ và sửa kế hoạch',
+  score: 'Vòng 4 — Chấm lại kế hoạch đã sửa', judge: 'Phúc chọn ý tưởng tốt nhất',
+};
+
+// Lượt nói trong phiên, có tiêu đề mỗi khi sang vòng mới.
+function renderDebateTurns(turns) {
+  let last = null;
+  return turns.map((m) => {
+    const head = m.phase && m.phase !== last ? `<h4 class="phase">${esc(PHASE_TITLES[m.phase] || m.phase)}</h4>` : '';
+    if (m.phase) last = m.phase;
+    return `${head}<div class="msg ${m.staffId === 'user' ? 'user' : m.staffId === 'system' ? 'system' : ''}">
+      <div class="who">${esc(nameOf(m.staffId))} <span class="muted">${esc(fmtTime(m.createdAt))}</span></div><div class="body">${esc(m.text)}</div>
+      ${m.staffId !== 'user' && m.staffId !== 'system' ? `<div class="brain">Bộ não: ${esc(m.brainLabel)}</div>` : ''}</div>`;
+  }).join('');
+}
+
+function renderScoreboard(board) {
+  if (!board?.length) return '';
+  const best = Math.max(...board.map((b) => b.finalScore ?? b.critiqueScore ?? 0));
+  return `<div class="table-wrap"><table class="score">
+    <caption class="kv">Bảng điểm trung bình (thang 10, không tính tự chấm)</caption>
+    <thead><tr><th scope="col">Đề xuất</th><th scope="col">Tác giả</th><th scope="col">Phản biện</th><th scope="col">Chấm lại</th><th scope="col">Trạng thái</th></tr></thead>
+    <tbody>${board.map((b) => `<tr${(b.finalScore ?? b.critiqueScore) === best && best > 0 ? ' class="lead"' : ''}>
+      <td>${esc(b.proposalId)}</td><td>${esc(b.authorName)}</td><td>${b.critiqueScore ?? '—'}</td><td>${b.finalScore ?? '—'}</td>
+      <td>${b.withdrawn ? `Đã rút${b.endorse ? `, ủng hộ ${esc(b.endorse)}` : ''}` : b.revised ? 'Đã sửa' : 'Bản đầu'}</td></tr>`).join('')}</tbody>
+  </table></div>`;
 }
 
 function viewTaskDetail(id) {
@@ -565,15 +594,17 @@ function viewTaskDetail(id) {
       ${t.lastError ? `<div class="error">Lỗi gần nhất (trạng thái việc được giữ nguyên để thử lại):\n${esc(t.lastError)}</div>` : ''}`;
     if (s) {
       const left = Math.max(0, Date.parse(s.deadlineAt) - Date.now());
-      $('#sess', wrap).innerHTML = `<h3>Phiên tranh luận ${s.status === 'running' ? `— còn ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}` : `— ${{ closed_by_keyword: 'đã chốt', closed_by_timeout: 'hết 10 phút', closed_by_button: 'đã dừng' }[s.status] || s.status}`}</h3>
-        <div class="chat">${s.turns.map((m) => `<div class="msg ${m.staffId === 'user' ? 'user' : m.staffId === 'system' ? 'system' : ''}">
-          <div class="who">${esc(nameOf(m.staffId))} <span class="muted">${esc(fmtTime(m.createdAt))}</span></div><div class="body">${esc(m.text)}</div>
-          ${m.staffId !== 'user' && m.staffId !== 'system' ? `<div class="brain">Bộ não: ${esc(m.brainLabel)}</div>` : ''}</div>`).join('')}
-          ${s.runnerActive ? '<div class="typing">Các nhân viên đang tranh luận…</div>' : ''}</div>`;
+      $('#sess', wrap).innerHTML = `<h3>Phiên phản biện ${s.status === 'running' ? `— còn ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}` : `— ${{ closed_by_keyword: 'đã chốt', closed_by_timeout: 'hết 10 phút', closed_by_button: 'đã dừng' }[s.status] || s.status}`}</h3>
+        <p class="kv">Mỗi người đề xuất độc lập, phản biện chéo từng đề xuất của người khác, bảo vệ và sửa kế hoạch, chấm lại; Phúc chọn ý tốt nhất bất kể ai đề xuất.</p>
+        ${renderScoreboard(s.scoreboard)}
+        <div class="chat">${renderDebateTurns(s.turns)}
+          ${s.runnerActive ? '<div class="typing">Các nhân viên đang làm việc…</div>' : ''}</div>`;
       $('#sayForm', wrap).classList.toggle('hidden', s.status !== 'running');
     }
     $('#outputs', wrap).innerHTML = t.outputs.length ? `<h3>Kết quả thực hiện</h3>${t.outputs.map((o) => `
-      <div class="msg ${o.error ? 'err' : ''}"><div class="who">${o.step ? `${esc(o.step)} · ` : ''}${esc(o.staffName)}</div><div class="body">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>
+      <div class="msg ${o.error ? 'err' : ''}"><div class="who">${o.step ? `${esc(o.step)} · ` : ''}${esc(o.staffName)}</div>
+      ${o.why ? `<div class="kv">Được giao vì: ${esc(o.why)}${o.criteria ? ` · Đạt khi: ${esc(o.criteria)}` : ''}</div>` : ''}
+      <div class="body">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>
       ${o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''}</div>`).join('')}` : '';
   }
   mount(wrap, refresh);

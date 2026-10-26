@@ -1,7 +1,8 @@
 // Chat nhóm, hỏi riêng từng nhân viên và tham vấn đồng nghiệp.
 import { db, now, newId } from './db.js';
 import { listStaff, getStaff, pickRelevantStaffIds } from './roster.js';
-import { addressedStaffId } from '../shared/core.js';
+import { addressedStaffId, MANAGER_ID } from '../shared/core.js';
+import { GROUP_CRITIQUE_INSTRUCTION, groupConclusionQuestion, consultDecisionQuestion } from '../shared/deliberation.js';
 import { selectBrain, thinkWithBrain, kindOfText } from './brain.js';
 
 export function addMessage(accountId, channel, sender, text, brainLabel = null, isError = false) {
@@ -30,8 +31,8 @@ export function addressedStaff(accountId, text) {
   return id ? getStaff(accountId, id) : null;
 }
 
-async function answerAs(accountId, staff, channel, question, staffById) {
-  const ctx = { question, priorTurns: recentTurns(accountId, channel, staffById) };
+async function answerAs(accountId, staff, channel, question, staffById, extraInstructions) {
+  const ctx = { question, priorTurns: recentTurns(accountId, channel, staffById), extraInstructions };
   try {
     const r = await thinkWithBrain(accountId, staff, selectBrain(accountId, staff, kindOfText(question)), ctx);
     for (const pe of r.providerErrors) addMessage(accountId, channel, staff.id, `Lỗi bộ não (${pe.label}): ${pe.error}`, pe.label, true);
@@ -55,7 +56,14 @@ export async function groupChat(accountId, text) {
   const responders = target ? [target] : pickRelevantStaffIds(text).map((id) => staffById[id]);
   busy.add(key);
   try {
-    for (const s of responders) await answerAs(accountId, s, 'group', text, staffById);
+    // Người trả lời sau phải xét từng câu trả lời trước; cuối cùng Phúc kết luận ý của ai tốt nhất.
+    for (const [i, s] of responders.entries()) {
+      await answerAs(accountId, s, 'group', text, staffById, i > 0 ? GROUP_CRITIQUE_INSTRUCTION : undefined);
+    }
+    if (responders.length >= 2) {
+      const phuc = staffById[MANAGER_ID];
+      await answerAs(accountId, phuc, 'group', groupConclusionQuestion(text), staffById);
+    }
   } finally {
     busy.delete(key);
   }
@@ -100,7 +108,7 @@ export async function consultColleagues(accountId, ownerId, question, colleagueI
   let decision = null;
   try {
     const r = await thinkWithBrain(accountId, owner, selectBrain(accountId, owner, 'general'), {
-      question: `Bạn đã hỏi ý kiến đồng nghiệp về: ${question}. Đọc các ý kiến và tự chốt quyết định của bạn.`,
+      question: consultDecisionQuestion(question),
       priorTurns: opinions.map((o) => ({ nguoi: getStaff(accountId, o.staffId).name, noiDung: o.text })),
     });
     decision = { text: r.text, brainLabel: r.brainLabel };
