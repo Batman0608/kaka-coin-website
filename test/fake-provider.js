@@ -12,6 +12,29 @@ export function startFakeProvider() {
     const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'request-id': 'req_test' }); res.end(JSON.stringify(obj)); };
     const url = new URL(req.url, 'http://x');
 
+    // KiotViet giả lập
+    if (url.pathname === '/connect/token' && req.method === 'POST') {
+      const f = new URLSearchParams(raw);
+      if (f.get('client_secret') !== 'kv-secret-PLACEHOLDER') return send(400, { error: 'invalid_client', error_description: 'Client secret không đúng (TEST)' });
+      return send(200, { access_token: 'kv-token-test', expires_in: 86400 });
+    }
+    if (url.pathname === '/products') {
+      if (req.headers.authorization !== 'Bearer kv-token-test' || req.headers.retailer !== 'longphu-test') return send(401, { ResponseStatus: { Message: 'Unauthorized (TEST)' } });
+      const data = [
+        { code: 'FLTWS47691', fullName: 'Phốt bánh sau xe Mỹ Fleetrite 709 (TEST)', basePrice: 450000, categoryName: 'Phốt', inventories: [{ onHand: 12 }] },
+        { code: 'HM518445', fullName: 'Bạc đạn mooc FUWA HM518445/10 (TEST)', basePrice: 380000, categoryName: 'Bạc đạn', inventories: [{ onHand: 3 }, { onHand: 2 }] },
+        { code: 'LOC-01', fullName: 'Lọc nhớt đầu kéo Mỹ (TEST)', basePrice: 210000, categoryName: 'Lọc', inventories: [{ onHand: 0 }] },
+      ];
+      return send(200, { total: data.length, pageSize: 100, data });
+    }
+    // Facebook Graph giả lập
+    if (url.pathname === '/fbpage-test') {
+      if (url.searchParams.get('access_token') !== 'fb-token-PLACEHOLDER') return send(400, { error: { message: 'Invalid OAuth access token (TEST)', code: 190 } });
+      return send(200, { id: 'fbpage-test', name: 'Fanpage Phụ Tùng (TEST)', fan_count: 1234 });
+    }
+    if (url.pathname === '/fbpage-test/posts') {
+      return send(200, { data: [{ message: 'Phốt bánh Fleetrite chính hãng (TEST)', created_time: '2026-10-26T01:00:00+0000', reactions: { summary: { total_count: 41 } }, comments: { summary: { total_count: 3 }, data: [{ from: { name: 'Khách A' }, message: 'Giá sao shop? (TEST)' }] } }] });
+    }
     if (url.pathname === '/v1/models') {
       if (key.includes('bad')) return send(401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
       return send(200, { data: [{ id: 'claude-opus-5-5', type: 'model', display_name: 'Claude Opus 5.5', created_at: '2026-01-01T00:00:00Z' }, { id: 'claude-haiku-5-5', type: 'model', display_name: 'Claude Haiku 5.5', created_at: '2026-01-01T00:00:00Z' }], has_more: false, first_id: 'claude-opus-5-5', last_id: 'claude-haiku-5-5' });

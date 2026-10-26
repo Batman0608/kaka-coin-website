@@ -15,7 +15,10 @@ import {
   executeTask, finishSession, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions,
 } from './tasks.js';
 import { groupChat, privateChat, consultColleagues, listMessages, isBusy } from './chat.js';
-import { STAFF_STATUSES, validateProfile, pushTrainingHistory } from '../shared/core.js';
+import { STAFF_STATUSES } from '../shared/core.js';
+import { saveTraining, restoreTraining, saveProfile, saveRoutines } from './staffops.js';
+import { listLinks, createLink, updateLink, deleteLink, checkLink, syncLink, importLink, linkData } from './links.js';
+import { startAutomation } from './automation.js';
 import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
@@ -199,29 +202,18 @@ app.get('/api/staff', auth, wrap((req, res) => {
   res.json(listStaff(req.accountId).map((s) => staffView(req.accountId, s)));
 }));
 
-function saveTraining(accountId, s, text) {
-  if (!text) throw new Error('Đào tạo không được để trống.');
-  if (text.length > 20000) throw new Error('Đào tạo quá dài (tối đa 20000 ký tự).');
-  // Lưu bản hiện tại vào lịch sử trước khi thay bằng bản mới.
-  const history = pushTrainingHistory(s.trainingHistory, s.trainingVersion, s.trainingText);
-  db.prepare('UPDATE staff SET training_text = ?, training_version = training_version + 1, training_history = ? WHERE account_id = ? AND id = ?')
-    .run(text, JSON.stringify(history), accountId, s.id);
-}
-
+// Đào tạo nhiều mục: nhận { training: {prompt, skills, …} } (hoặc trainingText cũ → mục Prompt riêng).
 app.put('/api/staff/:id/training', auth, wrap((req, res) => {
-  const s = getStaff(req.accountId, req.params.id);
-  if (!s) throw new Error('Không tìm thấy nhân viên.');
-  saveTraining(req.accountId, s, String(req.body?.trainingText || '').trim());
-  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+  const input = req.body?.training || { prompt: req.body?.trainingText };
+  res.json(staffView(req.accountId, saveTraining(req.accountId, req.params.id, input)));
 }));
 
 app.post('/api/staff/:id/training/restore', auth, wrap((req, res) => {
-  const s = getStaff(req.accountId, req.params.id);
-  if (!s) throw new Error('Không tìm thấy nhân viên.');
-  const h = s.trainingHistory.find((x) => x.version === Number(req.body?.version));
-  if (!h) throw new Error('Không tìm thấy phiên bản đào tạo này.');
-  saveTraining(req.accountId, s, h.text);
-  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+  res.json(staffView(req.accountId, restoreTraining(req.accountId, req.params.id, req.body?.version)));
+}));
+
+app.put('/api/staff/:id/routines', auth, wrap((req, res) => {
+  res.json(staffView(req.accountId, saveRoutines(req.accountId, req.params.id, req.body?.routines)));
 }));
 
 app.put('/api/staff/:id/status', auth, wrap((req, res) => {
@@ -233,12 +225,7 @@ app.put('/api/staff/:id/status', auth, wrap((req, res) => {
 }));
 
 app.put('/api/staff/:id/profile', auth, wrap((req, res) => {
-  const s = getStaff(req.accountId, req.params.id);
-  if (!s) throw new Error('Không tìm thấy nhân viên.');
-  const p = validateProfile(req.body || {});
-  if (p.shortLabel) db.prepare('UPDATE staff SET short_label = ? WHERE account_id = ? AND id = ?').run(p.shortLabel, req.accountId, s.id);
-  if (p.color) db.prepare('UPDATE staff SET color = ? WHERE account_id = ? AND id = ?').run(p.color, req.accountId, s.id);
-  res.json(staffView(req.accountId, getStaff(req.accountId, s.id)));
+  res.json(staffView(req.accountId, saveProfile(req.accountId, req.params.id, req.body)));
 }));
 
 // ---------- API của nhân viên / công ty ----------
@@ -314,45 +301,23 @@ app.post('/api/api-config/:id/check', auth, wrap(async (req, res) => {
   });
 }));
 
-// ---------- Liên kết phần mềm ----------
-function listLinks(accountId, staffId) {
-  return db.prepare('SELECT * FROM software_links WHERE account_id = ? AND staff_id = ? ORDER BY software_name').all(accountId, staffId)
-    .map((r) => ({
-      id: r.id, staffId: r.staff_id, softwareName: r.software_name, url: r.url, status: r.status, permissionScope: r.permission_scope,
-      lastSyncAt: r.last_sync_at, lastCheckAt: r.last_check_at, lastOpenedAt: r.last_opened_at, accessCodeLast4: r.access_code_last4,
-    }));
-}
-
+// ---------- Phần mềm làm việc của nhân viên ----------
+app.get('/api/links', auth, wrap((req, res) => res.json(listLinks(req.accountId))));
 app.post('/api/staff/:id/links', auth, wrap((req, res) => {
-  const s = getStaff(req.accountId, req.params.id);
-  if (!s) throw new Error('Không tìm thấy nhân viên.');
-  const { softwareName, url, permissionScope = '', accessCode, status = 'not_connected' } = req.body || {};
-  if (!softwareName?.trim() || !url?.trim()) throw new Error('Cần tên phần mềm và đường dẫn.');
-  if (!['connected', 'expired', 'not_connected'].includes(status)) throw new Error('Trạng thái không hợp lệ.');
-  const ref = accessCode ? putSecret(req.accountId, accessCode) : null;
-  db.prepare(`INSERT INTO software_links (id, account_id, staff_id, software_name, url, status, permission_scope, access_code_ref, access_code_last4, last_check_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(newId('SL-'), req.accountId, s.id, softwareName.trim(), url.trim(), status, permissionScope, ref, accessCode ? last4(accessCode) : null, now());
-  res.json(listLinks(req.accountId, s.id));
+  if (!getStaff(req.accountId, req.params.id)) throw new Error('Không tìm thấy nhân viên.');
+  createLink(req.accountId, req.params.id, req.body || {});
+  res.json(listLinks(req.accountId, req.params.id));
 }));
-
-app.put('/api/links/:id', auth, wrap((req, res) => {
-  const r = db.prepare('SELECT * FROM software_links WHERE account_id = ? AND id = ?').get(req.accountId, req.params.id);
-  if (!r) throw new Error('Không tìm thấy liên kết.');
-  const { status, opened } = req.body || {};
-  if (status && !['connected', 'expired', 'not_connected'].includes(status)) throw new Error('Trạng thái không hợp lệ.');
-  db.prepare('UPDATE software_links SET status = ?, last_check_at = ?, last_opened_at = ? WHERE id = ?')
-    .run(status || r.status, status ? now() : r.last_check_at, opened ? now() : r.last_opened_at, r.id);
-  res.json(listLinks(req.accountId, r.staff_id));
+app.put('/api/links/:id', auth, wrap((req, res) => res.json(updateLink(req.accountId, req.params.id, req.body || {}))));
+app.delete('/api/links/:id', auth, wrap((req, res) => res.json(listLinks(req.accountId, deleteLink(req.accountId, req.params.id)))));
+app.post('/api/links/:id/check', auth, wrap(async (req, res) => res.json(await checkLink(req.accountId, req.params.id))));
+app.post('/api/links/:id/sync', auth, wrap(async (req, res) => res.json(await syncLink(req.accountId, req.params.id))));
+app.post('/api/links/:id/import', auth, wrap((req, res) => {
+  const text = String(req.body?.text || '');
+  if (text.length > 3_000_000) throw new Error('Dữ liệu quá lớn (tối đa khoảng 3 MB).');
+  res.json(importLink(req.accountId, req.params.id, text));
 }));
-
-app.delete('/api/links/:id', auth, wrap((req, res) => {
-  const r = db.prepare('SELECT * FROM software_links WHERE account_id = ? AND id = ?').get(req.accountId, req.params.id);
-  if (!r) throw new Error('Không tìm thấy liên kết.');
-  deleteSecret(req.accountId, r.access_code_ref);
-  db.prepare('DELETE FROM software_links WHERE id = ?').run(r.id);
-  res.json(listLinks(req.accountId, r.staff_id));
-}));
+app.get('/api/links/:id/data', auth, wrap((req, res) => res.json(linkData(req.accountId, req.params.id))));
 
 // ---------- Chat ----------
 app.get('/api/messages/:channel', auth, wrap((req, res) => {
@@ -548,5 +513,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     }
     resumeRunningSessions();
     startReportScheduler();
+    startAutomation();
   });
 }

@@ -11,6 +11,7 @@ const files = {
   'trial/backend.js': 'trial/backend.js',
   'shared/core.js': 'shared/core.js',
   'shared/deliberation.js': 'shared/deliberation.js',
+  'shared/staffkit.js': 'shared/staffkit.js',
   'app.js': 'public/app.js',
   'office3d.js': 'public/office3d.js',
   'music.js': 'public/music.js',

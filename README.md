@@ -6,6 +6,13 @@
 - **Phản biện chéo khi làm việc chung:** mỗi người đề xuất kế hoạch độc lập → phản biện từng đề xuất của người khác (điểm mạnh, lỗi lập luận, chỗ cần kiểm chứng, rủi ro, chấm điểm) → tác giả trả lời từng ý và sửa, hoặc rút để ủng hộ đề xuất tốt hơn → chấm lại → Phúc xét từng đề xuất, chọn hoặc ghép ý tốt nhất bất kể ai đề xuất và giao bước cho người làm tốt nhất, không bắt buộc đúng vai trò → thực hiện → Phúc kiểm tra từng kết quả theo tiêu chí đạt, chưa đạt thì trả làm lại kèm lý do. Quy trình Marketing 5 bước chỉ còn là tham khảo cho Phúc. Minh vẫn chốt rủi ro pháp lý, Hà vẫn chốt số liệu tài chính.
 - **Việc riêng có kiểm tra chéo:** bản nháp → một đồng nghiệp phản biện từng điểm → người làm trả lời từng ý và nộp bản cuối.
 - **Chat nhóm:** người trả lời sau phải xét từng câu trả lời trước; cuối cùng Phúc kết luận ý của ai tốt nhất.
+- **Cài đặt chi tiết từng nhân viên** (mỗi phần là một mục gập, vừa một màn hình):
+  - *Thông tin*: tên, vai trò, nhãn 3D, màu, công cụ được dùng, bật/tắt tự học.
+  - *Đào tạo riêng* gồm 10 mục: prompt riêng, kỹ năng, hướng dẫn làm việc, mô tả công việc, kết nối chéo, quy tắc đúng/sai, ví dụ TỐT, ví dụ SAI, giới hạn, bài học tự rút ra. Mỗi lần lưu là một phiên bản mới; xem và khôi phục được 8 bản gần nhất.
+  - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
+  - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
+- **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
+- **KiotViet và Facebook thật (bản server):** KiotViet dùng Public API (Retailer, Client ID, Client Secret) để lấy sản phẩm, giá và tồn kho. Fanpage dùng Graph API (Page ID, Page Access Token) để lấy bài đăng, lượt thích và bình luận. Sai mã hoặc hết hạn thì liên kết chuyển sang "Hết hạn" và hệ thống không tự đăng nhập lại. Phần này mới được kiểm thử với máy chủ giả lập, chưa thử với tài khoản thật.
 - **Dữ kiện thật nội bộ:** mỗi lượt trả lời đều nhận số liệu văn phòng đang có (phiếu, việc, hàng chờ, phần mềm đã liên kết). Nguồn chưa kết nối (giá, tồn kho KiotViet, số liệu Fanpage) được ghi rõ là "chưa cập nhật".
 - **10 nhân sự cố định:** An, Bình, Tuấn (Marketing); Sơn, Dũng, Hà, Phúc (Vận hành và kiểm soát); Chi, Trang, Minh (Hỗ trợ và kỹ thuật). Phúc là Quản lý, ngồi giữa phía dưới, giữa hai dãy bàn.
 - **Bộ não mặc định là Claude** (`claude-opus-5-5`), dùng `ANTHROPIC_API_KEY` của server. Muốn đổi bộ não cho ai thì vào **Nhân viên → Bộ não / API** và gắn key Claude, OpenAI hoặc nhà cung cấp tương thích OpenAI (Gemini, DeepSeek, OpenRouter…). Có thể gắn nhiều API theo vai trò: chung, thiết kế hình ảnh, viết bài, phân tích chuyên sâu, kênh Zalo.
@@ -18,7 +25,7 @@ Bản trải nghiệm dùng chung giao diện và logic nghiệp vụ với bả
 
 - Không cần đăng nhập riêng: tài khoản claude.ai chính là tài khoản văn phòng. Dữ liệu của mỗi tài khoản nằm trong nhánh riêng tư của tài khoản đó.
 - Bộ não của mọi nhân viên là Claude, gọi qua tài khoản claude.ai của người xem và dùng hạn mức của tài khoản đó. Lần đầu dùng, Claude sẽ hỏi bạn cho phép. Phúc (Quản lý) dùng mức model cao nhất.
-- Những phần chỉ có ở bản server: gắn API riêng cho từng nhân viên, lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), cầu nối Zalo, thời tiết thật, và báo cáo tự chạy đúng 21:00 (bản trải nghiệm nhắc bạn bấm tạo báo cáo).
+- Những phần chỉ có ở bản server: gắn API riêng cho từng nhân viên, lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), cầu nối Zalo, thời tiết thật, kết nối và đồng bộ KiotViet/Facebook trực tiếp (bản trải nghiệm không gọi được mạng ngoài; dùng Nhập dữ liệu bằng CSV), và tự động khi trình duyệt đã tắt. Lịch tự động và báo cáo 21:00 của bản trải nghiệm chỉ chạy khi trang đang mở.
 - Một việc chung 3 người tốn khoảng 13 lượt gọi Claude cho phần phản biện và chọn, cộng mỗi bước thực hiện một lượt và một lượt Phúc kiểm tra.
 
 Đóng gói lại sau khi sửa code: `node scripts/build-trial.js`. Lệnh này tạo `dist-trial/`; thư mục này được publish thành Artifact. Backend của bản trải nghiệm nằm ở `trial/backend.js`.
@@ -81,8 +88,9 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 
 ```
 shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
+          deliberation.js (phản biện chéo) · staffkit.js (đào tạo nhiều mục, lịch tự động, dữ liệu phần mềm, tự học)
 server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
-          reports.js (báo cáo 21:00) · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+          reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
 trial/    main.js · backend.js — bản trải nghiệm chạy trong Claude (trang được sinh từ public/index.html khi đóng gói)
 public/   index.html · app.js (giao diện: ngăn kéo nhân viên, văn phòng 3D, bảng chi tiết) · office3d.js (Three.js, sàn 30x20) · music.js (nhạc nền tự tạo) · style.css
 bridge/   zalo-bridge.js (chạy trên máy người dùng)

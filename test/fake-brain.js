@@ -36,6 +36,10 @@ export function fakeAnswer(prompt, flags = {}) {
   if (wantsJson && /"dat":true/.test(question)) {
     return JSON.stringify({ danhGia: [{ buoc: 1, dat: !flags.failReview, lyDo: flags.failReview ? '[TEST] thiếu số liệu nền thật' : '[TEST] đạt' }, { buoc: 2, dat: true, lyDo: '[TEST] đạt' }], ketLuan: '[TEST] đã xét từng bước' });
   }
+  if (wantsJson && /"baiHoc":\[/.test(question)) {
+    const names = [...question.matchAll(/^- ([^:\n]+): /gm)].map((m) => m[1]);
+    return JSON.stringify({ baiHoc: names.map((n) => ({ nhanVien: n, baiHoc: [`[TEST] ${n}: kiểm tra số liệu nền trước khi đề xuất`] })) });
+  }
   if (wantsJson && /"vanDe":\[/.test(question)) {
     return JSON.stringify({ diemManh: '[TEST] rõ ràng', vanDe: [{ diem: 'Thiếu số liệu', lyDo: 'chưa có nguồn', deXuat: 'ghi chưa cập nhật' }], canKiemChung: 'doanh thu tuần', yTuongTotHon: '', diem: 7 });
   }

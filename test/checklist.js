@@ -11,6 +11,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vpa-test-'));
 Object.assign(process.env, {
   DATA_DIR: dir, VPA_ANTHROPIC_BASE_URL: fake.url, ANTHROPIC_API_KEY: 'sk-ant-default-PLACEHOLDER',
   APP_SECRET: 'test-secret', DEBATE_MINUTES: process.env.DEBATE_MINUTES || '10',
+  VPA_KIOTVIET_ID_URL: fake.url, VPA_KIOTVIET_API_URL: fake.url, VPA_FACEBOOK_GRAPH_URL: fake.url, VPA_AUTOMATION_INTERVAL_MS: '1000',
 });
 
 const results = [];
@@ -269,6 +270,56 @@ let zIds = [];
   const link = (await A2('/api/staff')).data.find((s) => s.id === 'STAFF-005').softwareLinks[0];
   check('Ca dữ liệu bền vững', after.staff === 10 && after.tasks === before.tasks && after.softwareLinks === linksBefore && zAfter === zBefore && link.accessCodeLast4 === 'LDER' && !JSON.stringify(link).includes('ma-truy-cap'),
     `Sau khi mở lại: ${after.staff} nhân sự, ${after.tasks} việc, ${after.softwareLinks} liên kết (chỉ hiện ···${link.accessCodeLast4}), hàng chờ Zalo khớp: ${zAfter === zBefore}`);
+}
+
+// --- Cài đặt chi tiết từng nhân sự, phần mềm làm việc, tự học, lịch tự động ---
+{
+  const S = client(base);
+  await S('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  // Đào tạo nhiều mục → đưa vào prompt
+  const tr = (await S('/api/staff/STAFF-004/training', { training: { prompt: 'Bạn là Sale Long Phu Auto (TEST)', skills: 'Tư vấn phụ tùng đầu kéo Mỹ (TEST)', rules: 'Không bịa giá (TEST)', limits: 'Không tự giảm giá (TEST)' } }, 'PUT')).data;
+  // Hồ sơ đầy đủ
+  const pf = await S('/api/staff/STAFF-004/profile', { name: 'Sơn', role: 'Sale bán hàng', shortLabel: 'Sale', color: '#e23b3b', tools: 'KiotViet, Messenger', autoLearn: true }, 'PUT');
+  // KiotViet: sai mã → hết hạn; đúng → kết nối, đồng bộ sản phẩm thật
+  await S('/api/staff/STAFF-004/links', { softwareName: 'KiotViet', url: 'https://longphu-test.kiotviet.vn', kind: 'kiotviet', purpose: 'Tra giá và tồn kho khi khách hỏi', retailer: 'longphu-test', clientId: 'kv-client', accessCode: 'sai-PLACEHOLDER' });
+  let link = (await S('/api/staff')).data.find((s) => s.id === 'STAFF-004').softwareLinks.find((l) => l.kind === 'kiotviet');
+  const bad = (await S(`/api/links/${link.id}/check`, {})).data;
+  await S(`/api/links/${link.id}`, { accessCode: 'kv-secret-PLACEHOLDER' }, 'PUT');
+  const ok = (await S(`/api/links/${link.id}/check`, {})).data;
+  const sync = (await S(`/api/links/${link.id}/sync`, {})).data;
+  const before = fake.state.calls.length;
+  await S('/api/chat/staff/STAFF-004', { text: 'Khách hỏi phốt bánh Fleetrite còn hàng không, giá bao nhiêu?' });
+  await waitFor(async () => fake.state.calls.length > before && !(await S('/api/messages/staff:STAFF-004')).data.busy);
+  const sys = fake.state.calls.slice(before).map((c) => c.body.system).find((x) => /Bạn là Sơn/.test(x)) || '';
+  check('Đào tạo nhiều mục và hồ sơ đầy đủ', tr.trainingVersion >= 2 && /\[Kỹ năng chuyên môn\]/.test(sys) && /Không tự giảm giá/.test(sys) && pf.status === 200 && pf.data.tools === 'KiotViet, Messenger',
+    `đào tạo v${tr.trainingVersion}; prompt có các mục Kỹ năng / Quy tắc / Giới hạn; công cụ: ${pf.data.tools}`);
+  check('KiotViet: kiểm tra kết nối thật, đồng bộ sản phẩm, nhân viên dùng giá + tồn kho khi trả lời khách', !bad.ok && /Client secret không đúng/.test(bad.message) && bad.link.status === 'expired'
+    && ok.ok && /HTTP 200/.test(ok.message) && sync.ok && sync.link.data.count === 3 && /FLTWS47691/.test(sys) && /"gia":450000/.test(sys) && /"ton":12/.test(sys) && sync.link.logs.length >= 3,
+    `sai mã → "${bad.message}" (${bad.link.status}); đúng → "${ok.message}"; ${sync.message}; nhật ký ${sync.link.logs.length} dòng; prompt của Sơn có mã FLTWS47691, giá 450000, tồn 12`);
+  // Fanpage
+  await S('/api/staff/STAFF-001/links', { softwareName: 'Fanpage Phụ Tùng', url: 'https://www.facebook.com/phutung-test', kind: 'facebook_page', pageId: 'fbpage-test', accessCode: 'fb-token-PLACEHOLDER', purpose: 'Đăng bài, đọc tương tác' });
+  const fl = (await S('/api/staff')).data.find((s) => s.id === 'STAFF-001').softwareLinks.find((l) => l.kind === 'facebook_page');
+  const fcheck = (await S(`/api/links/${fl.id}/check`, {})).data;
+  const fsync = (await S(`/api/links/${fl.id}/sync`, {})).data;
+  const fdata = (await S(`/api/links/${fl.id}/data`)).data;
+  check('Fanpage: kiểm tra kết nối, lấy bài đăng, lượt thích và bình luận mới', fcheck.ok && /1234 lượt thích/.test(fcheck.message) && fsync.ok && fdata.items[0].luotThich === 41 && /Giá sao shop/.test(fdata.items[0].binhLuanMoi[0]),
+    `${fcheck.message}; ${fsync.message}; bài 1: ${fdata.items[0].luotThich} thích, bình luận: "${fdata.items[0].binhLuanMoi[0]}"`);
+  // Nhập dữ liệu CSV xuất từ KiotViet
+  await S('/api/staff/STAFF-005/links', { softwareName: 'KiotViet kho', url: 'https://longphu-test.kiotviet.vn', kind: 'other' });
+  const kl = (await S('/api/staff')).data.find((s) => s.id === 'STAFF-005').softwareLinks[0];
+  const imp = (await S(`/api/links/${kl.id}/import`, { text: 'Mã hàng,Tên hàng,Giá bán,Tồn kho\nAB-1,"Má phanh Mỹ, loại A (TEST)",320000,7\nAB-2,Bố thắng (TEST),150000,0' })).data;
+  const kd = (await S(`/api/links/${kl.id}/data`)).data;
+  check('Nhập dữ liệu: đọc bảng CSV xuất từ KiotViet thành sản phẩm', imp.ok && kd.total === 2 && kd.items[0].ten === 'Má phanh Mỹ, loại A (TEST)' && kd.items[0].gia === 320000 && kd.items[0].ton === 7, `${imp.message}; dòng 1: ${JSON.stringify(kd.items[0])}`);
+  // Tự học: việc riêng của Hà ở ca trước đã xong → bài học trong đào tạo
+  const ha = await waitFor(async () => { const s = (await S('/api/staff')).data.find((x) => x.id === 'STAFF-006'); return /\[TEST\] Hà/.test(s.training.lessons) && s; }, 8000);
+  check('Tự học sau mỗi việc: Trang rút bài học, thành phiên bản đào tạo mới', ha && ha.trainingHistory.some((h) => /Tự học/.test(h.note)),
+    ha ? `Bài học của Hà: "${ha.training.lessons.split('\n').at(-1)}"; lịch sử: ${ha.trainingHistory.map((h) => `v${h.version} ${h.note}`).join(' · ')}` : 'chưa có bài học');
+  // Lịch tự động: đến giờ thì tự giao việc và chạy
+  const rt = await S('/api/staff/STAFF-002/routines', { routines: [{ time: '00:00', title: 'Rà quảng cáo đang chạy (TEST)', description: 'Kiểm tra chi phí mỗi tin nhắn' }] }, 'PUT');
+  const auto = await waitFor(async () => (await S('/api/tasks')).data.find((t) => /Rà quảng cáo đang chạy/.test(t.title) && t.status === 'done'), 15000);
+  const after = (await S('/api/staff')).data.find((x) => x.id === 'STAFF-002').routines[0];
+  check('Lịch tự động: đến giờ tự giao việc, chạy xong, không chạy lại trong ngày', rt.status === 200 && auto && auto.createdBy === 'system' && after.lastRunDate,
+    auto ? `việc "${auto.title}" do hệ thống tạo → ${auto.status}; đã chạy ngày ${after.lastRunDate}` : 'không thấy việc tự động');
 }
 
 // --- Báo cáo cuối ngày + hoạt động 3D ---

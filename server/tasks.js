@@ -4,6 +4,8 @@ import { getStaff, listStaff, pickRelevantStaffIds, MANAGER_ID, isMarketing } fr
 import { selectBrain, thinkWithBrain, kindOfText } from './brain.js';
 import { executionPlan } from '../shared/core.js';
 import { runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard } from '../shared/deliberation.js';
+import { runLearning, TRAINER_ID } from '../shared/staffkit.js';
+import { applyLessons } from './staffops.js';
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
 
@@ -249,14 +251,30 @@ export async function executeTask(accountId, taskId) {
     if (result.status === 'stopped' || isTaskBlocked(accountId, taskId)) return;
     if (result.status === 'returned_for_redo') {
       updateTask(accountId, taskId, { status: 'returned_for_redo', return_reason: `Phúc kiểm tra: ${result.returnReason}`, pass_criteria: result.passCriteria });
+      learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
     } else if (result.status === 'done') {
       updateTask(accountId, taskId, { status: 'done' });
+      learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
     } else {
       updateTask(accountId, taskId, { status: 'in_progress', last_error: result.error || null });
     }
   } finally {
     executing.delete(taskId);
   }
+}
+
+// ---------- Tự học sau mỗi việc ----------
+// Trang đọc kết quả và đánh giá, viết bài học cho từng người; bài học vào mục "Bài học tự rút ra" (phiên bản đào tạo mới).
+export async function learnFromTask(accountId, taskId) {
+  const t = rowToTask(getTaskRow(accountId, taskId));
+  const outputs = t.outputs.filter((o) => o.text || o.error);
+  if (!outputs.length) return [];
+  const trainer = getStaff(accountId, TRAINER_ID);
+  return runLearning({
+    task: t, outputs, staffList: listStaff(accountId), trainer,
+    think: (staff, ctx) => thinkWithBrain(accountId, staff, selectBrain(accountId, staff, 'deep_analysis'), ctx),
+    apply: (staffId, lessons) => applyLessons(accountId, staffId, lessons, t.title),
+  });
 }
 
 // ---------- Quản lý ----------

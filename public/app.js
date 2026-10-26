@@ -276,30 +276,24 @@ function chatList(channel, container, autoScroll = true) {
 }
 
 // ---------- Nhân viên: hồ sơ + xem trực tiếp + cài đặt ----------
-const SUBS = [['chat', 'Hỏi riêng'], ['tasks', 'Việc'], ['training', 'Đào tạo'], ['brain', 'Bộ não / API'], ['software', 'Phần mềm'], ['consult', 'Tham vấn'], ['zalo', 'Zalo riêng'], ['profile', 'Hồ sơ']];
+const SUBS = [['chat', 'Hỏi riêng'], ['tasks', 'Việc'], ['profile', 'Thông tin'], ['training', 'Đào tạo'], ['software', 'Phần mềm'], ['auto', 'Lịch tự động'], ['brain', 'Bộ não / API'], ['consult', 'Tham vấn'], ['zalo', 'Zalo']];
 
 VIEWS.staff = (id) => {
   const s = staffById(id);
   if (!s) return mount('<p class="muted">Chọn một nhân viên.</p>');
   const wrap = el(`
     <section class="profile">
-      ${avatar(s, 'lg')}
+      ${avatar(s)}
       <div class="grow">
-        <h3>${esc(s.name)} — ${esc(s.role)}</h3>
+        <h3>${esc(s.name)} <span class="role">— ${esc(s.role)}</span></h3>
         <div class="lines" id="pLines"></div>
       </div>
     </section>
-    <div class="sig-card">Mã ký riêng (chữ ký số trên phiếu bán hàng): <b>${esc(s.signCode)}</b> — ký kèm ngày giờ, dấu V mờ dưới chữ ký<span class="v" aria-hidden="true">V</span></div>
-    <div class="stack" style="gap:10px">
-      <div class="eyebrow">Đổi trạng thái nhanh</div>
-      <div class="chips" id="statusChips">${Object.entries(STATUS).map(([k, v]) => `<button type="button" class="chip" data-st="${k}">${v}</button>`).join('')}</div>
-      <p class="kv" id="statusNote"></p>
-    </div>
-    <section class="card gold live stack" id="live" aria-live="polite"></section>
-    <div class="stack" style="gap:10px">
-      <div class="eyebrow">Cài đặt &amp; làm việc với ${esc(s.name)}</div>
-      <div class="seg" role="tablist">${SUBS.map(([k, n]) => `<button type="button" role="tab" class="chip ${state.sub === k ? 'active' : ''}" aria-selected="${state.sub === k}" data-sub="${k}">${n}</button>`).join('')}</div>
-    </div>
+    <div class="sig-card" title="Chữ ký số trên phiếu bán hàng: ký kèm ngày giờ, dấu V mờ dưới chữ ký">Mã ký riêng: <b>${esc(s.signCode)}</b><span class="v" aria-hidden="true">V</span></div>
+    <div class="chips tight" id="statusChips" aria-label="Đổi trạng thái nhanh">${Object.entries(STATUS).map(([k, v]) => `<button type="button" class="chip sm" data-st="${k}">${v}</button>`).join('')}</div>
+    <p class="kv" id="statusNote" style="margin:0"></p>
+    <details class="card gold live" id="live" aria-live="polite"></details>
+    <div class="seg" role="tablist" aria-label="Cài đặt và làm việc với ${esc(s.name)}">${SUBS.map(([k, n]) => `<button type="button" role="tab" class="chip sm ${state.sub === k ? 'active' : ''}" aria-selected="${state.sub === k}" data-sub="${k}">${n}</button>`).join('')}</div>
     <div id="subBody" class="stack"></div>`);
   $('#statusChips', wrap).addEventListener('click', async (e) => {
     const b = e.target.closest('[data-st]');
@@ -311,13 +305,13 @@ VIEWS.staff = (id) => {
     if (b) { state.sub = b.dataset.sub; VIEWS.staff(id); }
   });
   const body = $('#subBody', wrap);
-  const subRefresh = { chat: subChat, tasks: subTasks, training: subTraining, brain: subBrain, software: subSoftware, consult: subConsult, zalo: subZalo, profile: subProfile }[state.sub](s, body);
+  const subRefresh = ({ chat: subChat, tasks: subTasks, training: subTraining, brain: subBrain, software: subSoftware, auto: subAuto, consult: subConsult, zalo: subZalo, profile: subProfile }[state.sub] || subChat)(s, body);
 
   function paintHead() {
     const cur = staffById(id);
     const st = statusOf(cur);
     const n = activeTasksOf(id).length;
-    $('#pLines', wrap).innerHTML = `${statusHtml(st)}<span>· ${n ? `Đang xử lý ${n} việc` : 'Chưa có việc đang mở'}</span><span>· Đào tạo v${cur.trainingVersion}</span><span>· Bộ não: ${esc(cur.currentBrain.label)}</span>`;
+    $('#pLines', wrap).innerHTML = `${statusHtml(st)}<span>· ${n ? `Đang xử lý ${n} việc` : 'Chưa có việc đang mở'}</span><span>· Đào tạo v${cur.trainingVersion}${cur.autoLearn ? ' (tự học)' : ''}</span><span>· Bộ não: ${esc(cur.currentBrain.label)}</span>`;
     for (const c of $$('#statusChips .chip', wrap)) c.classList.toggle('active', c.dataset.st === cur.manualStatus);
     const auto = st !== cur.manualStatus;
     $('#statusNote', wrap).textContent = auto ? `Đang hiện "${STATUS[st]}" vì ${st === 'thinking' ? `${cur.name} đang suy nghĩ câu trả lời` : `${cur.name} đang có việc mở`}; trạng thái bạn đặt: ${STATUS[cur.manualStatus]}.` : '';
@@ -329,7 +323,9 @@ VIEWS.staff = (id) => {
 // Xem trực tiếp: việc gần nhất của nhân viên, từng bước, tiến trình.
 function liveCard(id, box) {
   const openState = new Set();
+  let userToggled = false;
   box.addEventListener('click', (e) => {
+    if (e.target.closest('summary')) userToggled = true;
     const m = e.target.closest('[data-more]');
     if (m) { const k = m.dataset.more; openState.has(k) ? openState.delete(k) : openState.add(k); m.previousElementSibling.classList.toggle('open'); m.textContent = openState.has(k) ? 'Thu gọn' : 'Xem đầy đủ'; }
     const o = e.target.closest('[data-task]');
@@ -340,8 +336,8 @@ function liveCard(id, box) {
     const mine = state.tasks.filter((t) => involves(t, id));
     const task = mine.find((t) => ACTIVE_TASK.has(t.status)) || mine[0];
     if (!task) {
-      box.innerHTML = `<div class="row between"><h3>Xem trực tiếp — ${esc(s.name)} đang làm gì</h3>${statusHtml(statusOf(s))}</div>
-        <p class="muted">${esc(s.name)} chưa có việc nào. Giao việc riêng ở mục "Việc" bên dưới, hoặc giao việc chung cho cả nhóm.</p>`;
+      box.innerHTML = `<summary><h3>Xem trực tiếp</h3><span class="grow kv">Chưa có việc</span>${statusHtml(statusOf(s))}</summary>
+        <p class="muted" style="margin:10px 0 0">${esc(s.name)} chưa có việc nào. Giao việc riêng ở mục "Việc", hoặc giao việc chung cho cả nhóm.</p>`;
       return;
     }
     let steps = [];
@@ -372,8 +368,10 @@ function liveCard(id, box) {
     const doneN = steps.filter((x) => x.done).length;
     const pct = steps.length ? Math.round((doneN / steps.length) * 100) : 0;
     const tone = TASK_TONE[task.status] || 'gold';
+    if (!userToggled) box.open = active;
     box.innerHTML = `
-      <div class="row between"><h3>Xem trực tiếp — ${esc(s.name)} đang làm gì</h3><span class="pill ${tone}"><i class="dot"></i>${esc(TASK_STATUS[task.status])}</span></div>
+      <summary><h3>Xem trực tiếp</h3><span class="grow kv live-sum">${esc(task.title)}${steps.length ? ` · ${doneN}/${steps.length} bước` : ''}</span><span class="pill ${tone}"><i class="dot"></i>${esc(TASK_STATUS[task.status])}</span></summary>
+      <div class="stack" style="margin-top:12px;gap:10px">
       <p style="margin:0">Việc ${active ? 'đang làm' : 'gần nhất'}: <b>${esc(task.title)}</b></p>
       <p class="kv" style="margin:0">Bộ não đang dùng: ${esc(s.currentBrain.label)} · Cập nhật lúc ${esc(fmtTime(task.updatedAt))} · Tự làm mới mỗi 3 giây</p>
       ${steps.length ? `<div class="row between kv"><span>Tiến trình: ${doneN}/${steps.length} bước</span><span>${pct}%</span></div>
@@ -387,7 +385,7 @@ function liveCard(id, box) {
             ${x.text ? `<div class="detail-box ${openState.has(`${task.id}${i}`) ? 'open' : ''}"><b>${esc(x.label)}:</b> ${esc(x.text)}</div><button type="button" class="more-btn" data-more="${task.id}${i}">${openState.has(`${task.id}${i}`) ? 'Thu gọn' : 'Xem đầy đủ'}</button>` : ''}
           </div>
         </div>`).join('') || '<p class="muted">Đang chờ bản chốt của Phúc để chia bước.</p>'}</div>
-      <button type="button" class="btn sm" data-task="${task.id}">Mở toàn bộ việc</button>`;
+      <button type="button" class="btn sm" data-task="${task.id}">Mở toàn bộ việc</button></div>`;
   };
 }
 
@@ -452,24 +450,46 @@ function subTasks(s, body) {
   };
 }
 
+// Các mục đào tạo (khớp shared/staffkit.js). Mỗi mục là một ô gập để cả bảng vừa một màn hình.
+const TRAINING_FIELDS = [
+  ['prompt', 'Prompt riêng', 'Bạn là ai, làm cho ai, mục tiêu chính.'],
+  ['skills', 'Kỹ năng chuyên môn', 'Những việc nhân sự giỏi và làm hằng ngày.'],
+  ['workGuide', 'Hướng dẫn làm việc', 'Nhiệm vụ và quy trình phụ trách, theo thứ tự.'],
+  ['jobDescription', 'Mô tả công việc', 'Phải làm gì, khi nào, ra sản phẩm gì.'],
+  ['crossLinks', 'Kết nối chéo', 'Nhận việc từ ai, chuyển cho ai, phản biện thế nào.'],
+  ['rules', 'Quy tắc đúng / sai', 'Điều bắt buộc và điều cấm.'],
+  ['goodExamples', 'Ví dụ mẫu TỐT', 'Làm thế này là đúng.'],
+  ['badExamples', 'Ví dụ mẫu SAI', 'Tránh làm thế này.'],
+  ['limits', 'Giới hạn — chuyển cho chủ', 'Việc không được tự làm.'],
+  ['lessons', 'Bài học tự rút ra', 'Hệ thống tự thêm sau mỗi việc; sửa hoặc xoá được.'],
+];
+const compileTraining = (t) => TRAINING_FIELDS.filter(([k]) => String(t?.[k] || '').trim()).map(([k, label]) => `[${label}]\n${String(t[k]).trim()}`).join('\n\n');
+const lineCount = (v) => String(v || '').split('\n').filter((x) => x.trim()).length;
+
 function subTraining(s, body) {
+  const t = s.training || { prompt: s.trainingText };
   body.innerHTML = `
-    <form class="card form" id="trainForm">
+    <form class="card form tight" id="trainForm">
       <div class="row between"><h3>Đào tạo riêng</h3><span class="pill gold">Đang dùng v${s.trainingVersion}</span></div>
-      <p class="kv">Mỗi lần lưu tăng phiên bản; mọi câu trả lời của ${esc(s.name)} dùng bản mới nhất.</p>
-      <textarea name="trainingText" id="trainText" style="min-height:240px">${esc(s.trainingText)}</textarea>
+      <p class="kv" style="margin:0">Mọi câu trả lời của ${esc(s.name)} dùng bản mới nhất. ${s.autoLearn ? `Sau mỗi việc, Trang (Nhân sự) đọc kết quả và lời phản biện rồi ghi bài học vào mục cuối.` : 'Tự học đang tắt (bật ở mục Thông tin).'}</p>
+      <div class="acc">${TRAINING_FIELDS.map(([k, label, hint], i) => `
+        <details ${i === 0 ? 'open' : ''}>
+          <summary><span>${esc(label)}</span><small>${lineCount(t[k]) ? `${lineCount(t[k])} dòng` : 'trống'}</small></summary>
+          <textarea name="${k}" aria-label="${esc(label)}" placeholder="${esc(hint)}">${esc(t[k] || '')}</textarea>
+        </details>`).join('')}</div>
       <button class="btn gold" type="submit">Lưu đào tạo (thành v${s.trainingVersion + 1})</button>
     </form>
-    <section class="card stack">
-      <h3>Lịch sử đào tạo</h3>
+    <details class="card fold">
+      <summary><h3>Lịch sử đào tạo</h3><small>${s.trainingHistory?.length || 0} bản cũ</small></summary>
       ${s.trainingHistory?.length ? `<div class="history">${s.trainingHistory.map((h) => `
-        <div class="item"><span class="pill">v${h.version}</span><span class="grow kv">${esc(fmtTime(h.at))}</span>
+        <div class="item"><span class="pill">v${h.version}</span><span class="grow kv">${esc(h.note || '')} · ${esc(fmtTime(h.at))}</span>
           <button class="btn sm" type="button" data-view="${h.version}">Xem</button><button class="btn sm outline" type="button" data-restore="${h.version}">Khôi phục</button></div>
-        <div class="detail-box open hidden" data-text="${h.version}">${esc(h.text)}</div>`).join('')}</div>` : '<p class="muted">Chưa có phiên bản cũ. Bản cũ được giữ lại mỗi khi bạn lưu đào tạo mới.</p>'}
-    </section>`;
+        <div class="detail-box open hidden" data-text="${h.version}">${esc(compileTraining(h.training) || h.text || '')}</div>`).join('')}</div>` : '<p class="muted">Chưa có phiên bản cũ. Bản cũ được giữ lại mỗi khi lưu đào tạo mới (kể cả khi tự học).</p>'}
+    </details>`;
   $('#trainForm', body).addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await act(() => api(`/api/staff/${s.id}/training`, { method: 'PUT', body: { trainingText: e.target.trainingText.value } }), 'Đã lưu đào tạo.')) { await loadStaff(); VIEWS.staff(s.id); }
+    const training = Object.fromEntries(TRAINING_FIELDS.map(([k]) => [k, e.target[k].value]));
+    if (await act(() => api(`/api/staff/${s.id}/training`, { method: 'PUT', body: { training } }), 'Đã lưu đào tạo.')) { await loadStaff(); VIEWS.staff(s.id); }
   });
   body.addEventListener('click', async (e) => {
     const v = e.target.closest('[data-view]');
@@ -484,27 +504,32 @@ function subTraining(s, body) {
 
 function subProfile(s, body) {
   body.innerHTML = `
-    <section class="card stack">
-      <h3>Hồ sơ</h3>
+    <form class="card form tight" id="profForm">
+      <h3>Thông tin cơ bản</h3>
+      <div class="field-row">
+        <label>Tên nhân vật <input name="name" value="${esc(s.name)}" maxlength="40" required></label>
+        <label>Vai trò <input name="role" value="${esc(s.role)}" maxlength="80" required></label>
+      </div>
+      <div class="field-row">
+        <label>Nhãn trên đầu nhân vật 3D (≤ 3 chữ) <input name="shortLabel" value="${esc(s.shortLabel)}" maxlength="18" required></label>
+        <label>Công cụ được dùng <input name="tools" value="${esc(s.tools || '')}" maxlength="300" placeholder="Ví dụ: KiotViet, Fanpage, Zalo OA"></label>
+      </div>
+      <div class="row"><span class="kv">Màu</span>
+        <div class="swatches" role="radiogroup" aria-label="Màu riêng">${COLOR_CHOICES.map((c) => `<button type="button" class="swatch ${c === s.color ? 'active' : ''}" role="radio" aria-checked="${c === s.color}" aria-label="Màu ${c}" data-color="${c}" style="background:${c}"></button>`).join('')}</div></div>
+      <input type="hidden" name="color" value="${esc(s.color)}">
+      <label class="check"><input type="checkbox" name="autoLearn" ${s.autoLearn ? 'checked' : ''}> Tự học sau mỗi việc (Trang ghi bài học vào đào tạo, tạo phiên bản mới)</label>
+      <button class="btn gold" type="submit">Lưu thông tin</button>
+    </form>
+    <details class="card fold">
+      <summary><h3>Hồ sơ cố định</h3><small>${esc(s.id)} · ${esc(GROUP_NAME[s.group] || s.group)}</small></summary>
       <dl class="facts">
-        <dt>Mã nhân viên</dt><dd>${esc(s.id)}</dd>
-        <dt>Vai trò</dt><dd>${esc(s.role)}</dd>
         <dt>Nhóm</dt><dd>${esc(GROUP_NAME[s.group] || s.group)}</dd>
-        <dt>Phần mềm chính</dt><dd>${esc(s.mainSoftware)}</dd>
         <dt>Chỗ ngồi</dt><dd>${esc(s.seat.zone)} · bàn số ${s.seat.deskIndex + 1}</dd>
         <dt>Mã ký riêng</dt><dd>${esc(s.signCode)}</dd>
         <dt>Bộ não gần nhất</dt><dd>${esc(s.lastBrainLabel || '—')}</dd>
+        <dt>Trách nhiệm</dt><dd>${esc(s.responsibilities)}</dd>
       </dl>
-      <div><div class="kv" style="margin-bottom:4px">Trách nhiệm cốt lõi</div><p style="margin:0">${esc(s.responsibilities)}</p></div>
-    </section>
-    <form class="card form" id="profForm">
-      <h3>Hiển thị trong văn phòng</h3>
-      <label>Nhãn trên đầu nhân vật 3D (tối đa 3 chữ) <input id="pfLabel" name="shortLabel" value="${esc(s.shortLabel)}" maxlength="18" required></label>
-      <div class="stack" style="gap:8px"><span class="kv">Màu riêng (ảnh đại diện, áo, nhãn)</span>
-        <div class="swatches" role="radiogroup" aria-label="Màu riêng">${COLOR_CHOICES.map((c) => `<button type="button" class="swatch ${c === s.color ? 'active' : ''}" role="radio" aria-checked="${c === s.color}" aria-label="Màu ${c}" data-color="${c}" style="background:${c}"></button>`).join('')}</div></div>
-      <input type="hidden" name="color" value="${esc(s.color)}">
-      <button class="btn gold" type="submit">Lưu hiển thị</button>
-    </form>`;
+    </details>`;
   const form = $('#profForm', body);
   $('.swatches', body).addEventListener('click', (e) => {
     const b = e.target.closest('[data-color]');
@@ -514,8 +539,50 @@ function subProfile(s, body) {
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await act(() => api(`/api/staff/${s.id}/profile`, { method: 'PUT', body: Object.fromEntries(new FormData(form)) }), 'Đã lưu.')) { await loadStaff(); VIEWS.staff(s.id); }
+    const v = Object.fromEntries(new FormData(form));
+    v.autoLearn = form.autoLearn.checked;
+    if (await act(() => api(`/api/staff/${s.id}/profile`, { method: 'PUT', body: v }), 'Đã lưu.')) { await loadStaff(); VIEWS.staff(s.id); }
   });
+  return null;
+}
+
+// Lịch tự động: đến giờ (giờ Việt Nam) hệ thống tự giao việc cho nhân viên, chạy đủ vòng phản biện rồi tự học.
+function subAuto(s, body) {
+  let rows = (s.routines || []).map((r) => ({ ...r }));
+  const paint = () => {
+    body.innerHTML = `
+      <form class="card form tight" id="autoForm">
+        <div class="row between"><h3>Lịch tự động hằng ngày</h3><span class="pill">${rows.filter((r) => r.enabled).length}/${rows.length} đang bật</span></div>
+        <p class="kv" style="margin:0">Đến giờ, ${esc(s.name)} tự nhận việc, làm nháp, đồng nghiệp phản biện, ra bản cuối và tự học. Báo cáo cuối ngày 21:00 cũng tự chạy. ${state.me.trial ? 'Bản trải nghiệm chỉ chạy khi trang đang mở.' : 'Bản server chạy cả khi bạn tắt trình duyệt.'}</p>
+        ${rows.length ? rows.map((r, i) => `
+          <div class="routine" data-i="${i}">
+            <div class="row">
+              <input type="time" name="time" value="${esc(r.time)}" aria-label="Giờ" required style="max-width:130px">
+              <input class="grow" name="title" value="${esc(r.title)}" placeholder="Tên việc, ví dụ: Trả lời bình luận Fanpage" aria-label="Tên việc" required style="flex:1 1 180px">
+              <label class="check"><input type="checkbox" name="enabled" ${r.enabled ? 'checked' : ''}> Bật</label>
+              <button class="btn sm danger" type="button" data-rdel="${i}" aria-label="Xoá lịch">Xoá</button>
+            </div>
+            <textarea name="description" placeholder="Yêu cầu chi tiết (dùng dữ liệu phần mềm nào, ra kết quả gì)" aria-label="Yêu cầu chi tiết" style="min-height:64px">${esc(r.description || '')}</textarea>
+            ${r.lastRunDate ? `<span class="kv">Chạy gần nhất: ${esc(r.lastRunDate)}</span>` : ''}
+          </div>`).join('') : '<p class="muted" style="margin:0">Chưa có lịch. Thêm một việc lặp lại mỗi ngày.</p>'}
+        <div class="row"><button class="btn sm outline" type="button" id="addRoutine">+ Thêm lịch</button><button class="btn gold sm" type="submit">Lưu lịch</button></div>
+      </form>`;
+    $('#addRoutine', body).addEventListener('click', () => { read(); rows.push({ time: '08:00', title: '', description: '', enabled: true }); paint(); });
+    body.querySelectorAll('[data-rdel]').forEach((b) => b.addEventListener('click', () => { read(); rows.splice(Number(b.dataset.rdel), 1); paint(); }));
+    $('#autoForm', body).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      read();
+      if (await act(() => api(`/api/staff/${s.id}/routines`, { method: 'PUT', body: { routines: rows } }), 'Đã lưu lịch tự động.')) { await loadStaff(); rows = (staffById(s.id).routines || []).map((r) => ({ ...r })); paint(); }
+    });
+  };
+  const read = () => {
+    for (const box of $$('.routine', body)) {
+      const r = rows[Number(box.dataset.i)];
+      r.time = $('[name=time]', box).value; r.title = $('[name=title]', box).value;
+      r.description = $('[name=description]', box).value; r.enabled = $('[name=enabled]', box).checked;
+    }
+  };
+  paint();
   return null;
 }
 
@@ -609,47 +676,157 @@ function apiConfigEditor(ownerId, body, title) {
 }
 
 const LINK_STATUS = { connected: 'Đã kết nối', expired: 'Hết hạn — cần tự đăng nhập lại', not_connected: 'Chưa kết nối' };
-function linkCards(links, showOwner = false) {
-  return links.length ? links.map((l) => `
-    <div class="card stack" style="gap:8px">
-      <div class="row between"><b>${esc(l.softwareName)}${showOwner ? ` · ${esc(nameOf(l.staffId))}` : ''}</b>
-        <span class="pill ${l.status === 'connected' ? 'teal' : l.status === 'expired' ? 'red' : ''}">${LINK_STATUS[l.status]}</span></div>
-      <a class="kv" href="${esc(l.url)}" target="_blank" rel="noopener" data-opened="${l.id}">${esc(l.url)}</a>
-      <div class="kv">Quyền: ${esc(l.permissionScope || '—')} · Mã: ${l.accessCodeLast4 ? '···' + esc(l.accessCodeLast4) : '—'} · Kiểm tra: ${esc(fmtTime(l.lastCheckAt))} · Mở: ${esc(fmtTime(l.lastOpenedAt))}</div>
-      <div class="row"><select class="grow" data-lstatus="${l.id}" aria-label="Trạng thái ${esc(l.softwareName)}" style="max-width:240px">${Object.keys(LINK_STATUS).map((x) => `<option value="${x}" ${x === l.status ? 'selected' : ''}>${{ connected: 'Đã kết nối', expired: 'Hết hạn', not_connected: 'Chưa kết nối' }[x]}</option>`).join('')}</select>
-        <button class="btn sm danger" type="button" data-ldel="${l.id}">Xoá</button></div>
-    </div>`).join('') : '<p class="muted">Chưa có liên kết phần mềm.</p>';
+const LINK_KINDS = { kiotviet: 'KiotViet — sản phẩm, giá, tồn kho', facebook_page: 'Fanpage Facebook — bài đăng, tương tác', other: 'Phần mềm khác' };
+const LINK_DEFAULTS = {
+  kiotviet: { softwareName: 'KiotViet', url: 'https://www.kiotviet.vn/', purpose: 'Tra giá, tồn kho, mã hàng để trả lời khách đúng số liệu thật.', permissionScope: 'Chỉ đọc sản phẩm và tồn kho' },
+  facebook_page: { softwareName: 'Fanpage', url: 'https://www.facebook.com/', purpose: 'Đọc bài đăng, lượt thích, bình luận mới để chăm sóc khách và báo cáo.', permissionScope: 'Chỉ đọc bài đăng và bình luận' },
+  other: { softwareName: '', url: 'https://', purpose: '', permissionScope: '' },
+};
+const SECRET_LABEL = { kiotviet: 'Client Secret', facebook_page: 'Page Access Token', other: 'Mã truy cập' };
+const linkTone = (st) => (st === 'connected' ? 'teal' : st === 'expired' ? 'red' : '');
+
+function linkFields(l) {
+  const k = l.kind || 'other';
+  return `
+    <label>Mục đích dùng <textarea name="purpose" style="min-height:56px" placeholder="Nhân viên dùng phần mềm này để làm gì">${esc(l.purpose || '')}</textarea></label>
+    <div class="field-row">
+      <label>Phần mềm <input name="softwareName" value="${esc(l.softwareName || '')}" required></label>
+      <label>Đường dẫn mở <input name="url" value="${esc(l.url || '')}" required placeholder="https://"></label>
+    </div>
+    <div class="field-row">
+      ${k === 'kiotviet' ? `<label>Tên gian hàng (Retailer) <input name="retailer" value="${esc(l.retailer || '')}" autocomplete="off"></label>
+      <label>Client ID <input name="clientId" value="${esc(l.clientId || '')}" autocomplete="off"></label>` : ''}
+      ${k === 'facebook_page' ? `<label>Page ID <input name="pageId" value="${esc(l.pageId || '')}" autocomplete="off"></label>` : ''}
+      <label>Phạm vi quyền <input name="permissionScope" value="${esc(l.permissionScope || '')}" placeholder="Ví dụ: chỉ đọc"></label>
+    </div>
+    <label>${SECRET_LABEL[k]} (chỉ nhập ở đây; chỉ hiện 4 ký tự cuối${state.me.trial ? '; bản trải nghiệm không lưu mã đầy đủ' : ''})
+      <input name="accessCode" type="password" autocomplete="new-password" placeholder="${l.accessCodeLast4 ? `•••• ${esc(l.accessCodeLast4)} — để trống nếu giữ nguyên` : 'Chưa nhập'}"></label>`;
 }
+
+function linkCard(l, showOwner = false) {
+  const d = l.data;
+  return `
+    <details class="card link-card" data-link="${l.id}">
+      <summary>
+        <span class="grow"><b>${esc(l.softwareName)}</b>${showOwner ? ` <span class="kv">· ${esc(nameOf(l.staffId))}</span>` : ''}<br>
+          <span class="kv">${esc(LINK_KINDS[l.kind] || LINK_KINDS.other)}${d ? ` · ${d.count} ${d.kind === 'products' ? 'sản phẩm' : d.kind === 'posts' ? 'bài đăng' : 'dòng'}` : ' · chưa có dữ liệu'}</span></span>
+        <span class="pill ${linkTone(l.status)}">${{ connected: 'Đã kết nối', expired: 'Hết hạn', not_connected: 'Chưa kết nối' }[l.status]}</span>
+      </summary>
+      <div class="stat-row">
+        <div><span>Đồng bộ cuối</span><b>${esc(fmtTime(l.lastSyncAt))}</b></div>
+        <div><span>Kiểm tra gần nhất</span><b>${esc(fmtTime(l.lastCheckAt))}</b></div>
+        <div><span>Lần mở</span><b>${esc(fmtTime(l.lastOpenedAt))}</b></div>
+      </div>
+      ${l.status === 'expired' ? '<p class="error" style="margin:0">Phiên đăng nhập đã hết hạn. Hệ thống không tự đăng nhập lại — hãy nhập lại mã và bấm Kiểm tra kết nối.</p>' : ''}
+      <div class="row">
+        <a class="btn sm outline" href="${esc(l.url)}" target="_blank" rel="noopener" data-opened="${l.id}">Mở trình duyệt</a>
+        ${l.kind !== 'other' ? `<button class="btn sm" type="button" data-lact="check">Kiểm tra kết nối</button><button class="btn sm" type="button" data-lact="sync">Đồng bộ</button>` : ''}
+        <button class="btn sm" type="button" data-lact="import">Nhập dữ liệu</button>
+        ${d ? '<button class="btn sm" type="button" data-lact="data">Xem dữ liệu</button>' : ''}
+        ${l.status !== 'expired' ? '<button class="btn sm" type="button" data-lact="expire">Đánh dấu hết hạn</button>' : ''}
+      </div>
+      <div data-lout></div>
+      <form class="form tight" data-lform>
+        ${linkFields(l)}
+        <div class="row"><button class="btn gold sm" type="submit">Lưu</button><button class="btn sm danger" type="button" data-lact="delete">Xoá</button></div>
+      </form>
+      <details class="fold-inner"><summary>Nhật ký (${(l.logs || []).length})</summary>
+        ${(l.logs || []).length ? `<ul class="log">${l.logs.map((g) => `<li class="${g.ok ? '' : 'bad'}"><span class="kv">${esc(fmtTime(g.at))}</span> <b>${esc(g.action)}</b> ${g.ok ? '✓' : '✕'} ${esc(g.detail)}</li>`).join('')}</ul>` : '<p class="muted">Chưa có.</p>'}
+      </details>
+    </details>`;
+}
+
+function dataTable(d) {
+  if (!d.items.length) return '<p class="muted">Chưa có dữ liệu.</p>';
+  const cols = d.kind === 'products' ? [['ma', 'Mã'], ['ten', 'Tên'], ['gia', 'Giá'], ['ton', 'Tồn'], ['nhom', 'Nhóm']]
+    : d.kind === 'posts' ? [['thoiGian', 'Thời gian'], ['noiDung', 'Nội dung'], ['luotThich', 'Thích'], ['binhLuan', 'Bình luận']] : [['ghiChu', 'Nội dung']];
+  const cell = (v) => esc(typeof v === 'number' ? v.toLocaleString('vi-VN') : typeof v === 'object' ? JSON.stringify(v) : v ?? '—');
+  return `<p class="kv" style="margin:0">${esc(d.source)} · ${esc(fmtTime(d.at))} · hiện ${d.items.length}/${d.total}</p>
+    <div class="table-wrap"><table class="score"><thead><tr>${cols.map(([, n]) => `<th>${n}</th>`).join('')}</tr></thead>
+    <tbody>${d.items.map((it) => `<tr>${cols.map(([k]) => `<td>${cell(typeof it === 'string' ? it : it[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
 function bindLinkActions(container, after) {
   container.addEventListener('click', async (e) => {
     const o = e.target.closest('[data-opened]');
-    if (o) api(`/api/links/${o.dataset.opened}`, { method: 'PUT', body: { opened: true } });
-    const d = e.target.closest('[data-ldel]');
-    if (d && await askConfirm('Xoá liên kết phần mềm này?', 'Xoá')) { await act(() => api(`/api/links/${d.dataset.ldel}`, { method: 'DELETE' })); after(); }
+    if (o) { api(`/api/links/${o.dataset.opened}`, { method: 'PUT', body: { opened: true } }).then(after).catch(() => {}); return; }
+    const b = e.target.closest('[data-lact]');
+    if (!b) return;
+    const card = b.closest('[data-link]');
+    const id = card.dataset.link;
+    const out = $('[data-lout]', card);
+    const a = b.dataset.lact;
+    if (a === 'delete') {
+      if (await askConfirm('Xoá liên kết phần mềm này cùng dữ liệu đã đồng bộ?', 'Xoá')) { await act(() => api(`/api/links/${id}`, { method: 'DELETE' })); after(); }
+    } else if (a === 'expire') {
+      if (await act(() => api(`/api/links/${id}`, { method: 'PUT', body: { status: 'expired' } }), 'Đã đánh dấu hết hạn.')) after(id);
+    } else if (a === 'check' || a === 'sync') {
+      b.disabled = true; out.innerHTML = `<p class="typing">${a === 'check' ? 'Đang kiểm tra kết nối…' : 'Đang đồng bộ dữ liệu…'}</p>`;
+      try {
+        const r = await api(`/api/links/${id}/${a}`, { body: {} });
+        toast(r.message, 7000);
+        await after(id);
+        const box = $(`[data-link="${id}"] [data-lout]`, container);
+        if (box) box.innerHTML = `<p class="${r.ok ? 'ok' : 'error'}" style="margin:0">${esc(r.message)}</p>`;
+      } catch (err) { out.innerHTML = `<p class="error">${esc(err.message)}</p>`; b.disabled = false; }
+    } else if (a === 'data') {
+      out.innerHTML = '<p class="typing">Đang tải…</p>';
+      try { out.innerHTML = dataTable(await api(`/api/links/${id}/data`)); } catch (err) { out.innerHTML = `<p class="error">${esc(err.message)}</p>`; }
+    } else if (a === 'import') {
+      out.innerHTML = `<form class="form tight" data-iform>
+        <label>Dán dữ liệu (CSV / bảng copy từ Excel: cột Mã hàng, Tên hàng, Giá bán, Tồn kho, Nhóm hàng — hoặc ghi chú từng dòng)
+          <textarea name="text" style="min-height:110px" placeholder="Mã hàng,Tên hàng,Giá bán,Tồn kho&#10;FLT01,Lọc dầu,120000,8"></textarea></label>
+        <div class="row"><label class="btn sm outline file-btn">Chọn file CSV<input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+          <button class="btn gold sm" type="submit">Nhập</button></div>
+      </form>`;
+      const f = $('[data-iform]', out);
+      $('input[type=file]', f).addEventListener('change', async (ev) => { const file = ev.target.files[0]; if (file) f.text.value = await file.text(); });
+      f.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const r = await act(() => api(`/api/links/${id}/import`, { body: { text: f.text.value } }));
+        if (r) { toast(r.message); after(id); }
+      });
+    }
   });
-  container.addEventListener('change', async (e) => {
-    const s = e.target.closest('[data-lstatus]');
-    if (s) { await act(() => api(`/api/links/${s.dataset.lstatus}`, { method: 'PUT', body: { status: s.value } })); after(); }
+  container.addEventListener('submit', async (e) => {
+    const f = e.target.closest('[data-lform]');
+    if (!f) return;
+    e.preventDefault();
+    const id = f.closest('[data-link]').dataset.link;
+    const v = Object.fromEntries(new FormData(f));
+    if (!v.accessCode) delete v.accessCode;
+    if (await act(() => api(`/api/links/${id}`, { method: 'PUT', body: v }), 'Đã lưu liên kết.')) after(id);
   });
 }
 
 function subSoftware(s, body) {
-  body.innerHTML = `<div id="links" class="stack"></div>
-    <form class="card form" id="linkForm">
-      <h3>Thêm liên kết phần mềm cho ${esc(s.name)}</h3>
-      <label>Phần mềm <input name="softwareName" list="swList" required></label>
-      <datalist id="swList"><option>KiotViet</option><option>Fanpage</option><option>Meta Ads</option><option>Messenger</option><option>Zalo</option></datalist>
-      <label>Đường dẫn <input name="url" required placeholder="https://"></label>
-      <label>Phạm vi quyền <input name="permissionScope" placeholder="Ví dụ: chỉ đọc tồn kho"></label>
-      <label>Mã truy cập (chỉ nhập ở đây, chỉ hiện 4 ký tự cuối${state.me.trial ? '; bản trải nghiệm chỉ giữ 4 ký tự cuối' : ''}) <input name="accessCode" type="password" autocomplete="off"></label>
-      <label>Trạng thái <select name="status"><option value="not_connected">Chưa kết nối</option><option value="connected">Đã kết nối</option><option value="expired">Hết hạn</option></select></label>
-      <button class="btn gold" type="submit">Thêm liên kết</button>
-    </form>`;
-  const refresh = async () => { $('#links', body).innerHTML = linkCards((await api('/api/staff')).find((x) => x.id === s.id).softwareLinks); };
+  body.innerHTML = `<p class="kv" style="margin:0">Phần mềm ${esc(s.name)} dùng để có dữ liệu thật khi trả lời khách (giá, tồn kho, bài đăng). Chỉ các mục liên quan câu hỏi được đưa vào câu trả lời; chưa có dữ liệu thì nhân viên nói "chưa cập nhật".</p>
+    <div id="links" class="stack tight"></div>
+    <details class="card fold" id="addLink">
+      <summary><h3>+ Thêm phần mềm cho ${esc(s.name)}</h3></summary>
+      <form class="form tight" id="linkForm">
+        <label>Loại <select name="kind">${Object.entries(LINK_KINDS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
+        <div id="newFields"></div>
+        <button class="btn gold" type="submit">Thêm phần mềm</button>
+      </form>
+    </details>`;
+  const form = $('#linkForm', body);
+  const fill = () => { $('#newFields', body).innerHTML = linkFields({ kind: form.kind.value, ...LINK_DEFAULTS[form.kind.value] }); };
+  form.kind.addEventListener('change', fill); fill();
+  const refresh = async (openId) => {
+    const links = (await api('/api/staff')).find((x) => x.id === s.id).softwareLinks;
+    const was = new Set($$('#links details[open]', body).map((d) => d.dataset.link));
+    if (openId) was.add(openId);
+    $('#links', body).innerHTML = links.length ? links.map((l) => linkCard(l)).join('') : '<p class="muted" style="margin:0">Chưa có phần mềm nào.</p>';
+    for (const d of $$('#links [data-link]', body)) if (was.has(d.dataset.link)) d.open = true;
+    if (!links.length) $('#addLink', body).open = true;
+  };
   bindLinkActions($('#links', body), refresh);
-  $('#linkForm', body).addEventListener('submit', async (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await act(() => api(`/api/staff/${s.id}/links`, { body: Object.fromEntries(new FormData(e.target)) }), 'Đã thêm liên kết.')) { e.target.reset(); refresh(); }
+    const v = Object.fromEntries(new FormData(form));
+    if (!v.accessCode) delete v.accessCode;
+    if (await act(() => api(`/api/staff/${s.id}/links`, { body: v }), 'Đã thêm phần mềm.')) { $('#addLink', body).open = false; fill(); refresh(); }
   });
   let done = false;
   return async () => { if (!done) { done = true; await refresh(); } };
@@ -966,11 +1143,15 @@ VIEWS.reports = () => {
 
 // ---------- Liên kết phần mềm (toàn văn phòng) ----------
 VIEWS.links = () => {
-  const wrap = el(`<p class="kv" style="margin:0">Tất cả liên kết phần mềm của văn phòng. Thêm liên kết trong trang của từng nhân viên (mục Phần mềm).</p>
+  const wrap = el(`<p class="kv" style="margin:0">Tất cả phần mềm làm việc của văn phòng. Thêm phần mềm trong trang từng nhân viên (mục Phần mềm).</p>
     <div class="chips">${state.staff.map((s) => `<button class="chip" type="button" data-addlink="${s.id}">+ ${esc(s.name)}</button>`).join('')}</div>
     <div id="allLinks" class="stack"></div>`);
   wrap.addEventListener('click', (e) => { const b = e.target.closest('[data-addlink]'); if (b) { state.sub = 'software'; openView('staff', b.dataset.addlink); } });
-  const refresh = async () => { $('#allLinks', wrap).innerHTML = linkCards((await api('/api/staff')).flatMap((s) => s.softwareLinks), true); };
+  const refresh = async (openId) => {
+    const links = await api('/api/links');
+    $('#allLinks', wrap).innerHTML = links.length ? links.map((l) => linkCard(l, true)).join('') : '<p class="muted">Chưa có phần mềm nào.</p>';
+    if (openId) { const d = $(`[data-link="${openId}"]`, wrap); if (d) d.open = true; }
+  };
   bindLinkActions($('#allLinks', wrap), refresh);
   let done = false;
   mount(wrap, async () => { if (!done) { done = true; await refresh(); } });
@@ -1149,10 +1330,6 @@ async function loadActivity() {
   state.activity = { working: a.working || [], said: a.said || {} };
   const warn = a.storageWarning || state.me?.storageWarning || '';
   $('#notice').textContent = warn; $('#notice').classList.toggle('hidden', !warn);
-  if (a.reportDue && state.reportNagged !== new Date().toDateString()) {
-    state.reportNagged = new Date().toDateString();
-    toast('Đã đến giờ báo cáo cuối ngày 21:00. Mở mục Báo cáo và bấm "Tạo báo cáo ngay".', 9000);
-  }
 }
 async function refreshAll() {
   const [, , overview] = await Promise.all([loadTasks(), loadActivity(), api('/api/overview').catch(() => state.overview), loadStaff()]);

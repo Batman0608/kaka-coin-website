@@ -5,13 +5,17 @@ import {
   ROSTER, MANAGER_ID, CSKH_ID, SALE_ID, KHO_ID, KE_TOAN_ID, signCodeFor, defaultTraining,
   pickRelevantStaffIds, isMarketing, addressedStaffId, kindOfText, buildThinkingPrompt, buildRealData,
   executionPlan, assertSlipCanBeCreated, WAREHOUSE_FLOW, REPORT_HOUR, hcmDate, hcmHour,
-  STAFF_COLORS, STAFF_STATUSES, validateProfile, pushTrainingHistory,
+  STAFF_COLORS, STAFF_STATUSES,
   CSKH_REPORT_QUESTION, MANAGER_REPORT_QUESTION, reportSnapshot,
 } from '../shared/core.js';
 import {
   runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard, planSteps,
   GROUP_CRITIQUE_INSTRUCTION, groupConclusionQuestion, consultDecisionQuestion,
 } from '../shared/deliberation.js';
+import {
+  normalizeTraining, compileTraining, pushHistory, validateProfileFull, validateRoutines, dueRoutines, hcmToday, seedTraining,
+  LINK_KINDS, parseImport, pushLog, softwareFacts, runLearning, mergeLessons, TRAINER_ID,
+} from '../shared/staffkit.js';
 
 const DEBATE_MINUTES = 10;
 const MSG_KEEP = 80;
@@ -103,10 +107,29 @@ function office() {
 }
 const saveOffice = () => store.save('office');
 // Văn phòng tạo từ bản cũ chưa có các trường mới thì bổ sung giá trị mặc định.
-const staffList = () => office().staff.map((s) => Object.assign(s, {
-  manualStatus: s.manualStatus || 'resting', color: s.color || STAFF_COLORS[s.id], trainingHistory: s.trainingHistory || [],
-}));
-const getStaff = (id) => staffList().find((s) => s.id === id) || null;
+// Bản ghi gốc (để sửa và lưu) và bản đầy đủ (kèm đào tạo, đọc từ tài liệu riêng của từng nhân viên).
+const rawStaff = (id) => office().staff.find((s) => s.id === id) || null;
+function trainingDoc(id) {
+  let d = store.docs.get(`training-${id}`);
+  if (!d) {
+    const s = rawStaff(id);
+    const roster = ROSTER.find((r) => r.id === id);
+    // Văn phòng cũ có đào tạo một đoạn đã sửa → mục Prompt riêng; còn lại điền sẵn từ đặc tả.
+    const training = s?.trainingText && s.trainingVersion > 1 ? normalizeTraining(null, s.trainingText) : seedTraining({ ...roster, name: s?.name || roster.name, role: s?.role || roster.role });
+    d = { training, history: (s?.trainingHistory || []).map((h) => ({ ...h, training: h.training || normalizeTraining(null, h.text), note: h.note || 'Người dùng sửa' })) };
+    store.docs.set(`training-${id}`, d);
+  }
+  return d;
+}
+const enrich = (s) => {
+  const t = trainingDoc(s.id);
+  return {
+    ...s, manualStatus: s.manualStatus || 'resting', color: s.color || STAFF_COLORS[s.id], tools: s.tools ?? s.mainSoftware,
+    autoLearn: s.autoLearn !== false, routines: s.routines || [], training: t.training, trainingText: compileTraining(t.training), trainingHistory: t.history,
+  };
+};
+const staffList = () => office().staff.map(enrich);
+const getStaff = (id) => { const s = rawStaff(id); return s ? enrich(s) : null; };
 const staffById = () => Object.fromEntries(staffList().map((s) => [s.id, s]));
 
 const listDoc = (name) => store.get(name, { list: [] });
@@ -119,9 +142,16 @@ const zaloDoc = () => store.get('zalo', { queue: [], linkCodes: [] });
 // Ảnh đính kèm chỉ giữ trong phiên (không lưu vào db, tránh vượt giới hạn tài liệu).
 const imageCache = new Map();
 
-function realData() {
+function realData(staffId, question) {
   const z = zaloDoc();
-  return buildRealData({ slips: listDoc('slips').list, links: listDoc('links').list, zalo: z.queue, tasks: tasksAll() });
+  const facts = buildRealData({ slips: listDoc('slips').list, links: listDoc('links').list, zalo: z.queue, tasks: tasksAll() });
+  if (staffId) {
+    // Dữ liệu từ phần mềm được giao cho chính nhân viên này, chọn mục liên quan câu hỏi.
+    const links = listDoc('links').list.filter((l) => l.staffId === staffId);
+    const data = Object.fromEntries(links.map((l) => [l.id, store.docs.get(`linkdata-${l.id}`)]).filter(([, d]) => d));
+    facts.phanMemCuaToi = softwareFacts(links, data, question);
+  }
+  return facts;
 }
 
 // ---------- Bộ não: Claude qua tài khoản claude.ai ----------
@@ -151,7 +181,7 @@ async function think(staff, ctx) {
   const baseLabel = `Claude qua tài khoản claude.ai (${tier})`;
   if (!sample) throw new BrainError('Không gọi được Claude trong khung xem này (cần mở văn phòng trong claude.ai và cho phép dùng Claude).', baseLabel);
   const o = office();
-  const prompt = `${buildThinkingPrompt(staff, o.companyName, { ...ctx, realData: realData() })}\n\nCâu hỏi / việc cần xử lý: ${ctx.question}`;
+  const prompt = `${buildThinkingPrompt(staff, o.companyName, { ...ctx, realData: realData(staff.id, ctx.question) })}\n\nCâu hỏi / việc cần xử lý: ${ctx.question}`;
   const images = (ctx.imageIds || []).map((id) => imageCache.get(id)).filter(Boolean).slice(0, 4);
   working.set(staff.id, (working.get(staff.id) || 0) + 1);
   try {
@@ -159,7 +189,7 @@ async function think(staff, ctx) {
     if (images.length) opts.images = images;
     const r = await sample(prompt, opts);
     const label = `Claude qua tài khoản claude.ai (${r.modelTierApplied})${r.truncated ? ' — câu trả lời bị cắt do quá dài' : ''}`;
-    staff.lastBrainLabel = label; saveOffice();
+    rawStaff(staff.id).lastBrainLabel = label; saveOffice();
     if (!/^\s*[{[`]/.test(r.text)) said.set(staff.id, { text: r.text.replace(/\s+/g, ' ').slice(0, 140), at: now() });
     return { text: r.text.trim(), brainLabel: label, providerErrors: [] };
   } catch (e) {
@@ -209,6 +239,16 @@ const executing = new Set();
 
 function publicTask(t) {
   return { ...t, session: undefined, attachments: t.attachments.map((a) => ({ ...a, hasImage: imageCache.has(a.id) })) };
+}
+function createTaskRecord(b) {
+  const t = {
+    id: rid('T-'), title: b.title, description: b.description || '', kind: b.kind, taskKind: b.taskKind || kindOfText(`${b.title}\n${b.description || ''}`),
+    assigneeIds: b.assigneeIds, createdBy: b.createdBy || 'user', status: 'open', attachments: b.attachments || [], debateSessionId: null, session: null,
+    returnReason: null, passCriteria: null, stopReason: null, legalCleared: false, lastError: null, outputs: [],
+    createdAt: now(), updatedAt: now(),
+  };
+  saveTask(t);
+  return t;
 }
 const isBlocked = (taskId) => !!taskId && getTask(taskId)?.status === 'stopped_by_manager';
 
@@ -336,8 +376,47 @@ async function executeTask(taskId) {
     else if (result.status === 'done') t.status = 'done';
     else Object.assign(t, { status: 'in_progress', lastError: result.error || null });
     saveTask(t);
+    if (result.status === 'done' || result.status === 'returned_for_redo') bg(learnFromTask(taskId));
   } finally {
     executing.delete(taskId);
+  }
+}
+
+// ---------- Tự học sau mỗi việc ----------
+// Trang đọc kết quả và đánh giá, viết bài học cho từng người → mục "Bài học tự rút ra", phiên bản đào tạo mới.
+async function learnFromTask(taskId) {
+  const t = getTask(taskId);
+  const outputs = (t.outputs || []).filter((o) => o.text || o.error);
+  if (!outputs.length) return;
+  await runLearning({
+    task: t, outputs, staffList: staffList(), trainer: getStaff(TRAINER_ID), think,
+    apply: (staffId, lessons) => {
+      const s = getStaff(staffId);
+      saveTraining(staffId, { ...s.training, lessons: mergeLessons(s.training.lessons, lessons, t.title) }, `Tự học từ việc "${String(t.title).slice(0, 60)}"`);
+    },
+  }).catch((e) => console.error('learn', e));
+}
+
+// ---------- Tự động: lịch làm việc hằng ngày và báo cáo 21:00 (chạy khi văn phòng đang mở) ----------
+let autoBusy = false;
+async function runAutomation() {
+  if (autoBusy) return;
+  autoBusy = true;
+  try {
+    for (const s of office().staff) {
+      for (const r of dueRoutines(s.routines || [])) {
+        r.lastRunDate = hcmToday(); saveOffice(); // đánh dấu trước để không chạy hai lần
+        const t = createTaskRecord({ title: `${r.time} — ${r.title}`, description: r.description, kind: 'individual', assigneeIds: [s.id], createdBy: 'system' });
+        bg(executeTask(t.id));
+      }
+    }
+    const today = hcmDate();
+    if (hcmHour() >= REPORT_HOUR && !reportRunning && !listDoc('reports').list.some((x) => x.date === today && x.trigger === 'schedule')) {
+      const active = tasksAll().some((x) => x.updatedAt?.startsWith(today)) || listMessages('group').some((m) => m.createdAt.startsWith(today));
+      if (active) bg(generateReport('schedule'));
+    }
+  } finally {
+    autoBusy = false;
   }
 }
 
@@ -424,43 +503,52 @@ on('POST', '/api/logout', () => ({ ok: true }));
 on('GET', '/api/staff', () => staffList().map((s) => ({
   ...s,
   currentBrain: { label: `Claude qua tài khoản claude.ai (${s.id === MANAGER_ID ? 'complex' : 'default'})`, source: 'claude_account', fallbackReason: null },
-  apiConfigs: [], softwareLinks: listDoc('links').list.filter((l) => l.staffId === s.id),
+  apiConfigs: [], softwareLinks: linksOf(s.id),
 })));
 on('PUT', '/api/staff/(STAFF-\\d+)/training', (b, [id]) => {
-  const s = getStaff(id);
-  if (!s) throw fail('Không tìm thấy nhân viên.');
-  const text = String(b?.trainingText || '').trim();
-  if (!text) throw fail('Đào tạo không được để trống.');
-  saveTraining(s, text);
-  return s;
+  if (!rawStaff(id)) throw fail('Không tìm thấy nhân viên.');
+  return saveTraining(id, b?.training || { prompt: b?.trainingText });
 });
-function saveTraining(s, text) {
-  if (text.length > 20000) throw fail('Đào tạo quá dài (tối đa 20000 ký tự).');
-  s.trainingHistory = pushTrainingHistory(s.trainingHistory, s.trainingVersion, s.trainingText);
-  s.trainingText = text; s.trainingVersion++;
-  saveOffice();
+// Lưu đào tạo nhiều mục thành phiên bản mới; bản cũ vào lịch sử (giữ 8 bản, cắt bớt nếu tài liệu quá lớn).
+function saveTraining(id, input, note = 'Người dùng sửa') {
+  const raw = rawStaff(id);
+  const d = trainingDoc(id);
+  const training = normalizeTraining(input);
+  if (!compileTraining(training)) throw fail('Đào tạo không được để trống.');
+  d.history = pushHistory(d.history, raw.trainingVersion, d.training, note);
+  d.training = training;
+  while (JSON.stringify(d).length > 230000 && d.history.length) d.history.pop();
+  raw.trainingVersion++;
+  store.save(`training-${id}`); saveOffice();
+  return getStaff(id);
 }
 on('POST', '/api/staff/(STAFF-\\d+)/training/restore', (b, [id]) => {
-  const s = getStaff(id);
-  if (!s) throw fail('Không tìm thấy nhân viên.');
-  const h = (s.trainingHistory || []).find((x) => x.version === Number(b.version));
+  if (!rawStaff(id)) throw fail('Không tìm thấy nhân viên.');
+  const h = trainingDoc(id).history.find((x) => x.version === Number(b.version));
   if (!h) throw fail('Không tìm thấy phiên bản đào tạo này.');
-  saveTraining(s, h.text);
-  return s;
+  return saveTraining(id, h.training, `Khôi phục v${h.version}`);
+});
+on('PUT', '/api/staff/(STAFF-\\d+)/routines', (b, [id]) => {
+  const raw = rawStaff(id);
+  if (!raw) throw fail('Không tìm thấy nhân viên.');
+  const old = Object.fromEntries((raw.routines || []).map((r) => [r.id, r]));
+  try { raw.routines = validateRoutines(b.routines).map((r) => ({ ...r, lastRunDate: old[r.id]?.lastRunDate ?? r.lastRunDate })); } catch (e) { throw fail(e.message); }
+  saveOffice();
+  return getStaff(id);
 });
 on('PUT', '/api/staff/(STAFF-\\d+)/status', (b, [id]) => {
-  const s = getStaff(id);
+  const s = rawStaff(id);
   if (!s) throw fail('Không tìm thấy nhân viên.');
   if (!STAFF_STATUSES[b.status]) throw fail('Trạng thái không hợp lệ.');
   s.manualStatus = b.status; saveOffice();
-  return s;
+  return getStaff(id);
 });
 on('PUT', '/api/staff/(STAFF-\\d+)/profile', (b, [id]) => {
-  const s = getStaff(id);
+  const s = rawStaff(id);
   if (!s) throw fail('Không tìm thấy nhân viên.');
-  try { Object.assign(s, validateProfile(b)); } catch (e) { throw fail(e.message); }
+  try { Object.assign(s, validateProfileFull(b)); } catch (e) { throw fail(e.message); }
   saveOffice();
-  return s;
+  return getStaff(id);
 });
 
 const NO_API = () => { throw fail('Bản trải nghiệm dùng Claude qua tài khoản claude.ai. Gắn API riêng có ở bản server.'); };
@@ -468,36 +556,80 @@ on('GET', '/api/apis/.+', () => []);
 on('POST', '/api/apis/.+', NO_API);
 on('PUT|DELETE|POST', '/api/api-config/.+', NO_API);
 
-// Liên kết phần mềm — không lưu mã truy cập đầy đủ (chỉ 4 ký tự cuối).
+// Phần mềm làm việc. Bản trải nghiệm không lưu mã bí mật (chỉ 4 ký tự cuối) và không gọi được mạng ngoài:
+// dữ liệu nạp bằng "Nhập dữ liệu" (dán / tải CSV xuất từ KiotViet). Mỗi lần thao tác ghi vào nhật ký.
+const LINK_STATUSES = ['connected', 'expired', 'not_connected'];
+const linkView = (l) => {
+  const d = store.docs.get(`linkdata-${l.id}`);
+  return { kind: 'other', purpose: '', retailer: '', clientId: '', pageId: '', logs: [], ...l, data: d ? { kind: d.kind, source: d.source, at: d.at, count: d.items.length } : null };
+};
+const linksOf = (staffId) => listDoc('links').list.filter((l) => !staffId || l.staffId === staffId).map(linkView);
+function needLink(id) {
+  const l = listDoc('links').list.find((x) => x.id === id);
+  if (!l) throw fail('Không tìm thấy liên kết.');
+  return l;
+}
+function applyLinkFields(l, b) {
+  if (b.softwareName !== undefined) { const v = String(b.softwareName).trim().slice(0, 120); if (!v) throw fail('Cần tên phần mềm.'); l.softwareName = v; }
+  if (b.url !== undefined) { const v = String(b.url).trim().slice(0, 600); if (!/^https?:\/\//i.test(v)) throw fail('Địa chỉ phần mềm phải bắt đầu bằng http:// hoặc https://'); l.url = v; }
+  if (b.kind !== undefined) { if (!LINK_KINDS[b.kind]) throw fail('Loại phần mềm không hợp lệ.'); l.kind = b.kind; }
+  if (b.status !== undefined) { if (!LINK_STATUSES.includes(b.status)) throw fail('Trạng thái không hợp lệ.'); l.status = b.status; l.lastCheckAt = now(); }
+  for (const k of ['purpose', 'permissionScope']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 2000);
+  for (const k of ['retailer', 'clientId', 'pageId']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 200);
+  if (b.accessCode) l.accessCodeLast4 = String(b.accessCode).slice(-4);
+}
+on('GET', '/api/links', () => linksOf());
 on('POST', '/api/staff/(STAFF-\\d+)/links', (b, [id]) => {
-  if (!getStaff(id)) throw fail('Không tìm thấy nhân viên.');
-  if (!b.softwareName?.trim() || !b.url?.trim()) throw fail('Cần tên phần mềm và đường dẫn.');
-  if (!/^https?:\/\//i.test(b.url.trim())) throw fail('Đường dẫn phải bắt đầu bằng http:// hoặc https://');
-  const status = ['connected', 'expired', 'not_connected'].includes(b.status) ? b.status : 'not_connected';
-  const doc = listDoc('links');
-  doc.list.push({
-    id: rid('SL-'), staffId: id, softwareName: b.softwareName.trim(), url: b.url.trim(), status, permissionScope: b.permissionScope || '',
-    accessCodeLast4: b.accessCode ? String(b.accessCode).slice(-4) : null, lastSyncAt: null, lastCheckAt: now(), lastOpenedAt: null,
-  });
-  store.save('links');
-  return doc.list.filter((l) => l.staffId === id);
+  if (!rawStaff(id)) throw fail('Không tìm thấy nhân viên.');
+  const l = { id: rid('SL-'), staffId: id, status: 'not_connected', permissionScope: '', accessCodeLast4: null, lastSyncAt: null, lastCheckAt: now(), lastOpenedAt: null, logs: [] };
+  if (!b.softwareName || !b.url) throw fail('Cần tên phần mềm và đường dẫn.');
+  applyLinkFields(l, b);
+  l.logs = pushLog(l.logs, 'Tạo liên kết', true, l.purpose || '');
+  listDoc('links').list.push(l); store.save('links');
+  return linksOf(id);
 });
 on('PUT', '/api/links/([\\w-]+)', (b, [id]) => {
-  const doc = listDoc('links');
-  const l = doc.list.find((x) => x.id === id);
-  if (!l) throw fail('Không tìm thấy liên kết.');
-  if (b.status) { if (!['connected', 'expired', 'not_connected'].includes(b.status)) throw fail('Trạng thái không hợp lệ.'); l.status = b.status; l.lastCheckAt = now(); }
-  if (b.opened) l.lastOpenedAt = now();
+  const l = needLink(id);
+  applyLinkFields(l, b);
+  if (b.opened) { l.lastOpenedAt = now(); l.logs = pushLog(l.logs, 'Mở trình duyệt', true, l.url); }
+  if (b.status === 'expired') l.logs = pushLog(l.logs, 'Đánh dấu hết hạn', true, 'Chờ người dùng tự đăng nhập lại.');
   store.save('links');
-  return doc.list.filter((x) => x.staffId === l.staffId);
+  return linkView(l);
 });
 on('DELETE', '/api/links/([\\w-]+)', (b, [id]) => {
+  const l = needLink(id);
   const doc = listDoc('links');
-  const l = doc.list.find((x) => x.id === id);
-  if (!l) throw fail('Không tìm thấy liên kết.');
   doc.list = doc.list.filter((x) => x.id !== id);
+  store.save('links'); store.remove(`linkdata-${id}`);
+  return linksOf(l.staffId);
+});
+const NO_NETWORK = 'Bản trải nghiệm chạy trong Claude nên không gọi được mạng ngoài (KiotViet, Facebook). Hãy dùng "Nhập dữ liệu": dán hoặc tải file CSV xuất từ phần mềm. Kết nối và đồng bộ tự động có ở bản server.';
+for (const [path, action] of [['check', 'Kiểm tra kết nối'], ['sync', 'Đồng bộ dữ liệu']]) {
+  on('POST', `/api/links/([\\w-]+)/${path}`, (b, [id]) => {
+    const l = needLink(id);
+    l.logs = pushLog(l.logs, action, false, NO_NETWORK);
+    store.save('links');
+    return { ok: false, message: NO_NETWORK, link: linkView(l) };
+  });
+}
+on('POST', '/api/links/([\\w-]+)/import', (b, [id]) => {
+  const l = needLink(id);
+  let d;
+  try { d = parseImport(b.text); } catch (e) { throw fail(e.message); }
+  let items = d.items.slice(0, 3000);
+  const doc = { kind: d.kind, source: 'Nhập tay', at: now(), items };
+  while (JSON.stringify(doc).length > 240000 && doc.items.length > 10) doc.items = doc.items.slice(0, Math.floor(doc.items.length * 0.8));
+  store.docs.set(`linkdata-${id}`, doc); store.save(`linkdata-${id}`);
+  const unit = d.kind === 'products' ? 'sản phẩm' : 'dòng ghi chú';
+  const cut = doc.items.length < d.items.length ? ` (giữ ${doc.items.length}/${d.items.length} do giới hạn lưu trữ bản trải nghiệm)` : '';
+  l.lastSyncAt = now(); l.logs = pushLog(l.logs, 'Nhập dữ liệu', true, `${doc.items.length} ${unit}${cut}.`);
   store.save('links');
-  return doc.list.filter((x) => x.staffId === l.staffId);
+  return { ok: true, message: `Đã nhập ${doc.items.length} ${unit}${cut}.`, link: linkView(l) };
+});
+on('GET', '/api/links/([\\w-]+)/data', (b, [id]) => {
+  needLink(id);
+  const d = store.docs.get(`linkdata-${id}`);
+  return d ? { kind: d.kind, source: d.source, at: d.at, total: d.items.length, items: d.items.slice(0, 50) } : { items: [], total: 0 };
 });
 
 // Chat
@@ -568,13 +700,7 @@ on('POST', '/api/tasks', (b) => {
     imageCache.set(id, new Blob([bin], { type: a.mimeType }));
     return { id, fileName: String(a.fileName || 'anh'), mimeType: a.mimeType, productName: a.productName || undefined, priceNote: a.priceNote || undefined };
   });
-  const t = {
-    id: rid('T-'), title: b.title.trim(), description: b.description || '', kind: b.kind, taskKind: b.taskKind || kindOfText(text),
-    assigneeIds: ids, createdBy: 'user', status: 'open', attachments, debateSessionId: null, session: null,
-    returnReason: null, passCriteria: null, stopReason: null, legalCleared: false, lastError: null, outputs: [],
-    createdAt: now(), updatedAt: now(),
-  };
-  saveTask(t);
+  const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: ids, attachments, taskKind: b.taskKind || kindOfText(text) });
   if (b.kind === 'general') startGeneral(t);
   else bg(executeTask(t.id));
   return publicTask(t);
@@ -746,10 +872,9 @@ on('POST', '/api/zalo/bridges/revoke', () => ({ ok: true }));
 on('GET', '/api/reports', () => ({ reports: listDoc('reports').list, generating: reportRunning }));
 on('POST', '/api/reports', () => { if (reportRunning) throw fail('Báo cáo đang được tạo.'); bg(generateReport('manual')); return { ok: true }; });
 on('GET', '/api/activity', () => {
-  const today = hcmDate();
-  const reportDue = hcmHour() >= REPORT_HOUR && !listDoc('reports').list.some((r) => r.date === today);
+  bg(runAutomation());
   const recent = Object.fromEntries([...said].filter(([, v]) => Date.now() - Date.parse(v.at) < 90000));
-  return { working: [...working.keys()], said: recent, reportDue, storageWarning: store.writeError };
+  return { working: [...working.keys()], said: recent, storageWarning: store.writeError };
 });
 on('GET', '/api/overview', () => {
   const z = zaloDoc();

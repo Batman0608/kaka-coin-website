@@ -224,7 +224,7 @@ export async function thinkWithBrain(accountId, staff, brain, ctx) {
 
 async function thinkOnce(accountId, staff, brain, ctx) {
   const account = db.prepare('SELECT company_name FROM accounts WHERE id = ?').get(accountId);
-  const system = buildThinkingPrompt(staff, account?.company_name || 'công ty', { ...ctx, realData: ctx.realData ?? realDataFor(accountId) });
+  const system = buildThinkingPrompt(staff, account?.company_name || 'công ty', { ...ctx, realData: ctx.realData ?? realDataFor(accountId, staff.id, ctx.question) });
   const userText = ctx.question;
   const images = imagesOf(ctx);
   const providerErrors = [];
