@@ -4,6 +4,9 @@ import { db, now, newId } from './db.js';
 import { getStaff } from './roster.js';
 import { getRow as getLinkRow } from './links.js';
 import { browseOnce } from './browse.js';
+import { credentials } from './links.js';
+import { facebookPublish } from './connectors.js';
+import { getImage } from './images.js';
 import { executeTask, getTaskRow } from './tasks.js';
 import { settledExchanges } from '../shared/worker.js';
 import { approveAdsPlan, rejectAdsPlan } from './fanpage.js';
@@ -26,14 +29,16 @@ function rowToRequest(r) {
     id: r.id, taskId: r.task_id, taskTitle: task?.title || null, stepKey: r.step_key, staffId: r.staff_id, staffName: getStaff(r.account_id, r.staff_id)?.name || r.staff_id,
     type: r.type, question: r.question, content: r.content, linkId: r.link_id, linkName: link?.software_name || null,
     status: r.status, answer: r.answer, result: r.result, createdAt: r.created_at, answeredAt: r.answered_at,
-    postId: ['post', 'campaign_ads'].includes(r.type) ? r.link_id : null,
+    postId: ['post', 'campaign_ads'].includes(r.type) ? r.link_id : null, mode: r.mode || null, budgetCap: r.budget_cap || null, imageId: r.image_id || null,
   };
 }
 
-export function createRequest(accountId, { taskId = null, stepKey = null, staffId, type, question, content = null, linkId = null }) {
+for (const col of ['mode TEXT', 'budget_cap INTEGER', 'image_id TEXT']) { try { db.exec(`ALTER TABLE staff_requests ADD COLUMN ${col}`); } catch { /* đã có */ } }
+
+export function createRequest(accountId, { taskId = null, stepKey = null, staffId, type, question, content = null, linkId = null, mode = null, budgetCap = null, imageId = null }) {
   const id = newId('RQ-');
-  db.prepare(`INSERT INTO staff_requests (id, account_id, task_id, step_key, staff_id, type, question, content, link_id, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`).run(id, accountId, taskId, stepKey, staffId, type, question, content, linkId, now());
+  db.prepare(`INSERT INTO staff_requests (id, account_id, task_id, step_key, staff_id, type, question, content, link_id, status, created_at, mode, budget_cap, image_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`).run(id, accountId, taskId, stepKey, staffId, type, question, content, linkId, now(), mode, budgetCap, imageId);
   return id;
 }
 
@@ -48,6 +53,16 @@ export function listRequests(accountId, { taskId } = {}) {
 }
 
 export const knownAnswers = (accountId, taskId) => settledExchanges(listRequests(accountId, { taskId }));
+
+// Fanpage có Page ID + Page Access Token thì đăng bằng Graph API; còn lại nhân viên tự đăng qua trình duyệt.
+async function publishApproved(accountId, linkId, text, image, goal) {
+  const r = getLinkRow(accountId, linkId);
+  const c = credentials(accountId, r);
+  if (r.kind === 'facebook_page' && c.pageId && c.secret) {
+    try { const res = await facebookPublish(c, { text, image }); return { status: 'published', message: `${res.message}${res.url ? ` ${res.url}` : ''}` }; } catch (e) { return { status: 'failed', message: e.message }; }
+  }
+  return browseOnce(accountId, linkId, { mode: 'publish', content: text, image, goal });
+}
 
 export const pendingCount = (accountId) => db.prepare("SELECT COUNT(*) n FROM staff_requests WHERE account_id = ? AND status = 'pending'").get(accountId).n;
 
@@ -91,7 +106,10 @@ export function respond(accountId, id, { action, answer = '', content, always = 
     const final = String(content ?? r.content ?? '').trim();
     if (!final) throw new Error('Nội dung đăng đang trống.');
     set(id, { status: 'publishing', content: final, answered_at: now() });
-    browseOnce(accountId, r.linkId, { mode: 'publish', content: final, goal: r.question })
+    // Duyệt xong mới làm: đăng / nhắn khách (có ảnh thì kèm ảnh), hoặc chạy quảng cáo không vượt ngân sách đã duyệt.
+    (r.mode === 'ads'
+      ? browseOnce(accountId, r.linkId, { mode: 'ads', content: final, budgetCap: r.budgetCap || 0, goal: r.question })
+      : publishApproved(accountId, r.linkId, final, r.imageId ? getImage(accountId, r.imageId) : null, r.question))
       .then((res) => set(id, { status: res.status === 'published' ? 'published' : 'failed', result: res.message }))
       .catch((e) => set(id, { status: 'failed', result: e.message }))
       .finally(() => resume(accountId, r.taskId));

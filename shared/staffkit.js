@@ -1,3 +1,4 @@
+import { roleTraining } from './roles.js';
 // Cài đặt chi tiết từng nhân sự: đào tạo nhiều mục, hồ sơ hiển thị, lịch tự động, dữ liệu phần mềm, tự học.
 // Logic thuần, dùng chung cho server và bản trải nghiệm.
 
@@ -169,7 +170,7 @@ export function pushLog(logs, action, ok, detail) {
 }
 
 // ---------- Tự học sau mỗi việc ----------
-export const TRAINER_ID = 'STAFF-009'; // Trang — Nhân sự và Hiệu suất
+export const TRAINER_ID = 'STAFF-009'; // Trang — Nhân sự
 
 export function learnQuestion(task, outputs, staffList) {
   const people = [...new Set(outputs.map((o) => o.staffId))].map((id) => staffList.find((s) => s.id === id)).filter(Boolean);
@@ -203,14 +204,9 @@ export function mergeLessons(old, newOnes, taskTitle) {
 }
 
 // Đào tạo ban đầu cho văn phòng mới: điền sẵn từ đặc tả để người dùng sửa tiếp.
+// Đào tạo ban đầu theo vai trò chuẩn (shared/roles.js).
 export function seedTraining(s) {
-  return normalizeTraining({
-    prompt: `Bạn là ${s.name}, phụ trách ${s.role}. Làm việc chủ động, dựa trên dữ liệu thật của văn phòng và phần mềm được giao, không bịa.`,
-    jobDescription: s.responsibilities,
-    crossLinks: 'Mọi nhân sự được góp ý và phản biện việc của người khác; ý tưởng của ai tốt thì dùng. Mỗi việc chỉ có một người chốt cuối: Minh chốt rủi ro pháp lý, Hà chốt số liệu tài chính, Phúc chốt hiệu quả tổng thể.',
-    rules: 'Không bịa giá, tồn kho, số liệu. Chưa có dữ liệu thì nói rõ là chưa cập nhật.',
-    limits: 'Không tự đăng nhập lại khi phiên phần mềm hết hạn — báo người dùng. Không gửi khuyến mại hay nội dung chăm sóc cho khách khi chưa được duyệt.',
-  });
+  return normalizeTraining(roleTraining(s));
 }
 
 /**

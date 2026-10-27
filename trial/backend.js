@@ -25,6 +25,8 @@ import {
 } from '../shared/fanpage.js';
 import { drawDesign } from '../shared/design.js';
 import { advanceCampaign, initCampaign, MANAGER as CAMPAIGN_MANAGER } from '../shared/campaign.js';
+import { runTeamFlow, addDelegation, initFlow } from '../shared/teamflow.js';
+import { ROSTER_VERSION, DEFAULT_ROUTINES } from '../shared/roles.js';
 import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
@@ -103,7 +105,7 @@ function office() {
   const o = store.get('office', null);
   if (o) return o;
   const fresh = {
-    officeName: 'Văn phòng Long Phu Auto', companyName: 'Long Phu Auto', createdAt: now(), counters: { slip: 0 },
+    officeName: 'Văn phòng Long Phu Auto', companyName: 'Long Phu Auto', createdAt: now(), counters: { slip: 0 }, rosterVersion: ROSTER_VERSION,
     staff: ROSTER.map((s, i) => ({
       id: s.id, name: s.name, role: s.role, group: s.grp, shortLabel: s.shortLabel, signCode: signCodeFor(i),
       trainingText: defaultTraining(s), trainingVersion: 1, mainSoftware: s.mainSoftware,
@@ -139,6 +141,20 @@ const enrich = (s) => {
   };
 };
 const staffList = () => office().staff.map(enrich);
+// Thiết lập lại toàn bộ nhân viên theo vai trò chuẩn (shared/roles.js): đào tạo cũ vào lịch sử (khôi phục được),
+// lịch tự động thay bằng lịch mặc định của vai trò (tắt sẵn). Không đụng phần mềm đã kết nối và API.
+function resetAllStaff() {
+  const o = office();
+  for (const r of ROSTER) {
+    const raw = rawStaff(r.id);
+    if (!raw) continue;
+    Object.assign(raw, { role: r.role, shortLabel: r.shortLabel, responsibilities: r.responsibilities, autoLearn: true,
+      routines: (DEFAULT_ROUTINES[r.id] || []).map((x, i) => ({ ...x, id: `R${r.id.slice(-3)}${i}`, enabled: false, lastRunDate: null })) });
+    saveTraining(r.id, seedTraining(r), 'Bản cũ — trước khi thiết lập lại theo vai trò chuẩn');
+  }
+  o.rosterVersion = ROSTER_VERSION;
+  saveOffice();
+}
 const getStaff = (id) => { const s = rawStaff(id); return s ? enrich(s) : null; };
 const staffById = () => Object.fromEntries(staffList().map((s) => [s.id, s]));
 
@@ -251,7 +267,7 @@ async function listModels(c, key) {
 
 async function think(staff, ctx) {
   const sample = await getSample();
-  const tier = staff.id === MANAGER_ID ? 'complex' : 'default'; // Quản lý dùng bộ não tốt nhất
+  const tier = staff.id === MANAGER_ID ? 'complex' : ctx.quick ? 'quick' : 'default'; // Quản lý dùng bộ não tốt nhất; xét việc nhanh dùng mức nhanh
   const kind = ctx.kind || (staff.id === MANAGER_ID ? 'deep_analysis' : 'general');
   const picked = pickConfig(staff, kind);
   const o = office();
@@ -488,9 +504,44 @@ async function executeOnce(taskId) {
         createRequest: (q) => createRequest({ ...q, taskId, stepKey: st.key, staffId: st.staff.id }),
         getRequest,
         knownAnswers: () => settledExchanges(reqDoc().list.filter((r) => r.taskId === taskId).map(requestView)),
+        webSearch,
+        makeImage: async (spec) => { const url = renderDesign(spec); if (!url) return null; const id = rid('IMG-'); store.docs.set(`img-${id}`, { dataUrl: url }); store.save(`img-${id}`); return id; },
+        hasImage: (id) => !!store.docs.get(`img-${id}`),
+        delegate: t.flow ? (name, viec) => {
+          const stf = staffList().find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+          if (!stf) return `Không có đồng nghiệp tên "${name}".`;
+          const cur = getTask(taskId);
+          const ok = addDelegation(cur.flow, stf, viec, st.staff.name);
+          saveTask(cur);
+          return ok ? `Đã nhờ ${stf.name}: ${viec}. ${stf.name} sẽ làm sau bạn.` : `${stf.name} đã có phần việc này.`;
+        } : undefined,
       },
     });
     let result;
+    if (t.flow) {
+      // Giao việc cho cả văn phòng: ai liên quan thì làm, Phúc sắp thứ tự khi nhiều người (shared/teamflow.js).
+      const flow = t.flow;
+      let r;
+      try {
+        r = await runTeamFlow({
+          task: t, flow, staffList: staffList(),
+          save: () => { const cur = getTask(taskId); cur.flow = flow; saveTask(cur); },
+          think: (st, ctx, o = {}) => think(st, { ...taskCtx(getTask(taskId)), ...ctx, quick: !!o.quick, kind: st.id === MANAGER_ID ? 'deep_analysis' : t.taskKind }),
+          work: io.work, outputs: io.outputs, pushOutput: io.pushOutput, isStopped: io.isStopped,
+        });
+      } catch (e) { const cur = getTask(taskId); Object.assign(cur, { status: 'in_progress', lastError: e.message }); saveTask(cur); return; }
+      if (r.status === 'stopped' || isBlocked(taskId)) return;
+      const cur = getTask(taskId);
+      cur.flow = flow;
+      const ids = [...new Set(flow.plan.map((p) => p.staffId))];
+      if (ids.length) cur.assigneeIds = ids;
+      cur.status = r.status === 'done' ? 'done' : r.status === 'waiting_user' ? 'waiting_user' : 'in_progress';
+      cur.lastError = r.error || null;
+      saveTask(cur);
+      if (r.status === 'waiting_user' && (cur.outputs || []).some((o) => o.waiting && o.requestId && getRequest(o.requestId)?.status !== 'pending')) rerun.add(taskId);
+      if (r.status === 'done') bg(learnFromTask(taskId));
+      return;
+    }
     if (t.campaign) {
       // Quy trình chuẩn Fanpage: từng bước một người phụ trách, chốt duyệt của người dùng.
       let r;
@@ -693,6 +744,7 @@ on('POST', '/api/staff/(STAFF-\\d+)/training/restore', (b, [id]) => {
   if (!h) throw fail('Không tìm thấy phiên bản đào tạo này.');
   return saveTraining(id, h.training, `Khôi phục v${h.version}`);
 });
+on('POST', '/api/staff/reset', () => { resetAllStaff(); return staffList(); });
 on('PUT', '/api/staff/(STAFF-\\d+)/routines', (b, [id]) => {
   const raw = rawStaff(id);
   if (!raw) throw fail('Không tìm thấy nhân viên.');
@@ -837,8 +889,9 @@ const browsing = new Map();
 let mcpPromise = null;
 const getMcp = () => (mcpPromise ||= (globalThis.claude ? globalThis.claude.use('mcp') : Promise.resolve(null)));
 const mcpText = (r) => {
-  const t = (r?.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('\n');
-  return t || (typeof r?.payload === 'string' ? r.payload : JSON.stringify(r?.payload ?? r ?? ''));
+  const blocks = (r?.content || []).filter((x) => x.type === 'text');
+  if (blocks.length) return blocks.map((x) => x.text).join('\n');
+  return typeof r?.payload === 'string' ? r.payload : r?.payload != null ? JSON.stringify(r.payload) : '';
 };
 const MCP_HINT = {
   server_not_connected: 'Trình duyệt chỉ dùng được khi mở văn phòng trong ứng dụng Claude trên máy tính.',
@@ -916,6 +969,17 @@ async function browseOnce(id, { goal = '', mode = 'read', content = '', image = 
     browsing.delete(id);
     store.save('links');
   }
+}
+async function webSearch(q) {
+  const mcp = await getMcp();
+  if (!mcp) throw new Error(MCP_HINT.server_not_connected);
+  // Mở trang tìm kiếm trong trình duyệt của ứng dụng Claude, đọc chữ của trang kết quả.
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+  const opened = await mcp.callTool(BROWSER, 'preview_start', { url }).catch((e) => { throw new Error(`${MCP_HINT[e?.code] || ''} [${e?.code || 'lỗi'}] ${e?.message || e}`.trim()); });
+  const tabId = Number(opened?.payload?.tabId ?? opened?.structuredContent?.tabId ?? /tab\s*id\D{0,5}(\d+)/i.exec(mcpText(opened))?.[1]);
+  await new Promise((ok) => setTimeout(ok, 1500));
+  const text = mcpText(await mcp.callTool(BROWSER, 'get_page_text', Number.isFinite(tabId) ? { tabId } : {}));
+  return `Kết quả tìm "${q}":\n${text.slice(0, 5000)}`;
 }
 on('POST', '/api/links/([\\w-]+)/browse', async (b, [id]) => {
   const l = needLink(id);
@@ -1053,6 +1117,7 @@ on('POST', '/api/fanpage/run/(content|analyst|ads|share)', (b, [cycle]) => {
   bg(runFpCycle(cycle));
   return { ok: true };
 });
+on('GET', '/api/images/([\\w-]+)', (b, [id]) => ({ dataUrl: store.docs.get(`img-${id}`)?.dataUrl || null }));
 on('GET', '/api/fanpage/posts/([\\w-]+)/image', (b, [id]) => ({ dataUrl: store.docs.get(`fpimg-${id}`)?.dataUrl || null }));
 
 // ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
@@ -1102,7 +1167,9 @@ on('POST', '/api/requests/([\\w-]+)', (b, [id]) => {
     if (!final) throw fail('Nội dung đăng đang trống.');
     Object.assign(r, { status: 'publishing', content: final });
     store.save('requests');
-    bg(browseOnce(r.linkId, { mode: 'publish', content: final, goal: r.question }).then((res) => {
+    bg(browseOnce(r.linkId, r.mode === 'ads'
+      ? { mode: 'ads', content: final, budgetCap: r.budgetCap || 0, goal: r.question }
+      : { mode: 'publish', content: final, image: r.imageId ? store.docs.get(`img-${r.imageId}`)?.dataUrl || null : null, goal: r.question }).then((res) => {
       Object.assign(r, { status: res.status === 'published' ? 'published' : 'failed', result: res.message });
       store.save('requests');
       resumeTask(r.taskId);
@@ -1243,8 +1310,14 @@ on('POST', '/api/tasks', (b) => {
   });
   // Quy trình chuẩn Fanpage (form tự chọn khi việc nói về Fanpage / theo dõi / quảng cáo; người dùng đổi được) → từng bước, không họp tranh luận.
   const fanpageFlow = b.kind === 'general' && b.workflow === 'fanpage';
-  const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: fanpageFlow ? [ANALYST_ID, ADS_ID, CONTENT_ID, CAMPAIGN_MANAGER] : ids, attachments, taskKind: b.taskKind || kindOfText(text) });
-  if (fanpageFlow) {
+  // Giao việc cho cả văn phòng: từng người tự xét liên quan, ai liên quan thì làm (shared/teamflow.js).
+  const teamFlow = b.kind === 'general' && b.workflow === 'team';
+  const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: fanpageFlow ? [ANALYST_ID, ADS_ID, CONTENT_ID, CAMPAIGN_MANAGER] : teamFlow ? [MANAGER_ID] : ids, attachments, taskKind: b.taskKind || kindOfText(text) });
+  if (teamFlow) {
+    t.flow = initFlow();
+    saveTask(t);
+    bg(executeTask(t.id));
+  } else if (fanpageFlow) {
     t.campaign = initCampaign({ title: t.title, description: t.description, budget: b.budget, days: b.days });
     saveTask(t);
     bg(executeTask(t.id));
@@ -1256,7 +1329,7 @@ const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tì
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
   const requests = reqDoc().list.filter((r) => r.taskId === id).map(requestView);
-  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests, campaign: t.campaign || null };
+  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests, campaign: t.campaign || null, flow: t.flow || null };
   const participants = t.assigneeIds.map(getStaff).filter(Boolean);
   return {
     task: publicTask(t),
@@ -1448,7 +1521,8 @@ on('GET', '/api/overview', () => {
 let ready = null;
 async function init() {
   await store.init();
-  office();
+  // Văn phòng tạo trước khi có vai trò chuẩn mới → thiết lập lại một lần (đào tạo cũ vẫn nằm trong lịch sử).
+  if ((office().rosterVersion || 1) < ROSTER_VERSION) resetAllStaff();
   // Phiên tranh luận còn dở khi đóng trang: chạy tiếp (quá hạn thì đóng theo hết giờ rồi tổng hợp).
   for (const t of tasksAll()) {
     if (t.session?.status === 'running') bg(runDebate(t.id));

@@ -49,6 +49,22 @@ function snapshot() {
   return { title: document.title, url: location.href, text: (document.body?.innerText || '').slice(0, 7000), els, pw };
 }
 
+// Tìm trên web: mở trang tìm kiếm, trả về chữ của trang kết quả.
+const SEARCH = process.env.VPA_SEARCH_URL || 'https://html.duckduckgo.com/html/?q=';
+export async function webSearch(q) {
+  const chromium = await loadChromium();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const url = `${SEARCH}${encodeURIComponent(q)}`;
+    if (!(await publicHost(url))) throw new Error('Địa chỉ tìm kiếm nội bộ — không được mở.');
+    await page.goto(url, { timeout: 30000, waitUntil: 'domcontentloaded' });
+    return `Kết quả tìm "${q}" (${page.url()}):\n${(await page.evaluate(() => document.body?.innerText || '')).slice(0, 5000)}`;
+  } finally {
+    await browser.close();
+  }
+}
+
 export async function openStaffBrowser(accountId, linkId) {
   const chromium = await loadChromium();
   const dir = path.join(DATA_DIR, 'browser', accountId, linkId);

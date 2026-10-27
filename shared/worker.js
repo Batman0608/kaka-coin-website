@@ -3,7 +3,7 @@
 // soạn nội dung và xin duyệt trước khi đăng lên phần mềm (duyệt xong hệ thống mới đăng), rồi nộp sản phẩm hoàn chỉnh.
 // Mọi lượt ghi vào "trace" của bước; việc chờ người dùng thì lưu trace và chạy tiếp khi người dùng trả lời.
 
-export const MAX_ROUNDS = 6;
+export const MAX_ROUNDS = 8;
 const cut = (s, n) => (s && String(s).length > n ? `${String(s).slice(0, n)}…` : String(s ?? ''));
 
 export const REQUEST_TYPES = {
@@ -25,12 +25,20 @@ Các lượt bạn đã làm trong bước này: ${JSON.stringify(trace.map((t) 
 Cách làm:
 - Cần số liệu thật (giá, tồn kho, bài đăng, tương tác…) → "xem_phan_mem". Không đoán số.
 - Cần thông tin chỉ người dùng biết → "hoi_nguoi_dung" (việc dừng chờ họ trả lời). Không viết "xin người dùng cung cấp" vào kết quả.
-- Muốn đăng / gửi / thay đổi gì trên phần mềm → soạn NỘI DUNG HOÀN CHỈNH rồi "xin_duyet_dang"; người dùng duyệt xong hệ thống mới đăng.
+- Cần thông tin bên ngoài (xu hướng, đối thủ, giá thị trường, đánh giá về khách hàng, văn bản pháp luật) → "tim_tren_web".
+- Cần ảnh cho bài đăng → "tao_anh" (bản thiết kế), rồi gắn mã ảnh vào "xin_duyet_dang".
+- Muốn đăng / nhắn khách / gửi / thay đổi gì trên phần mềm → soạn NỘI DUNG HOÀN CHỈNH rồi "xin_duyet_dang"; người dùng duyệt xong hệ thống mới làm.
+- Muốn chạy quảng cáo → "xin_duyet_quang_cao" kèm ngân sách; người dùng duyệt xong hệ thống mới chạy, không vượt ngân sách.
+- Cần đồng nghiệp làm một phần đúng chuyên môn của họ → "nho_dong_nghiep" (họ sẽ làm sau bạn).
 - Đủ rồi → "nop" với SẢN PHẨM HOÀN CHỈNH (bài viết hoàn chỉnh, bảng giá có số thật, kế hoạch cụ thể), ghi rõ đã làm gì, dữ liệu lấy từ đâu, phần nào còn chờ.
 ${last ? 'ĐÂY LÀ LƯỢT CUỐI: bắt buộc "nop".\n' : ''}Chỉ trả về MỘT đối tượng JSON:
 {"hanhDong":"xem_phan_mem","phanMem":"mã phần mềm","canLay":"cần lấy gì"}
 {"hanhDong":"hoi_nguoi_dung","cauHoi":"câu hỏi cụ thể","vi":"vì sao cần"}
-{"hanhDong":"xin_duyet_dang","phanMem":"mã phần mềm","noiDung":"nội dung hoàn chỉnh sẽ đăng","ghiChu":"đăng ở đâu, khi nào"}
+{"hanhDong":"tim_tren_web","tuKhoa":"từ khoá tìm kiếm"}
+{"hanhDong":"tao_anh","thietKe":{"boCuc":"cheo|chia-doi|khung-vien|tieu-diem|so-lon|dai-bang","bangMau":"vang-den|do-trang|xanh-cam|xanh-la|tim-hong|xam-thep|kem-nau","tieuDe":"≤ 8 chữ","phuDe":"...","nhan":"giá / nhãn nổi bật","chiTiet":["ý 1","ý 2"],"keuGoi":"Nhắn tin ngay"}}
+{"hanhDong":"xin_duyet_dang","phanMem":"mã phần mềm","noiDung":"nội dung hoàn chỉnh","anh":"mã ảnh từ tao_anh nếu có","ghiChu":"đăng / nhắn ở đâu, khi nào"}
+{"hanhDong":"xin_duyet_quang_cao","phanMem":"mã phần mềm quảng cáo hoặc Fanpage","noiDung":"chạy gì, cho bài nào, đối tượng, mục tiêu","nganSachNgay":100000,"soNgay":3}
+{"hanhDong":"nho_dong_nghiep","nguoi":"tên đồng nghiệp","viec":"việc cụ thể cần họ làm"}
 {"hanhDong":"nop","ketQua":"sản phẩm hoàn chỉnh"}`;
 }
 
@@ -114,10 +122,42 @@ export async function runWorkStep({ staff, ask, ctx, think, tools, trace: prior 
       trace.push(entry);
       if (!link) { entry.ketQua = `Không có phần mềm "${a.phanMem}" để đăng.`; continue; }
       if (!String(a.noiDung || '').trim()) { entry.ketQua = 'Thiếu nội dung để xin duyệt.'; continue; }
-      entry.requestId = await tools.createRequest({ type: 'publish', linkId: link.id, content: String(a.noiDung).slice(0, 8000), question: `${staff.name} xin duyệt nội dung để đăng lên ${link.softwareName}${a.ghiChu ? ` (${cut(a.ghiChu, 300)})` : ''}` });
+      const imageId = a.anh && tools.hasImage?.(String(a.anh)) ? String(a.anh) : null;
+      entry.requestId = await tools.createRequest({ type: 'publish', linkId: link.id, content: String(a.noiDung).slice(0, 8000), imageId, question: `${staff.name} xin duyệt nội dung để đăng lên ${link.softwareName}${a.ghiChu ? ` (${cut(a.ghiChu, 300)})` : ''}` });
       return { status: 'waiting', requestId: entry.requestId, trace, brainLabel };
     }
-    trace.push({ luot: round, hanhDong: act, chiTiet: '', ketQua: `Hành động "${act}" không có. Chỉ dùng: xem_phan_mem, hoi_nguoi_dung, xin_duyet_dang, nop.` });
+    if (act === 'xin_duyet_quang_cao') {
+      const entry = { luot: round, hanhDong: act, chiTiet: `${link?.softwareName || a.phanMem}: ${cut(a.noiDung, 200)}` };
+      trace.push(entry);
+      const perDay = Math.round(Number(String(a.nganSachNgay ?? '').replace(/[^\d]/g, '')) || 0);
+      const days = Math.min(30, Math.max(1, Math.round(Number(a.soNgay) || 1)));
+      if (!link) { entry.ketQua = `Không có phần mềm "${a.phanMem}" để chạy quảng cáo.`; continue; }
+      if (!perDay) { entry.ketQua = 'Thiếu ngân sách mỗi ngày.'; continue; }
+      entry.requestId = await tools.createRequest({ type: 'publish', mode: 'ads', budgetCap: perDay, linkId: link.id, content: `${String(a.noiDung || '').slice(0, 4000)}\nNgân sách: ${perDay.toLocaleString('vi-VN')} đ/ngày × ${days} ngày = ${(perDay * days).toLocaleString('vi-VN')} đ`, question: `${staff.name} xin duyệt chạy quảng cáo: ${perDay.toLocaleString('vi-VN')} đ/ngày × ${days} ngày` });
+      return { status: 'waiting', requestId: entry.requestId, trace, brainLabel };
+    }
+    if (act === 'tim_tren_web') {
+      const q = cut(a.tuKhoa, 200).trim();
+      const entry = { luot: round, hanhDong: act, chiTiet: q };
+      trace.push(entry);
+      entry.ketQua = !q ? 'Thiếu từ khoá.' : tools.webSearch ? cut(await tools.webSearch(q).catch((e) => `Tìm trên web lỗi: ${e.message}`), 4000) : 'Nơi chạy này chưa có trình duyệt để tìm trên web.';
+      continue;
+    }
+    if (act === 'tao_anh') {
+      const entry = { luot: round, hanhDong: act, chiTiet: cut(a.thietKe?.tieuDe, 80) };
+      trace.push(entry);
+      const id = tools.makeImage ? await tools.makeImage(a.thietKe || {}).catch(() => null) : null;
+      entry.ketQua = id ? `Đã tạo ảnh, mã ảnh: ${id}. Gắn mã này vào "anh" khi xin duyệt đăng.` : 'Chưa tạo được ảnh ở nơi chạy này.';
+      if (id) entry.imageId = id;
+      continue;
+    }
+    if (act === 'nho_dong_nghiep') {
+      const entry = { luot: round, hanhDong: act, chiTiet: `${cut(a.nguoi, 40)}: ${cut(a.viec, 200)}` };
+      trace.push(entry);
+      entry.ketQua = tools.delegate ? await tools.delegate(String(a.nguoi || ''), String(a.viec || '')) : 'Không nhờ được đồng nghiệp ở việc này.';
+      continue;
+    }
+    trace.push({ luot: round, hanhDong: act, chiTiet: '', ketQua: `Hành động "${act}" không có. Chỉ dùng: xem_phan_mem, tim_tren_web, tao_anh, hoi_nguoi_dung, xin_duyet_dang, xin_duyet_quang_cao, nho_dong_nghiep, nop.` });
   }
   return { status: 'done', text: 'Hết lượt làm việc mà chưa nộp kết quả.', brainLabel, trace };
 }
@@ -131,4 +171,4 @@ export function settledExchanges(requests) {
 }
 
 // Mô tả ngắn từng lượt cho giao diện ("An xem KiotViet…", "An hỏi bạn…").
-export const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt đăng', nop: 'Nộp kết quả' };
+export const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', tim_tren_web: 'Tìm trên web', tao_anh: 'Thiết kế ảnh', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt', xin_duyet_quang_cao: 'Xin duyệt quảng cáo', nho_dong_nghiep: 'Nhờ đồng nghiệp', nop: 'Nộp kết quả' };

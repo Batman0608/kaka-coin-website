@@ -34,6 +34,7 @@ export function startFakeProvider() {
     if (url.pathname === '/kv-login/') return html('<h1>Đăng nhập KiotViet (TEST)</h1><form><input name="u" placeholder="Tên đăng nhập"><input type="password" name="p" placeholder="Mật khẩu"><button>Đăng nhập</button></form>');
     if (url.pathname === '/fb-web/') return html(`<h1>Fanpage Phụ Tùng (TEST)</h1><textarea placeholder="Bạn đang nghĩ gì?"></textarea><button onclick="fetch('/fb-web/post',{method:'POST',body:document.querySelector('textarea').value}).then(()=>{document.body.insertAdjacentHTML('beforeend','<p>Đã đăng bài</p>')})">Đăng</button><button>Xóa trang</button>`);
     if (url.pathname === '/fb-web/post' && req.method === 'POST') { state.posts = [...(state.posts || []), raw]; return send(200, { ok: true }); }
+    if (url.pathname === '/search') return html(`<h1>Kết quả: ${url.searchParams.get('q')}</h1><p>Xu hướng 2026: lọc gió chính hãng, video mẹo bảo dưỡng (TEST)</p>`);
     // Facebook Graph giả lập
     if (url.pathname === '/fbpage-test') {
       if (url.searchParams.get('access_token') !== 'fb-token-PLACEHOLDER') return send(400, { error: { message: 'Invalid OAuth access token (TEST)', code: 190 } });

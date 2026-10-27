@@ -1,7 +1,9 @@
 // Lưu cài đặt từng nhân sự: đào tạo nhiều mục (có lịch sử), hồ sơ hiển thị, lịch tự động, bài học tự rút ra.
 import { db } from './db.js';
 import { getStaff } from './roster.js';
-import { normalizeTraining, compileTraining, pushHistory, validateProfileFull, validateRoutines, mergeLessons } from '../shared/staffkit.js';
+import { normalizeTraining, compileTraining, pushHistory, validateProfileFull, validateRoutines, mergeLessons, seedTraining } from '../shared/staffkit.js';
+import { ROSTER } from '../shared/core.js';
+import { ROSTER_VERSION, DEFAULT_ROUTINES } from '../shared/roles.js';
 
 export function saveTraining(accountId, staffId, input, note = 'Người dùng sửa') {
   const s = getStaff(accountId, staffId);
@@ -55,4 +57,24 @@ export function markRoutineRun(accountId, staffId, routineId, date) {
   const s = getStaff(accountId, staffId);
   const routines = s.routines.map((r) => (r.id === routineId ? { ...r, lastRunDate: date } : r));
   db.prepare('UPDATE staff SET routines = ? WHERE account_id = ? AND id = ?').run(JSON.stringify(routines), accountId, staffId);
+}
+
+// Thiết lập lại toàn bộ nhân viên theo vai trò chuẩn (shared/roles.js). Đào tạo cũ vào lịch sử (khôi phục được);
+// lịch tự động thay bằng lịch mặc định của vai trò (tắt sẵn). Không đụng tới phần mềm đã kết nối và API.
+export function resetAllStaff(accountId) {
+  for (const r of ROSTER) {
+    const s = getStaff(accountId, r.id);
+    if (!s) continue;
+    saveTraining(accountId, r.id, seedTraining(r), 'Bản cũ — trước khi thiết lập lại theo vai trò chuẩn');
+    const routines = (DEFAULT_ROUTINES[r.id] || []).map((x, i) => ({ ...x, id: `R${r.id.slice(-3)}${i}`, enabled: false, lastRunDate: null }));
+    db.prepare('UPDATE staff SET role = ?, short_label = ?, responsibilities = ?, routines = ?, auto_learn = 1 WHERE account_id = ? AND id = ?')
+      .run(r.role, r.shortLabel, r.responsibilities, JSON.stringify(routines), accountId, r.id);
+  }
+  db.prepare('UPDATE accounts SET roster_version = ? WHERE id = ?').run(ROSTER_VERSION, accountId);
+}
+
+// Văn phòng tạo trước khi có vai trò chuẩn phiên bản mới → thiết lập lại một lần khi server khởi động.
+try { db.exec('ALTER TABLE accounts ADD COLUMN roster_version INTEGER NOT NULL DEFAULT 1'); } catch { /* đã có */ }
+export function migrateRosters() {
+  for (const { id } of db.prepare('SELECT id FROM accounts WHERE roster_version < ?').all(ROSTER_VERSION)) resetAllStaff(id);
 }

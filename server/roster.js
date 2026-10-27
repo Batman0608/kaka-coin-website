@@ -2,6 +2,7 @@
 import { db } from './db.js';
 import { ROSTER, MANAGER_ID, signCodeFor, pickRelevantStaffIds, isMarketing, STAFF_COLORS } from '../shared/core.js';
 import { normalizeTraining, compileTraining, seedTraining } from '../shared/staffkit.js';
+import { ROSTER_VERSION } from '../shared/roles.js';
 
 for (const col of ['manual_status TEXT', 'color TEXT', 'training_history TEXT', 'tools TEXT', 'training_json TEXT', 'auto_learn INTEGER', 'routines TEXT']) {
   try { db.exec(`ALTER TABLE staff ADD COLUMN ${col}`); } catch { /* đã có */ }
@@ -13,6 +14,7 @@ export function seedStaff(accountId) {
   const ins = db.prepare(`INSERT INTO staff (id, account_id, name, role, grp, short_label, sign_code,
     training_text, training_json, training_version, main_software, tools, responsibilities, desk_index, zone, auto_learn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 1)`);
+  try { db.prepare('UPDATE accounts SET roster_version = ? WHERE id = ?').run(ROSTER_VERSION, accountId); } catch { /* cột chưa có lúc khởi động lần đầu */ }
   ROSTER.forEach((s, i) => {
     const training = seedTraining(s);
     ins.run(s.id, accountId, s.name, s.role, s.grp, s.shortLabel, signCodeFor(i), compileTraining(training), JSON.stringify(training),

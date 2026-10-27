@@ -268,6 +268,15 @@ function renderMessages(list, busy) {
 // Ảnh thiết kế của bài đăng: tải một lần rồi giữ trong bộ nhớ trang.
 const postImgCache = new Map();
 function loadPostImages(root) {
+  for (const img of root.querySelectorAll('img[data-image-id]')) {
+    const id = img.dataset.imageId;
+    const key = `img:${id}`;
+    if (postImgCache.has(key)) { const v = postImgCache.get(key); if (typeof v === 'string') img.src = v; continue; }
+    postImgCache.set(key, api(`/api/images/${id}`).then((r) => {
+      postImgCache.set(key, r.dataUrl || '');
+      for (const x of document.querySelectorAll(`img[data-image-id="${id}"]`)) if (r.dataUrl) x.src = r.dataUrl; else x.remove();
+    }).catch(() => postImgCache.delete(key)));
+  }
   for (const img of root.querySelectorAll('img[data-post-img]')) {
     const id = img.dataset.postImg;
     if (postImgCache.has(id)) { const v = postImgCache.get(id); if (typeof v === 'string') img.src = v; continue; }
@@ -1023,47 +1032,21 @@ VIEWS.tasks = (arg) => {
   const meeting = arg === 'meeting';
   const wrap = el(`
     <form class="card gold form" id="gForm">
-      <h3>${meeting ? 'Họp toàn văn phòng' : 'Giao việc chung / Họp'}</h3>
-      <p class="kv" style="margin:0">Mỗi người đề xuất độc lập, phản biện chéo từng đề xuất của người khác, sửa kế hoạch và chấm lại (tối đa 10 phút). Phúc chọn ý tốt nhất bất kể ai đề xuất, giao việc theo năng lực rồi kiểm tra từng kết quả. Gõ "chốt công việc" hoặc "dừng" trong phiên để chốt sớm.</p>
-      <label>Tên việc <input id="gTitle" name="title" required placeholder="Ví dụ: Tăng 1000 theo dõi cho Fanpage"></label>
-      <label>Mô tả <textarea name="description"></textarea></label>
-      <div class="stack tight" id="wfBox">
-        <span class="kv">Cách làm</span>
-        <label class="check"><input type="radio" name="workflow" value="fanpage"> <span><b>Quy trình chuẩn Fanpage</b> — từng bước rõ người làm: Tuấn kiểm tra → Bình lập kế hoạch (bạn duyệt) → An viết bài + ảnh (bạn duyệt) → An tự đăng → Bình đề xuất quảng cáo (bạn duyệt) → Bình chạy → Tuấn đo kết quả → bài tiếp theo → Phúc tổng kết</span></label>
-        <label class="check"><input type="radio" name="workflow" value="debate" checked> <span><b>Họp thảo luận</b> — mọi người đề xuất, phản biện, Phúc chọn ý tốt nhất</span></label>
-        <div class="field-row" id="wfMoney">
-          <label>Ngân sách quảng cáo tổng (đ) <input name="budget" type="number" min="0" step="10000" placeholder="500000"></label>
-          <label>Số ngày <input name="days" type="number" min="1" max="30" placeholder="7"></label>
-        </div>
-      </div>
-      <div class="stack" style="gap:8px"><span class="kv">Người tham gia ${meeting ? '(cả văn phòng; bỏ chọn bớt để tiết kiệm lượt gọi bộ não)' : '(để trống: hệ thống tự chọn theo chuyên môn)'}</span>
+      <h3>${meeting ? 'Họp toàn văn phòng' : 'Giao việc cho văn phòng'}</h3>
+      <p class="kv" style="margin:0">${meeting
+    ? 'Mỗi người đề xuất, phản biện chéo, Phúc chọn ý tốt nhất (tối đa 10 phút).'
+    : 'Cả 10 nhân viên đọc việc, mỗi người tự xét có phần nào của mình không. Ai liên quan thì làm ngay (vd. "tra giá" → chỉ Sơn; "tăng theo dõi Fanpage" → cả nhóm Marketing). Nhiều người thì Phúc sắp thứ tự. Đến ai làm thì bảng của người đó mở ra; bước nào cần bạn duyệt sẽ báo.'}</p>
+      <label>Việc cần làm <input id="gTitle" name="title" required placeholder="Ví dụ: Tra giá phốt FLTWS47691 / Tăng 1000 theo dõi cho Fanpage"></label>
+      <label>Mô tả thêm (ngân sách, thời gian, yêu cầu…) <textarea name="description"></textarea></label>
+      <div class="stack ${meeting ? '' : 'hidden'}" style="gap:8px"><span class="kv">Người tham gia (cả văn phòng; bỏ chọn bớt để tiết kiệm lượt gọi bộ não)</span>
         <div class="chips">${state.staff.map((x) => `<label class="chip" style="display:inline-flex;align-items:center;gap:8px;color:var(--text)"><input type="checkbox" name="a" value="${x.id}" ${meeting ? 'checked' : ''}> ${esc(x.name)}</label>`).join('')}</div></div>
       <label>Ảnh sản phẩm (tối đa 4) <input type="file" name="files" accept="image/png,image/jpeg,image/webp,image/gif" multiple></label>
       <div id="attMeta" class="stack" style="gap:8px"></div>
-      <button class="btn gold" type="submit">${meeting ? 'Bắt đầu họp' : 'Giao việc chung'}</button>
+      <button class="btn gold" type="submit">${meeting ? 'Bắt đầu họp' : 'Giao việc'}</button>
     </form>
     <div class="eyebrow">Tất cả việc</div>
     <div id="tList" class="stack"></div>`);
   const form = $('#gForm', wrap);
-  // Gõ việc về Fanpage / quảng cáo → tự chọn quy trình chuẩn; điền sẵn ngân sách và số ngày đọc được trong mô tả.
-  const wfSync = () => {
-    const fanpage = form.workflow.value === 'fanpage';
-    $('#wfMoney', wrap).classList.toggle('hidden', !fanpage);
-    $('.chips', form)?.closest('.stack')?.classList.toggle('hidden', fanpage);
-  };
-  let wfTouched = false;
-  form.addEventListener('change', (e) => { if (e.target.name === 'workflow') { wfTouched = true; wfSync(); } });
-  form.addEventListener('input', (e) => {
-    if (!['title', 'description'].includes(e.target.name)) return;
-    const text = `${form.title.value}\n${form.description.value}`;
-    if (!wfTouched) { form.workflow.value = /fan ?page|follow|folow|theo dõi|lượt thích|like|quảng cáo|chạy ads|đăng bài|bài đăng/i.test(text) ? 'fanpage' : 'debate'; wfSync(); }
-    const m = /([\d.,]{5,})\s*(đ|đồng|vnd)?/i.exec(text);
-    if (m && !form.budget.dataset.touched) form.budget.value = m[1].replace(/[.,]/g, '');
-    const d = /(\d{1,2})\s*ngày/i.exec(text);
-    if (d && !form.days.dataset.touched) form.days.value = d[1];
-  });
-  for (const n of ['budget', 'days']) form[n].addEventListener('input', () => { form[n].dataset.touched = '1'; });
-  wfSync();
   form.files.addEventListener('change', () => {
     const files = [...form.files.files];
     if (files.length > 4) { toast('Tối đa 4 ảnh cho mỗi nhiệm vụ.'); form.files.value = ''; return; }
@@ -1079,14 +1062,14 @@ VIEWS.tasks = (arg) => {
       r.readAsDataURL(f);
     })));
     const assigneeIds = $$('input[name=a]:checked', form).map((i) => i.value);
-    const workflow = form.workflow.value;
-    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds, attachments, workflow, budget: form.budget.value, days: form.days.value } }),
-      workflow === 'fanpage' ? 'Đã giao việc — làm theo quy trình chuẩn Fanpage, bước nào cần bạn duyệt sẽ báo.' : 'Đã giao việc chung, phiên phản biện bắt đầu.');
+    const workflow = meeting ? 'debate' : 'team';
+    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds: meeting ? assigneeIds : [], attachments, workflow } }),
+      meeting ? 'Đã bắt đầu họp.' : 'Đã giao việc — cả văn phòng đang xét việc.');
     if (t) { await loadTasks(); openView('tasks', t.id); }
   });
   mount(wrap, async () => {
     if (typingAsk($('#tList', wrap))) return;
-    $('#tList', wrap).innerHTML = state.tasks.length ? state.tasks.map(taskCard).join('') : '<p class="muted">Chưa có việc nào. Giao việc chung ở trên, hoặc giao việc riêng trong trang của từng nhân viên.</p>';
+    $('#tList', wrap).innerHTML = state.tasks.length ? state.tasks.map(taskCard).join('') : '<p class="muted">Chưa có việc nào. Giao việc ở trên, hoặc giao việc riêng trong trang của từng nhân viên.</p>';
   });
   if (arg === 'new' || meeting) setTimeout(() => $('#gTitle')?.focus(), 250);
 };
@@ -1134,8 +1117,54 @@ function renderFlow(box, t, c, requests) {
   $('#checkNow', box)?.addEventListener('click', async () => { if (await act(() => api(`/api/tasks/${t.id}/check-now`, { body: {} }), 'Tuấn đang đo kết quả.')) state.refresh?.(); });
 }
 
+// Giao việc cho cả văn phòng: ai nhận việc, thứ tự làm, và bảng tin nhắn của từng người (bảng người đang làm tự mở).
+const FLOW_STAGE = { triage: 'Cả văn phòng đang xét việc này có liên quan đến mình không…', order: 'Phúc đang sắp thứ tự ai làm trước, ai làm sau…', work: '', summary: 'Phúc đang tổng kết cho bạn…', done: 'Đã xong.' };
+const ITEM_STATUS = { todo: ['Chờ tới lượt', ''], doing: ['Đang làm', 'orange'], waiting: ['Chờ bạn', 'gold'], done: ['Xong', 'teal'] };
+function renderTeam(box, t, f, requests) {
+  if (!f) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  if (typingReq(box)) return;
+  const outs = Object.fromEntries((t.outputs || []).map((o) => [o.key, o]));
+  const active = f.plan.find((p) => p.status === 'doing' || p.status === 'waiting') || null;
+  const open = new Set([...box.querySelectorAll('details.person[open]')].map((d) => d.dataset.k));
+  if (active && box.dataset.active !== active.key) { open.add(active.key); }
+  const claimed = f.triage.filter((x) => x.lienQuan);
+  const html = `
+    <section class="card stack tight">
+      <div class="row between"><h3>Phân việc</h3><span class="kv">${f.stage === 'work' && active ? `Đến lượt <b>${esc(active.name)}</b>` : esc(FLOW_STAGE[f.stage] || '')}</span></div>
+      ${f.triage.length ? `<div class="triage">${f.triage.map((x) => `<span class="tchip ${x.lienQuan ? 'on' : ''}" title="${esc(x.lyDo || '')}">${avatar(staffById(x.staffId), 'sm')}<span><b>${esc(x.name)}</b><small>${x.lienQuan ? esc(x.viec || 'nhận việc') : x.error ? 'lỗi bộ não' : 'không liên quan'}</small></span></span>`).join('')}</div>`
+        : '<p class="typing" style="margin:0">Mọi người đang đọc việc…</p>'}
+      ${f.plan.length ? `<p class="kv" style="margin:0">${claimed.length > 1 ? 'Thứ tự (Phúc sắp)' : claimed.length ? 'Người làm' : 'Không ai nhận — Phúc xử lý'}: ${f.plan.map((p) => `${esc(p.name)}${p.from ? ` (do ${esc(p.from)} nhờ)` : ''}`).join(' → ')}${f.summaryPlan ? ` · ${esc(f.summaryPlan)}` : ''}</p>` : ''}
+    </section>
+    ${f.plan.map((p) => {
+      const o = outs[p.key];
+      const reqs = requests.filter((r) => r.stepKey === p.key || (o?.requestId && r.id === o.requestId));
+      const pending = reqs.filter((r) => ['pending', 'publishing'].includes(r.status));
+      const [label, tone] = ITEM_STATUS[p.status] || ['', ''];
+      return `<details class="card person ${p === active ? 'active' : ''}" data-k="${p.key}" ${open.has(p.key) || pending.length ? 'open' : ''}>
+        <summary>${avatar(staffById(p.staffId), 'sm')}<span class="grow"><b>${esc(p.name)}</b> <span class="kv">${esc(p.role || '')}</span><br><span class="kv">${esc(p.viec)}</span></span><span class="pill ${tone}">${label}</span></summary>
+        <div class="chat">
+          ${(o?.trace || []).filter((x) => x.hanhDong !== 'nop').map((x) => `<div class="msg staff"><div class="who">${esc(p.name)} · ${esc(TRACE_LABEL[x.hanhDong] || x.hanhDong)}</div><div class="body">${esc(x.chiTiet || '')}${x.ketQua != null && x.hanhDong !== 'nop' ? `\n→ ${esc(String(x.ketQua).slice(0, 600))}` : ''}</div>${x.imageId ? `<img class="post-img" data-image-id="${esc(x.imageId)}" alt="Ảnh ${esc(p.name)} thiết kế" width="1080" height="1080">` : ''}</div>`).join('')}
+          ${o?.text ? `<div class="msg staff"><div class="who">${esc(p.name)} · Kết quả</div><div class="body">${esc(o.text)}</div>${o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''}</div>` : ''}
+          ${o?.error ? `<div class="msg err"><div class="who">${esc(p.name)}</div><div class="body">Bộ não lỗi: ${esc(o.error)}</div></div>` : ''}
+          ${p.status === 'doing' && !o?.trace?.length ? `<div class="typing">${esc(p.name)} đang làm…</div>` : ''}
+          ${p.status === 'todo' ? `<p class="kv" style="margin:0">Chờ tới lượt.</p>` : ''}
+        </div>
+        ${pending.map((r) => requestCard(r, false)).join('')}
+      </details>`;
+    }).join('')}`;
+  // Chỉ vẽ lại khi có thay đổi: không làm nhấp nháy, không làm mất nút bạn sắp bấm.
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  if (active && box.dataset.active !== active.key) {
+    box.dataset.active = active.key;
+    box.querySelector(`details.person[data-k="${active.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  loadPostImages(box);
+}
+
 function viewTaskDetail(id) {
   const wrap = el(`<button class="btn sm" type="button" id="back">← Tất cả việc</button><div id="tHead" class="stack"></div>
+    <section class="stack tight hidden" id="teamBox"></section>
     <section class="card stack tight hidden" id="flowBox"></section>
     <div id="reqBox" class="stack tight"></div>
     <section class="card gold stack tight" id="qaBox" aria-live="polite">
@@ -1170,9 +1199,12 @@ function viewTaskDetail(id) {
     await post('say', { text });
   });
   async function refresh() {
-    const { task: t, session: s, qa = [], requests = [], campaign = null } = await api(`/api/tasks/${id}`);
+    const { task: t, session: s, qa = [], requests = [], campaign = null, flow = null } = await api(`/api/tasks/${id}`);
     renderFlow($('#flowBox', wrap), t, campaign, requests);
-    if (!typingReq($('#reqBox', wrap))) {
+    renderTeam($('#teamBox', wrap), t, flow, requests);
+    $('#outputs', wrap).classList.toggle('hidden', !!flow);
+    if (flow) $('#reqBox', wrap).innerHTML = ''; // việc giao cả văn phòng: thẻ duyệt nằm trong bảng của người đang làm
+    else if (!typingReq($('#reqBox', wrap))) {
       const open = requests.filter((r) => ['pending', 'publishing'].includes(r.status));
       const past = requests.filter((r) => !['pending', 'publishing'].includes(r.status));
       $('#reqBox', wrap).innerHTML = `${open.map((r) => requestCard(r, false)).join('')}${past.length ? `<details class="card fold"><summary><h3>Đã trao đổi với nhân viên</h3><small>${past.length}</small></summary><div class="stack tight">${past.map((r) => requestCard(r, false)).join('')}</div></details>` : ''}`;
@@ -1346,10 +1378,16 @@ function requestCard(r, showTask = true) {
     : r.type === 'access'
       ? `<p class="kv" style="margin:0">Cho phép thì ${esc(r.staffName)} được tự mở ${esc(r.linkName || 'phần mềm')} để đọc dữ liệu (chỉ đọc, không tự đăng nhập; thu hồi được trong thẻ phần mềm).</p>
          <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Cho phép</button><button class="btn sm danger" type="button" data-a="reject">Không cho phép</button></div>`
-      : `<label>Nội dung sẽ đăng lên ${esc(r.linkName || 'phần mềm')} (sửa được trước khi duyệt)<textarea name="content" style="min-height:140px">${esc(r.content || '')}</textarea></label>
+      : r.mode === 'ads'
+      ? `<div class="detail-box open">${esc(r.content || '')}</div>
+         <p class="kv" style="margin:0">Duyệt thì ${esc(r.staffName)} tự mở trình quản lý quảng cáo và chạy đúng như trên, ngân sách không vượt ${esc(vndUi(r.budgetCap))}/ngày.</p>
+         <input name="answer" placeholder="Lý do nếu không duyệt">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; chạy quảng cáo</button><button class="btn sm danger" type="button" data-a="reject">Không duyệt</button></div>`
+      : `<label>Nội dung sẽ đăng / gửi qua ${esc(r.linkName || 'phần mềm')} (sửa được trước khi duyệt)<textarea name="content" style="min-height:140px">${esc(r.content || '')}</textarea></label>
          <input name="answer" placeholder="Lý do nếu không duyệt (không bắt buộc)">
          <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; đăng</button><button class="btn sm danger" type="button" data-a="reject">Không duyệt</button></div>`;
-  return `<form class="card gold req stack tight" data-req="${r.id}">${head}${body}</form>`;
+  const pic = r.imageId ? `<img class="post-img" data-image-id="${esc(r.imageId)}" alt="Ảnh kèm bài" width="1080" height="1080">` : '';
+  return `<form class="card gold req stack tight" data-req="${r.id}">${head}${pic}${body}</form>`;
 }
 async function sendRequest(form, action) {
   const body = { action, answer: form.answer?.value || '' };
@@ -1383,7 +1421,7 @@ VIEWS.requests = () => {
 };
 
 // Từng lượt làm việc thật của một bước (xem phần mềm, hỏi bạn, xin duyệt, nộp).
-const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt đăng', nop: 'Nộp kết quả' };
+const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', tim_tren_web: 'Tìm trên web', tao_anh: 'Thiết kế ảnh', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt', xin_duyet_quang_cao: 'Xin duyệt quảng cáo', nho_dong_nghiep: 'Nhờ đồng nghiệp', nop: 'Nộp kết quả' };
 function traceHtml(trace) {
   if (!trace?.length) return '';
   return `<ol class="trace">${trace.map((t) => `<li><b>${esc(TRACE_LABEL[t.hanhDong] || t.hanhDong)}</b>${t.chiTiet ? ` — ${esc(t.chiTiet)}` : ''}${t.ketQua == null ? ' <span class="pill gold">Đang chờ bạn</span>' : t.hanhDong === 'nop' ? '' : `<div class="kv">${esc(String(t.ketQua).slice(0, 400))}</div>`}</li>`).join('')}</ol>`;
@@ -1578,10 +1616,14 @@ VIEWS.settings = () => {
       <label>Mật khẩu hiện tại <input name="currentPassword" type="password" autocomplete="current-password"></label>
       <label>Mật khẩu mới <input name="newPassword" type="password" autocomplete="new-password"></label>
       <button class="btn gold" type="submit">Lưu</button></form>
+    <form class="card form" id="resetStaff"><h3>Thiết lập lại toàn bộ nhân viên</h3>
+      <p class="kv" style="margin:0">Đưa 10 nhân viên về vai trò chuẩn (Phân tích, Nội dung, Quảng cáo, Sale, CSKH, Kho, Kế toán, Quản lý, Nhân sự, Pháp lý). Đào tạo cũ được lưu vào lịch sử từng người (khôi phục được); lịch tự động thay bằng lịch mặc định (tắt sẵn). Phần mềm đã kết nối và API giữ nguyên.</p>
+      <button class="btn" type="submit">Thiết lập lại</button></form>
     <form class="card form" id="delForm"><h3>Xoá văn phòng</h3>
       <p class="kv" style="margin:0">Xoá vĩnh viễn tài khoản cùng toàn bộ nhân sự, key API, việc, phiếu bán và hàng chờ Zalo. Không khôi phục được.</p>
       <label>Nhập mật khẩu để xác nhận <input name="password" type="password" autocomplete="current-password" required></label>
       <button class="btn danger" type="submit">Xoá vĩnh viễn văn phòng này</button></form>`);
+  bindResetStaff(wrap);
   $('#delForm', wrap).addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!await askConfirm('Xoá vĩnh viễn văn phòng này? Không khôi phục được.', 'Xoá vĩnh viễn')) return;
@@ -1598,6 +1640,13 @@ VIEWS.settings = () => {
 };
 
 // Bản trải nghiệm: không mật khẩu (đăng nhập bằng tài khoản claude.ai), không gắn API ngoài.
+function bindResetStaff(wrap) {
+  $('#resetStaff', wrap)?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!(await askConfirm('Thiết lập lại toàn bộ 10 nhân viên theo vai trò chuẩn? Đào tạo cũ vẫn nằm trong lịch sử từng người.', 'Thiết lập lại'))) return;
+    if (await act(() => api('/api/staff/reset', { body: {} }), 'Đã thiết lập lại toàn bộ nhân viên.')) { await loadStaff(); renderDrawer(); }
+  });
+}
 function trialSettings() {
   const wrap = el(`
     <section class="card gold stack"><h3>Bản trải nghiệm</h3>
@@ -1607,6 +1656,9 @@ function trialSettings() {
       <label>Tên văn phòng <input name="officeName" value="${esc(state.me.officeName)}"></label>
       <label>Tên công ty (nhân viên dùng trong câu trả lời) <input name="companyName" value="${esc(state.me.companyName)}"></label>
       <button class="btn gold" type="submit">Lưu</button></form>
+    <form class="card form" id="resetStaff"><h3>Thiết lập lại toàn bộ nhân viên</h3>
+      <p class="kv" style="margin:0">Đưa 10 nhân viên về vai trò chuẩn (Phân tích, Nội dung, Quảng cáo, Sale, CSKH, Kho, Kế toán, Quản lý, Nhân sự, Pháp lý). Đào tạo cũ được lưu vào lịch sử từng người (khôi phục được); lịch tự động thay bằng lịch mặc định (tắt sẵn). Phần mềm đã kết nối và API giữ nguyên.</p>
+      <button class="btn" type="submit">Thiết lập lại</button></form>
     <form class="card form" id="delForm"><h3>Xoá dữ liệu văn phòng</h3>
       <p class="kv" style="margin:0">Xoá toàn bộ việc, tin nhắn, phiếu, hàng chờ và đào tạo; văn phòng trở về trạng thái ban đầu.</p>
       <button class="btn danger" type="submit">Xoá và làm lại từ đầu</button></form>`);
@@ -1614,6 +1666,7 @@ function trialSettings() {
     e.preventDefault();
     if (await act(() => api('/api/me', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }), 'Đã lưu.')) await loadMe();
   });
+  bindResetStaff(wrap);
   $('#delForm', wrap).addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!await askConfirm('Xoá toàn bộ dữ liệu văn phòng và làm lại từ đầu?', 'Xoá dữ liệu')) return;

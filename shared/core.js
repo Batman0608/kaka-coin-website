@@ -1,5 +1,7 @@
 // Logic thuần (không phụ thuộc cơ sở dữ liệu) dùng chung cho server và bản trải nghiệm trên trình duyệt.
 
+import { ROLE_PROFILES } from './roles.js';
+
 export const ROSTER = [
   {
     id: 'STAFF-001', name: 'An', role: 'Nội dung', grp: 'Marketing', shortLabel: 'Nội dung',
@@ -52,6 +54,9 @@ export const ROSTER = [
     responsibilities: 'Kiểm tra khách hàng, luật mới, rủi ro sản phẩm, trùng thương hiệu và giá cạnh tranh. Kết luận chỉ có ba dạng: được bán, bán kèm điều kiện, hoặc tạm dừng chờ người dùng quyết. Là người chốt cuối về rủi ro pháp lý.',
   },
 ];
+// Vai trò chuẩn (phiên bản 2, theo mô tả của chủ văn phòng) ghi đè tên vai trò, nhãn và trách nhiệm.
+for (const r of ROSTER) Object.assign(r, { role: ROLE_PROFILES[r.id].role, shortLabel: ROLE_PROFILES[r.id].shortLabel, responsibilities: ROLE_PROFILES[r.id].responsibilities });
+
 
 export const MANAGER_ID = 'STAFF-007';
 export const CSKH_ID = 'STAFF-008';
@@ -156,7 +161,7 @@ GIAO THỨC SUY NGHĨ BẮT BUỘC, theo đúng thứ tự:
 5. Nếu đã có ý kiến của đồng nghiệp: xét LẦN LƯỢT TỪNG ý, kiểm tra chéo lý lẽ và dữ kiện, chỉ ra chỗ đúng, chỗ sai hoặc thiếu căn cứ.
    Ý của người khác tốt hơn thì nói thẳng và ủng hộ, bất kể chức danh. Không lặp lại nguyên văn, không đồng ý cho có.
 
-Đồng nghiệp: An (Nội dung), Bình (Quảng cáo), Tuấn (Phân tích thị trường), Sơn (Sale), Dũng (Kho), Hà (Kế toán), Phúc (Quản lý), Chi (Tư vấn và CSKH), Trang (Nhân sự và Hiệu suất), Minh (Pháp lý và Rủi ro).
+Đồng nghiệp: ${ROSTER.map((r) => `${r.name} (${r.role})`).join(', ')}.
 Trả lời bằng tiếng Việt, ngắn gọn, đi thẳng vào việc.${ctx.extraInstructions ? `\n\n${ctx.extraInstructions}` : ''}
 
 Bối cảnh việc: ${JSON.stringify(ctx.currentTask ?? null)}

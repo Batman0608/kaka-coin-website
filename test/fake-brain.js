@@ -40,6 +40,20 @@ export function fakeAnswer(prompt, flags = {}) {
     const names = [...question.matchAll(/^- ([^:\n]+): /gm)].map((m) => m[1]);
     return JSON.stringify({ baiHoc: names.map((n) => ({ nhanVien: n, baiHoc: [`[TEST] ${n}: kiểm tra số liệu nền trước khi đề xuất`] })) });
   }
+  if (/^XÉT VIỆC MỚI/.test(question)) {
+    // Mỗi người tự xét theo vai trò: tra giá → Sale; theo dõi / follow → nhóm Marketing; còn lại → Quản lý.
+    const viec = /vừa giao cho cả văn phòng: "([^"]+)"/.exec(question)?.[1] || '';
+    const me = /Vai trò của bạn \(([^ ]+) — /.exec(question)?.[1] || name;
+    const nhan = /giá/i.test(viec) ? ['Sơn'] : /follow|theo dõi/i.test(viec) ? ['Tuấn', 'An', 'Bình'] : ['Phúc'];
+    const ok = nhan.includes(me);
+    return JSON.stringify({ lienQuan: ok, viecCuaToi: ok ? `[TEST] ${me} làm phần ${me === 'Tuấn' ? 'tìm xu hướng' : me === 'An' ? 'viết bài + ảnh' : me === 'Bình' ? 'chạy quảng cáo' : 'trả lời'}` : '', canChoAi: me === 'An' ? ['Tuấn'] : me === 'Bình' ? ['An'] : [], lyDo: ok ? '[TEST] đúng chuyên môn' : '[TEST] không thuộc vai trò' });
+  }
+  if (/^ĐIỀU PHỐI VIỆC/.test(question)) {
+    const claims = JSON.parse(/đã tự nhận phần việc: (\[.*\])$/m.exec(question)?.[1] || '[]');
+    const order = ['Tuấn', 'An', 'Bình'];
+    claims.sort((a, b) => order.indexOf(a.nguoi) - order.indexOf(b.nguoi));
+    return JSON.stringify({ thuTu: claims.map((c) => ({ nguoi: c.nguoi, viec: c.viec, sanPham: '[TEST] sản phẩm', sauKhi: c.canChoAi })), tomTat: '[TEST] Tuấn tìm xu hướng → An viết bài + ảnh → Bình chạy quảng cáo' });
+  }
   if (/^KẾ HOẠCH CHIẾN DỊCH/.test(question)) {
     const b = Number(/Tổng ngân sách quảng cáo tối đa: (\d+)/.exec(question)?.[1] || 0);
     const sua = /NGƯỜI DÙNG KHÔNG DUYỆT/.test(question);
@@ -85,6 +99,13 @@ export function fakeAnswer(prompt, flags = {}) {
     const has = (a) => trace.some((t) => t.hanhDong === a);
     const fb = links.find((l) => l.loai === 'facebook_page' || /fanpage/i.test(l.ten));
     if (links.length && !has('xem_phan_mem')) return JSON.stringify({ hanhDong: 'xem_phan_mem', phanMem: (links.find((l) => l !== fb) || links[0]).ma, canLay: 'giá và tồn kho' });
+    if (/PHẦN CỦA BẠN/.test(question) && name === 'Tuấn' && !has('tim_tren_web')) return JSON.stringify({ hanhDong: 'tim_tren_web', tuKhoa: 'xu hướng phụ tùng xe tải' });
+    if (/PHẦN CỦA BẠN/.test(question) && name === 'An' && fb && !has('tao_anh')) return JSON.stringify({ hanhDong: 'tao_anh', thietKe: { boCuc: 'tieu-diem', bangMau: 'xanh-cam', tieuDe: 'Lọc gió chính hãng', nhan: '185K', chiTiet: ['Còn hàng'], keuGoi: 'Nhắn tin ngay' } });
+    if (/PHẦN CỦA BẠN/.test(question) && name === 'An' && fb && !has('xin_duyet_dang')) {
+      const img = /mã ảnh: (IMG-\w+)/.exec(question)?.[1];
+      return JSON.stringify({ hanhDong: 'xin_duyet_dang', phanMem: fb.ma, noiDung: '[TEST] Bài đăng: lọc gió chính hãng, nhắn tin để được tư vấn.', anh: img, ghiChu: 'đăng ngay' });
+    }
+    if (/PHẦN CỦA BẠN/.test(question) && name === 'Bình' && fb && !has('xin_duyet_quang_cao')) return JSON.stringify({ hanhDong: 'xin_duyet_quang_cao', phanMem: fb.ma, noiDung: '[TEST] Đẩy bài lọc gió, 25-55 tuổi', nganSachNgay: 100000, soNgay: 3 });
     if (/\(HỎI\)/.test(question) && !has('hoi_nguoi_dung') && !/"hoi":"/.test(question)) return JSON.stringify({ hanhDong: 'hoi_nguoi_dung', cauHoi: '[TEST] Số like Fanpage hiện tại là bao nhiêu?', vi: 'cần số liệu nền' });
     if (/đăng bài/i.test(question) && fb && !has('xin_duyet_dang') && !/"daXinDang":/.test(question)) return JSON.stringify({ hanhDong: 'xin_duyet_dang', phanMem: fb.ma, noiDung: `[TEST] Bài đăng của ${name}: Lọc gió Vios chính hãng, còn hàng.`, ghiChu: 'đăng ngay' });
     const seen = trace.map((t) => t.ketQua).filter(Boolean).join(' | ').slice(0, 400);

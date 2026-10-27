@@ -12,7 +12,7 @@ Object.assign(process.env, {
   DATA_DIR: dir, VPA_ANTHROPIC_BASE_URL: fake.url, ANTHROPIC_API_KEY: 'sk-ant-default-PLACEHOLDER',
   APP_SECRET: 'test-secret', DEBATE_MINUTES: process.env.DEBATE_MINUTES || '10',
   VPA_KIOTVIET_ID_URL: fake.url, VPA_KIOTVIET_API_URL: fake.url, VPA_FACEBOOK_GRAPH_URL: fake.url, VPA_AUTOMATION_INTERVAL_MS: '1000',
-  VPA_ALLOW_PRIVATE_BROWSE: 'true', VPA_PLAYWRIGHT_PATH: process.env.VPA_PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright/index.js',
+  VPA_ALLOW_PRIVATE_BROWSE: 'true', VPA_SEARCH_URL: `${fake.url}/search?q=`, VPA_PLAYWRIGHT_PATH: process.env.VPA_PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright/index.js',
 });
 
 const results = [];
@@ -490,6 +490,36 @@ let zIds = [];
       && fbNew.length === final.campaign.plan.soBai && fbNew.every((x) => x.hasImage && /chủ sửa TEST/.test(x.message)) && budgets.join() === planned.join() && !ranBeforeApproval
       && log.filter((x) => x === 'post').length === final.campaign.plan.soBai,
     final ? `${steps.length} bước xong; duyệt: ${[...new Set(log)].join(', ')}; Facebook nhận ${fbNew.length} bài (bản đã sửa, có ảnh); ngân sách quảng cáo ${budgets.join(', ')}/ngày` : `chưa xong: ${JSON.stringify((await C(`/api/tasks/${t.id}`)).data.campaign.steps.map((s) => `${s.key}:${s.status}`))}`);
+}
+
+// --- Giao việc cho cả văn phòng: ai liên quan thì làm (tra giá → Sơn; tăng theo dõi → nhóm Marketing) ---
+{
+  const T = client(base);
+  await T('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const runToEnd = async (id, edit) => waitFor(async () => {
+    const d = (await T(`/api/tasks/${id}`)).data;
+    for (const r of d.requests.filter((x) => x.status === 'pending')) {
+      await T(`/api/requests/${r.id}`, r.type === 'info' ? { action: 'answer', answer: 'TEST' } : { action: 'approve', ...(edit && r.type === 'publish' && r.mode !== 'ads' ? { content: `${r.content}\n(chủ sửa TEST)` } : {}) });
+    }
+    return d.task.status === 'done' && d;
+  }, 120000);
+  const t1 = (await T('/api/tasks', { title: 'Tra giá phốt FLTWS47691', kind: 'general', workflow: 'team' })).data;
+  const d1 = await runToEnd(t1.id);
+  const claimed1 = d1?.flow.triage.filter((x) => x.lienQuan).map((x) => x.name);
+  check('Giao "tra giá": cả 10 người tự xét, chỉ Sơn (Sale) nhận và làm, không họp', d1 && d1.flow.triage.length === 10 && claimed1.join() === 'Sơn' && d1.flow.plan.length === 1 && d1.task.outputs.every((o) => o.staffId === 'STAFF-004') && !d1.task.outputs.some((o) => o.key === 'tongket'),
+    d1 ? `nhận việc: ${claimed1.join(', ')}; ${d1.task.outputs.map((o) => `${o.staffName}: ${(o.trace || []).map((x) => x.hanhDong).join('→')}`).join(' | ')}` : 'chưa xong');
+
+  const fbBefore = (fake.state.fbPosts || []).length;
+  const t2 = (await T('/api/tasks', { title: 'Tăng 1000 người theo dõi Fanpage', description: 'ngân sách 500.000 đ trong 7 ngày', kind: 'general', workflow: 'team' })).data;
+  const d2 = await runToEnd(t2.id, true);
+  const order = d2?.flow.plan.map((p) => p.name).join(' → ');
+  const tr = Object.fromEntries((d2?.task.outputs || []).map((o) => [o.staffName, (o.trace || []).map((x) => x.hanhDong)]));
+  const posted = (fake.state.fbPosts || []).slice(fbBefore);
+  const adsReq = d2?.requests.find((r) => r.mode === 'ads');
+  check('Giao "tăng theo dõi": nhóm Marketing nhận, Phúc sắp thứ tự; Tuấn tìm trên web → An thiết kế ảnh + xin duyệt → bạn sửa & duyệt → đăng kèm ảnh → Bình xin duyệt quảng cáo → Phúc tổng kết',
+    d2 && order === 'Tuấn → An → Bình' && tr['Tuấn']?.includes('tim_tren_web') && tr['An']?.includes('tao_anh') && tr['An']?.includes('xin_duyet_dang')
+      && posted.length === 1 && posted[0].hasImage && /chủ sửa TEST/.test(posted[0].message) && adsReq?.budgetCap === 100000 && d2.task.outputs.some((o) => o.key === 'tongket' && o.staffId === 'STAFF-007'),
+    d2 ? `${order}; Tuấn: ${tr['Tuấn']?.join('→')}; An: ${tr['An']?.join('→')}; Bình: ${tr['Bình']?.join('→')}; Facebook nhận ${posted.length} bài có ảnh; quảng cáo ${adsReq?.status}` : 'chưa xong');
 }
 
 // --- Báo cáo cuối ngày + hoạt động 3D ---

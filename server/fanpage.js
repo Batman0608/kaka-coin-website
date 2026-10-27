@@ -251,3 +251,5 @@ export async function runDueFanpage(nowDate = new Date()) {
   }
 }
 export { rowToLink };
+
+export { renderDesign };

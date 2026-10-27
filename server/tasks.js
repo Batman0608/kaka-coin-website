@@ -11,6 +11,16 @@ import { listLinks } from './links.js';
 import { createRequest, getRequest, knownAnswers } from './requests.js';
 import { readSoftware } from './browse.js';
 import { runCampaign } from './campaign.js';
+import { runTeamFlow, addDelegation } from '../shared/teamflow.js';
+import { webSearch } from './browser.js';
+import { renderDesign } from './fanpage.js';
+import { saveImage, getImage } from './images.js';
+
+try { db.exec('ALTER TABLE tasks ADD COLUMN flow TEXT'); } catch { /* đã có */ }
+export function startTeamFlow(accountId, taskId) {
+  db.prepare('UPDATE tasks SET flow = ? WHERE account_id = ? AND id = ?').run(JSON.stringify({ stage: 'triage', triage: [], plan: [], summary: null }), accountId, taskId);
+}
+export const getFlow = (accountId, taskId) => { const r = db.prepare('SELECT flow FROM tasks WHERE account_id = ? AND id = ?').get(accountId, taskId); return r?.flow ? JSON.parse(r.flow) : null; };
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
 
@@ -240,6 +250,8 @@ async function executeOnce(accountId, taskId) {
     updateTask(accountId, taskId, { status: 'in_progress', last_error: null, ...(fresh ? { outputs: '[]' } : {}) });
     row = getTaskRow(accountId, taskId);
     const task = rowToTask(row);
+    const flow = row.flow ? JSON.parse(row.flow) : null;
+    const saveFlow = () => db.prepare('UPDATE tasks SET flow = ? WHERE account_id = ? AND id = ?').run(JSON.stringify(flow), accountId, taskId);
     const outputsIo = {
       outputs: () => JSON.parse(getTaskRow(accountId, taskId).outputs),
       pushOutput: (o) => {
@@ -260,9 +272,43 @@ async function executeOnce(accountId, taskId) {
         createRequest: (q) => createRequest(accountId, { ...q, taskId, stepKey: s.key, staffId: s.staff.id }),
         getRequest: (id) => getRequest(accountId, id),
         knownAnswers: () => knownAnswers(accountId, taskId),
+        webSearch,
+        makeImage: async (spec) => { const url = await renderDesign(spec); return url ? saveImage(accountId, url) : null; },
+        hasImage: (id) => !!getImage(accountId, id),
+        delegate: flow ? (name, viec) => {
+          const st = listStaff(accountId).find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+          if (!st) return `Không có đồng nghiệp tên "${name}".`;
+          const ok = addDelegation(flow, st, viec, s.staff.name);
+          saveFlow();
+          return ok ? `Đã nhờ ${st.name}: ${viec}. ${st.name} sẽ làm sau bạn.` : `${st.name} đã có phần việc này.`;
+        } : undefined,
       },
     });
     let result;
+    if (flow) {
+      // Giao việc cho cả văn phòng: ai liên quan thì làm, Phúc sắp thứ tự khi nhiều người (shared/teamflow.js).
+      let r;
+      try {
+        r = await runTeamFlow({
+          task, flow, save: saveFlow, staffList: listStaff(accountId),
+          think: (st, ctx) => thinkWithBrain(accountId, st, selectBrain(accountId, st, st.id === MANAGER_ID ? 'deep_analysis' : row.task_kind), { ...taskContext(getTaskRow(accountId, taskId)), ...ctx }),
+          work: outputsIo.work, outputs: outputsIo.outputs, pushOutput: outputsIo.pushOutput, isStopped: outputsIo.isStopped,
+        });
+      } catch (e) {
+        updateTask(accountId, taskId, { status: 'in_progress', last_error: e.message });
+        return;
+      }
+      if (r.status === 'stopped' || isTaskBlocked(accountId, taskId)) return;
+      const ids = [...new Set(flow.plan.map((p) => p.staffId))];
+      if (ids.length) updateTask(accountId, taskId, { assignee_ids: JSON.stringify(ids) });
+      updateTask(accountId, taskId, { status: r.status === 'done' ? 'done' : r.status === 'waiting_user' ? 'waiting_user' : 'in_progress', last_error: r.error || null });
+      if (r.status === 'waiting_user') {
+        const outs = JSON.parse(getTaskRow(accountId, taskId).outputs).filter((o) => o.waiting && o.requestId);
+        if (outs.some((o) => getRequest(accountId, o.requestId)?.status !== 'pending')) rerun.add(taskId);
+      }
+      if (r.status === 'done') learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
+      return;
+    }
     if (row.campaign) {
       // Quy trình chuẩn Fanpage: từng bước một người phụ trách, chốt duyệt của người dùng.
       let r;

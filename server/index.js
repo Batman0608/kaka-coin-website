@@ -12,16 +12,17 @@ import {
 } from './brain.js';
 import {
   createTask, getTaskRow, rowToTask, startGeneralTask, getSession, userSaysInSession, closeByButton,
-  executeTask, finishSession, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions,
+  executeTask, finishSession, managerStop, managerResume, managerReturn, updateTask, resumeRunningSessions, startTeamFlow, getFlow,
 } from './tasks.js';
 import { groupChat, privateChat, consultColleagues, listMessages, isBusy } from './chat.js';
 import { STAFF_STATUSES } from '../shared/core.js';
-import { saveTraining, restoreTraining, saveProfile, saveRoutines } from './staffops.js';
+import { saveTraining, restoreTraining, saveProfile, saveRoutines, resetAllStaff, migrateRosters } from './staffops.js';
 import { listLinks, createLink, updateLink, deleteLink, checkLink, syncLink, importLink, linkData } from './links.js';
 import { startAutomation } from './automation.js';
 import { startBrowse } from './browse.js';
 import { askTask, listQa } from './taskqa.js';
 import { listRequests, respond, pendingCount } from './requests.js';
+import { getImage } from './images.js';
 import { startCampaign, getCampaign, CAMPAIGN_TEAM, checkNow } from './campaign.js';
 import { overview as fanpageOverview, updateOps as updateFanpageOps, runCycle as runFanpageCycle, postImage } from './fanpage.js';
 import { planSteps } from '../shared/deliberation.js';
@@ -217,6 +218,8 @@ app.post('/api/staff/:id/training/restore', auth, wrap((req, res) => {
   res.json(staffView(req.accountId, restoreTraining(req.accountId, req.params.id, req.body?.version)));
 }));
 
+// Thiết lập lại toàn bộ nhân viên theo vai trò chuẩn (đào tạo cũ giữ trong lịch sử).
+app.post('/api/staff/reset', auth, wrap((req, res) => { resetAllStaff(req.accountId); res.json(listStaff(req.accountId).map((s) => staffView(req.accountId, s))); }));
 app.put('/api/staff/:id/routines', auth, wrap((req, res) => {
   res.json(staffView(req.accountId, saveRoutines(req.accountId, req.params.id, req.body?.routines)));
 }));
@@ -387,8 +390,13 @@ app.post('/api/tasks', auth, wrap((req, res) => {
   }));
   // Quy trình chuẩn Fanpage (form tự chọn khi việc nói về Fanpage / theo dõi / quảng cáo; người dùng đổi được) → từng bước, không họp tranh luận.
   const fanpageFlow = kind === 'general' && req.body.workflow === 'fanpage';
-  const id = createTask(req.accountId, { title, description, kind, assigneeIds: fanpageFlow ? CAMPAIGN_TEAM : assigneeIds, attachments: atts, taskKind });
-  if (fanpageFlow) {
+  // Giao việc cho cả văn phòng: từng người tự xét liên quan, ai liên quan thì làm (shared/teamflow.js).
+  const teamFlow = kind === 'general' && req.body.workflow === 'team';
+  const id = createTask(req.accountId, { title, description, kind, assigneeIds: fanpageFlow ? CAMPAIGN_TEAM : teamFlow ? ['STAFF-007'] : assigneeIds, attachments: atts, taskKind });
+  if (teamFlow) {
+    startTeamFlow(req.accountId, id);
+    executeTask(req.accountId, id).catch((e) => console.error(e));
+  } else if (fanpageFlow) {
     startCampaign(req.accountId, id, { title, description, budget: req.body.budget, days: req.body.days });
     executeTask(req.accountId, id).catch((e) => console.error(e));
   } else if (kind === 'general') startGeneralTask(req.accountId, id);
@@ -400,7 +408,7 @@ app.get('/api/tasks/:id', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);
   if (!row) throw new Error('Không tìm thấy việc.');
   const task = rowToTask(row);
-  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }), campaign: getCampaign(req.accountId, task.id) });
+  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }), campaign: getCampaign(req.accountId, task.id), flow: getFlow(req.accountId, task.id) });
 }));
 
 app.post('/api/tasks/:id/check-now', auth, wrap((req, res) => {
@@ -511,6 +519,7 @@ app.post('/api/fanpage/run/:cycle', auth, wrap((req, res) => {
   runFanpageCycle(req.accountId, req.params.cycle, 'tay').catch((e) => console.error('fanpage', e));
   res.json({ ok: true });
 }));
+app.get('/api/images/:id', auth, wrap((req, res) => res.json({ dataUrl: getImage(req.accountId, req.params.id) })));
 app.get('/api/fanpage/posts/:id/image', auth, wrap((req, res) => res.json({ dataUrl: postImage(req.accountId, req.params.id) })));
 app.get('/api/requests', auth, wrap((req, res) => res.json(listRequests(req.accountId))));
 app.post('/api/requests/:id', auth, wrap((req, res) => res.json(respond(req.accountId, req.params.id, req.body || {}))));
@@ -547,6 +556,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     }
     resumeRunningSessions();
     startReportScheduler();
+    migrateRosters();
     startAutomation();
   });
 }

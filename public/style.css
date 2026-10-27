@@ -326,3 +326,16 @@ ol.flow li.skipped { opacity: .6; }
 ol.flow li.cur { outline: 1.5px solid var(--gold); }
 ol.flow li.cur .ic, ol.flow li.waiting .ic, ol.flow li.doing .ic { border-color: var(--gold); color: var(--gold-2); }
 ol.flow summary { cursor: pointer; }
+
+/* Giao việc cho cả văn phòng: ai nhận việc, bảng của từng người */
+.triage { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.tchip { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 12px; background: var(--surface-3); opacity: .5; min-width: 0; }
+.tchip.on { opacity: 1; outline: 1.5px solid var(--teal); }
+.tchip span { display: grid; min-width: 0; }
+.tchip small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.person > summary { list-style: none; cursor: pointer; display: flex; gap: 10px; align-items: center; }
+details.person > summary::-webkit-details-marker { display: none; }
+details.person[open] > summary { margin-bottom: 10px; }
+details.person.active { border: 1.5px solid var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+details.person .chat { gap: 8px; }
+details.person .msg { padding: 10px 12px; }
