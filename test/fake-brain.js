@@ -40,6 +40,21 @@ export function fakeAnswer(prompt, flags = {}) {
     const names = [...question.matchAll(/^- ([^:\n]+): /gm)].map((m) => m[1]);
     return JSON.stringify({ baiHoc: names.map((n) => ({ nhanVien: n, baiHoc: [`[TEST] ${n}: kiểm tra số liệu nền trước khi đề xuất`] })) });
   }
+  if (/^KẾ HOẠCH CHIẾN DỊCH/.test(question)) {
+    const b = Number(/Tổng ngân sách quảng cáo tối đa: (\d+)/.exec(question)?.[1] || 0);
+    const sua = /NGƯỜI DÙNG KHÔNG DUYỆT/.test(question);
+    return JSON.stringify({ tomTat: `[TEST] ${sua ? 'Bản sửa theo góp ý: ' : ''}2 bài, đẩy bài tốt nhất`, soBai: 2,
+      baiViet: [{ so: 1, ngay: 1, gio: '19:30', chuDe: 'Giới thiệu lọc gió chính hãng', mucDich: 'thu hút người theo dõi' }, { so: 2, ngay: 3, gio: '19:30', chuDe: 'Mẹo bảo dưỡng xe tải', mucDich: 'tăng tương tác' }],
+      quangCao: [{ baiSo: 1, loai: 'day_bai', nganSach: Math.floor(b * 0.6) }, { baiSo: 2, loai: 'tang_like_trang', nganSach: Math.floor(b * 0.4) }],
+      kpi: '[TEST] +1000 người theo dõi', kiemTraSauGio: 1, doiTuong: { tuoiTu: 25, tuoiDen: 55, khuVuc: 'Việt Nam', soThich: ['xe tải'] } });
+  }
+  if (/^QUẢNG CÁO CHO BÀI VỪA ĐĂNG/.test(question)) {
+    const max = Number(/tối đa (\d+) đồng/.exec(question)?.[1] || 0);
+    return JSON.stringify({ chay: true, lyDo: '[TEST] Bài có tương tác tự nhiên tốt', loai: 'day_bai', nganSachNgay: Math.floor(max / 3), soNgay: 3, mucTieu: 'Tăng theo dõi', kpi: '[TEST] 300 người theo dõi' });
+  }
+  if (/^ĐO KẾT QUẢ CHIẾN DỊCH/.test(question)) {
+    return JSON.stringify({ tienDo: '[TEST] +14 / 1000 người theo dõi', nhanXet: '[TEST] Bài 1 tiếp cận tốt', loiKhuyenNoiDung: '[TEST] Bài sau thêm ảnh thật sản phẩm', loiKhuyenQuangCao: '[TEST] Giữ đối tượng 25-55' });
+  }
   if (/NHIỆM VỤ THƯỜNG TRỰC: bạn phụ trách nội dung Fanpage/.test(question)) {
     // Mỗi bài một chủ đề, bố cục, bảng màu khác nhau (đếm số bài gần đây để đổi).
     const prev = JSON.parse(/^Các bài gần đây: (\[.*\])$/m.exec(question)?.[1] || '[]');

@@ -1025,8 +1025,17 @@ VIEWS.tasks = (arg) => {
     <form class="card gold form" id="gForm">
       <h3>${meeting ? 'Họp toàn văn phòng' : 'Giao việc chung / Họp'}</h3>
       <p class="kv" style="margin:0">Mỗi người đề xuất độc lập, phản biện chéo từng đề xuất của người khác, sửa kế hoạch và chấm lại (tối đa 10 phút). Phúc chọn ý tốt nhất bất kể ai đề xuất, giao việc theo năng lực rồi kiểm tra từng kết quả. Gõ "chốt công việc" hoặc "dừng" trong phiên để chốt sớm.</p>
-      <label>Tên việc <input id="gTitle" name="title" required placeholder="Ví dụ: Làm sao tăng like Fanpage"></label>
+      <label>Tên việc <input id="gTitle" name="title" required placeholder="Ví dụ: Tăng 1000 theo dõi cho Fanpage"></label>
       <label>Mô tả <textarea name="description"></textarea></label>
+      <div class="stack tight" id="wfBox">
+        <span class="kv">Cách làm</span>
+        <label class="check"><input type="radio" name="workflow" value="fanpage"> <span><b>Quy trình chuẩn Fanpage</b> — từng bước rõ người làm: Tuấn kiểm tra → Bình lập kế hoạch (bạn duyệt) → An viết bài + ảnh (bạn duyệt) → An tự đăng → Bình đề xuất quảng cáo (bạn duyệt) → Bình chạy → Tuấn đo kết quả → bài tiếp theo → Phúc tổng kết</span></label>
+        <label class="check"><input type="radio" name="workflow" value="debate" checked> <span><b>Họp thảo luận</b> — mọi người đề xuất, phản biện, Phúc chọn ý tốt nhất</span></label>
+        <div class="field-row" id="wfMoney">
+          <label>Ngân sách quảng cáo tổng (đ) <input name="budget" type="number" min="0" step="10000" placeholder="500000"></label>
+          <label>Số ngày <input name="days" type="number" min="1" max="30" placeholder="7"></label>
+        </div>
+      </div>
       <div class="stack" style="gap:8px"><span class="kv">Người tham gia ${meeting ? '(cả văn phòng; bỏ chọn bớt để tiết kiệm lượt gọi bộ não)' : '(để trống: hệ thống tự chọn theo chuyên môn)'}</span>
         <div class="chips">${state.staff.map((x) => `<label class="chip" style="display:inline-flex;align-items:center;gap:8px;color:var(--text)"><input type="checkbox" name="a" value="${x.id}" ${meeting ? 'checked' : ''}> ${esc(x.name)}</label>`).join('')}</div></div>
       <label>Ảnh sản phẩm (tối đa 4) <input type="file" name="files" accept="image/png,image/jpeg,image/webp,image/gif" multiple></label>
@@ -1036,6 +1045,25 @@ VIEWS.tasks = (arg) => {
     <div class="eyebrow">Tất cả việc</div>
     <div id="tList" class="stack"></div>`);
   const form = $('#gForm', wrap);
+  // Gõ việc về Fanpage / quảng cáo → tự chọn quy trình chuẩn; điền sẵn ngân sách và số ngày đọc được trong mô tả.
+  const wfSync = () => {
+    const fanpage = form.workflow.value === 'fanpage';
+    $('#wfMoney', wrap).classList.toggle('hidden', !fanpage);
+    $('.chips', form)?.closest('.stack')?.classList.toggle('hidden', fanpage);
+  };
+  let wfTouched = false;
+  form.addEventListener('change', (e) => { if (e.target.name === 'workflow') { wfTouched = true; wfSync(); } });
+  form.addEventListener('input', (e) => {
+    if (!['title', 'description'].includes(e.target.name)) return;
+    const text = `${form.title.value}\n${form.description.value}`;
+    if (!wfTouched) { form.workflow.value = /fan ?page|follow|folow|theo dõi|lượt thích|like|quảng cáo|chạy ads|đăng bài|bài đăng/i.test(text) ? 'fanpage' : 'debate'; wfSync(); }
+    const m = /([\d.,]{5,})\s*(đ|đồng|vnd)?/i.exec(text);
+    if (m && !form.budget.dataset.touched) form.budget.value = m[1].replace(/[.,]/g, '');
+    const d = /(\d{1,2})\s*ngày/i.exec(text);
+    if (d && !form.days.dataset.touched) form.days.value = d[1];
+  });
+  for (const n of ['budget', 'days']) form[n].addEventListener('input', () => { form[n].dataset.touched = '1'; });
+  wfSync();
   form.files.addEventListener('change', () => {
     const files = [...form.files.files];
     if (files.length > 4) { toast('Tối đa 4 ảnh cho mỗi nhiệm vụ.'); form.files.value = ''; return; }
@@ -1051,7 +1079,9 @@ VIEWS.tasks = (arg) => {
       r.readAsDataURL(f);
     })));
     const assigneeIds = $$('input[name=a]:checked', form).map((i) => i.value);
-    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds, attachments } }), 'Đã giao việc chung, phiên phản biện bắt đầu.');
+    const workflow = form.workflow.value;
+    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds, attachments, workflow, budget: form.budget.value, days: form.days.value } }),
+      workflow === 'fanpage' ? 'Đã giao việc — làm theo quy trình chuẩn Fanpage, bước nào cần bạn duyệt sẽ báo.' : 'Đã giao việc chung, phiên phản biện bắt đầu.');
     if (t) { await loadTasks(); openView('tasks', t.id); }
   });
   mount(wrap, async () => {
@@ -1083,8 +1113,30 @@ function renderDebateTurns(turns) {
   }).join('');
 }
 
+// Quy trình chuẩn Fanpage: danh sách bước, ai làm, đang ở đâu, sản phẩm của từng bước.
+const FLOW_ICON = { done: '✓', skipped: '⏭', doing: '⏳', waiting: '●', todo: '' };
+function renderFlow(box, t, c, requests) {
+  if (!c) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const cur = c.steps.find((x) => !['done', 'skipped'].includes(x.status));
+  const doneN = c.steps.filter((x) => ['done', 'skipped'].includes(x.status)).length;
+  const pct = Math.round((doneN / c.steps.length) * 100);
+  const open = new Set([...box.querySelectorAll('details[open]')].map((d) => d.dataset.k));
+  box.innerHTML = `
+    <div class="row between"><h3>Quy trình chuẩn Fanpage</h3><span class="kv">${doneN}/${c.steps.length} bước · ngân sách ${vndUi(c.budget)} · ${c.days} ngày</span></div>
+    <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+    ${cur ? `<p class="${cur.owner === 'user' || cur.retryRequestId ? 'notice' : 'kv'}" style="margin:0">${cur.owner === 'user' || cur.retryRequestId ? 'Đang chờ BẠN: ' : 'Đang làm: '}<b>${esc(cur.title)}</b>${cur.dueAt && cur.status === 'waiting' ? ` — tự đo lúc ${esc(fmtTime(cur.dueAt))} <button type="button" class="btn sm" id="checkNow">Đo ngay</button>` : ''}${cur.owner === 'user' || cur.retryRequestId ? ' (thẻ duyệt ngay bên dưới)' : ''}</p>` : '<p class="ok" style="margin:0">Đã hoàn thành quy trình.</p>'}
+    <ol class="flow">${c.steps.map((x) => `<li class="${x.status} ${x === cur ? 'cur' : ''}">
+      <span class="ic" aria-hidden="true">${FLOW_ICON[x.status] || ''}</span>
+      <div class="grow">${x.output ? `<details data-k="${x.key}" ${open.has(x.key) ? 'open' : ''}><summary><b>${esc(x.title)}</b> <small class="kv">${x.owner === 'user' ? 'Bạn' : esc(nameOf(x.owner))}</small></summary><div class="detail-box open">${esc(x.output)}</div></details>`
+        : `<b>${esc(x.title)}</b> <small class="kv">${x.owner === 'user' ? 'Bạn' : esc(nameOf(x.owner))}</small>`}</div>
+    </li>`).join('')}</ol>`;
+  $('#checkNow', box)?.addEventListener('click', async () => { if (await act(() => api(`/api/tasks/${t.id}/check-now`, { body: {} }), 'Tuấn đang đo kết quả.')) state.refresh?.(); });
+}
+
 function viewTaskDetail(id) {
   const wrap = el(`<button class="btn sm" type="button" id="back">← Tất cả việc</button><div id="tHead" class="stack"></div>
+    <section class="card stack tight hidden" id="flowBox"></section>
     <div id="reqBox" class="stack tight"></div>
     <section class="card gold stack tight" id="qaBox" aria-live="polite">
       <div class="row between"><h3>Hỏi về việc này</h3><span class="kv">Người làm việc trả lời dựa trên tiến độ và kết quả của chính việc</span></div>
@@ -1118,11 +1170,13 @@ function viewTaskDetail(id) {
     await post('say', { text });
   });
   async function refresh() {
-    const { task: t, session: s, qa = [], requests = [] } = await api(`/api/tasks/${id}`);
+    const { task: t, session: s, qa = [], requests = [], campaign = null } = await api(`/api/tasks/${id}`);
+    renderFlow($('#flowBox', wrap), t, campaign, requests);
     if (!typingReq($('#reqBox', wrap))) {
       const open = requests.filter((r) => ['pending', 'publishing'].includes(r.status));
       const past = requests.filter((r) => !['pending', 'publishing'].includes(r.status));
       $('#reqBox', wrap).innerHTML = `${open.map((r) => requestCard(r, false)).join('')}${past.length ? `<details class="card fold"><summary><h3>Đã trao đổi với nhân viên</h3><small>${past.length}</small></summary><div class="stack tight">${past.map((r) => requestCard(r, false)).join('')}</div></details>` : ''}`;
+      loadPostImages($('#reqBox', wrap));
     }
     $('#sheetTitle').textContent = t.title;
     if (!$('#qaForm form', wrap)) $('#qaForm', wrap).innerHTML = askBar({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }, false);
@@ -1138,7 +1192,9 @@ function viewTaskDetail(id) {
       ${t.attachments.length ? `<div class="kv">Đính kèm: ${t.attachments.map((a) => esc(`${a.fileName}${a.productName ? ` (${a.productName}${a.priceNote ? `, ${a.priceNote}` : ''})` : ''}`)).join('; ')}</div>` : ''}
       ${t.stopReason ? `<div class="error">${esc(t.stopReason)}</div>` : ''}
       ${t.returnReason ? `<div class="notice">Trả làm lại: ${esc(t.returnReason)} — Tiêu chí đạt: ${esc(t.passCriteria)}</div>` : ''}
-      ${t.lastError ? `<div class="error">Lỗi gần nhất (trạng thái việc được giữ nguyên để thử lại):\n${esc(t.lastError)}</div>` : ''}`;
+      ${t.lastError ? `<div class="error">Lỗi gần nhất (trạng thái việc được giữ nguyên để thử lại):\n${esc(t.lastError)}</div>` : ''}
+      ${t.status === 'waiting_user' && !requests.some((r) => r.status === 'pending') ? '<div class="notice">Việc đang ở "Chờ người dùng" nhưng không còn yêu cầu nào chờ bạn. <button type="button" class="btn sm gold" id="unstick">Cho chạy tiếp</button></div>' : ''}`;
+    $('#unstick', wrap)?.addEventListener('click', () => post('retry'));
     $('#outputs', wrap).innerHTML = t.outputs.length ? `<div class="eyebrow">Kết quả thực hiện</div><div class="steps">${t.outputs.map((o) => `
       <div class="step ${o.error ? 'fail' : o.waiting ? 'now' : 'done'}"><span class="tick">${o.error ? ICON_X : o.waiting ? '' : ICON_CHECK}</span><div style="min-width:0">
         <h4>${esc(o.step || 'Thực hiện')} <small class="kv">${esc(o.staffName)}</small>${o.waiting ? ' <small class="ok">Đang chờ bạn</small>' : ''}</h4>
@@ -1249,7 +1305,10 @@ VIEWS.fanpage = () => {
 const vndUi = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 
 // ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
-const REQ_TYPE = { info: 'Cần bạn trả lời', access: 'Xin phép truy cập phần mềm', publish: 'Xin duyệt trước khi đăng', ads: 'Kế hoạch quảng cáo chờ duyệt' };
+const REQ_TYPE = {
+  info: 'Cần bạn trả lời', access: 'Xin phép truy cập phần mềm', publish: 'Xin duyệt trước khi đăng', ads: 'Kế hoạch quảng cáo chờ duyệt',
+  plan: 'Duyệt kế hoạch chiến dịch', post: 'Duyệt bài trước khi đăng', campaign_ads: 'Duyệt quảng cáo', retry: 'Bước bị lỗi — thử lại?',
+};
 const REQ_STATUS = { pending: 'Chờ bạn', answered: 'Đã trả lời', approved: 'Đã cho phép', rejected: 'Đã từ chối', publishing: 'Đang chạy…', published: 'Đã xong', failed: 'Lỗi' };
 function requestCard(r, showTask = true) {
   const tone = r.status === 'pending' ? 'gold' : ['published', 'answered', 'approved'].includes(r.status) ? 'teal' : r.status === 'publishing' ? 'orange' : 'red';
@@ -1264,6 +1323,21 @@ function requestCard(r, showTask = true) {
   const body = r.type === 'info'
     ? `<textarea name="answer" placeholder="Câu trả lời của bạn" style="min-height:70px"></textarea>
        <div class="row"><button class="btn gold sm" type="submit" data-a="answer">Trả lời</button><button class="btn sm" type="button" data-a="reject">Bỏ qua câu này</button></div>`
+    : r.type === 'plan'
+      ? `<div class="detail-box open">${esc(r.content || '')}</div>
+         <input name="answer" placeholder="Góp ý nếu muốn sửa (bấm 'Yêu cầu sửa' để Bình làm lại)">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt kế hoạch</button><button class="btn sm danger" type="button" data-a="reject">Yêu cầu sửa</button></div>`
+    : r.type === 'post'
+      ? `${r.postId ? `<img class="post-img" data-post-img="${esc(r.postId)}" alt="Ảnh thiết kế của bài" width="1080" height="1080">` : ''}
+         <label>Nội dung sẽ đăng (sửa được trước khi duyệt)<textarea name="content" style="min-height:160px">${esc(r.content || '')}</textarea></label>
+         <input name="answer" placeholder="Góp ý nếu muốn An viết lại">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; đăng lên Fanpage</button><button class="btn sm danger" type="button" data-a="reject">Yêu cầu viết lại</button></div>`
+    : r.type === 'campaign_ads'
+      ? `<div class="detail-box open">${esc(r.content || '')}</div>
+         <input name="answer" placeholder="Lý do nếu không chạy">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; chạy quảng cáo</button><button class="btn sm danger" type="button" data-a="reject">Không chạy</button></div>`
+    : r.type === 'retry'
+      ? `<div class="row"><button class="btn gold sm" type="submit" data-a="approve">Thử lại</button><button class="btn sm" type="button" data-a="reject">Bỏ qua bước này</button></div>`
     : r.type === 'ads'
       ? `<div class="detail-box open">${esc(r.content || '')}</div>
          <p class="kv" style="margin:0">Duyệt thì Bình tự mở trình quản lý quảng cáo và chạy ĐÚNG kế hoạch này (không vượt ngân sách đã ghi). Không duyệt thì không chạy.</p>
@@ -1281,7 +1355,7 @@ async function sendRequest(form, action) {
   const body = { action, answer: form.answer?.value || '' };
   if (form.content) body.content = form.content.value;
   const r = await act(() => api(`/api/requests/${form.dataset.req}`, { body }), action === 'reject' ? 'Đã gửi.' : 'Đã gửi — nhân viên làm tiếp.');
-  if (r) { await loadActivity(); state.refresh?.(); }
+  if (r) { form.reset(); document.activeElement?.blur?.(); await loadActivity(); state.refresh?.(); }
 }
 document.addEventListener('submit', (e) => {
   const f = e.target.closest('form[data-req]');
@@ -1304,6 +1378,7 @@ VIEWS.requests = () => {
     if (typingReq(box)) return;
     const list = await api('/api/requests');
     box.innerHTML = list.length ? list.map((r) => requestCard(r)).join('') : '<p class="muted">Không có yêu cầu nào.</p>';
+    loadPostImages(box);
   });
 };
 

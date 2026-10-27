@@ -7,6 +7,11 @@ import { markRoutineRun } from './staffops.js';
 import { dueRoutines, hcmToday } from '../shared/staffkit.js';
 import { runDueFanpage } from './fanpage.js';
 
+// Quy trình chuẩn Fanpage đang chờ đến giờ đo kết quả → chạy tiếp khi tới giờ.
+export function tickCampaigns() {
+  for (const t of db.prepare("SELECT account_id, id FROM tasks WHERE campaign IS NOT NULL AND status = 'in_progress'").all()) executeTask(t.account_id, t.id).catch((e) => console.error('campaign', e));
+}
+
 export async function runDueRoutines(now = new Date()) {
   const started = [];
   for (const { id: accountId } of db.prepare('SELECT id FROM accounts').all()) {
@@ -27,6 +32,7 @@ export async function runDueRoutines(now = new Date()) {
 export function startAutomation() {
   const every = Number(process.env.VPA_AUTOMATION_INTERVAL_MS || 60 * 1000);
   setInterval(() => runDueRoutines().catch((e) => console.error('automation', e)), every);
+  setInterval(tickCampaigns, every);
   // Fanpage tự vận hành: An đăng bài, Tuấn kiểm tra, Bình đề xuất quảng cáo / chia sẻ nhóm khi đến giờ.
   let busy = false;
   setInterval(() => { if (busy) return; busy = true; runDueFanpage().catch((e) => console.error('fanpage', e)).finally(() => { busy = false; }); }, every);

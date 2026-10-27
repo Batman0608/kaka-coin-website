@@ -12,6 +12,18 @@
   - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
   - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
 - **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
+- **Quy trình chuẩn Fanpage** (khi giao việc chung, chọn "Quy trình chuẩn Fanpage"; việc nói về Fanpage, theo dõi, thích, quảng cáo thì form tự chọn sẵn và đọc ngân sách, số ngày trong mô tả). Không họp tranh luận; mỗi bước một người phụ trách và ra một sản phẩm cụ thể:
+  1. Tuấn kiểm tra hiện trạng Fanpage (số liệu gốc).
+  2. Bình lập kế hoạch: số bài, lịch đăng, chia ngân sách quảng cáo, KPI → **bạn duyệt**. "Yêu cầu sửa" kèm góp ý thì Bình làm lại.
+  3. Với từng bài:
+     - An viết bài + thiết kế ảnh → **bạn duyệt**; sửa được nội dung, hoặc "Yêu cầu viết lại".
+     - An tự đăng lên Fanpage đã kết nối, đúng bản bạn duyệt.
+     - Bình xem bài thật rồi đề xuất quảng cáo trong ngân sách kế hoạch (hoặc đề xuất không chạy) → **bạn duyệt** → Bình tự chạy.
+     - Sau X giờ, Tuấn đo kết quả và khuyên An, Bình cho bài sau. Bấm "Đo ngay" nếu không muốn chờ.
+  4. Phúc báo cáo tổng kết so với mục tiêu.
+  - Trang việc hiện đủ các bước: ai làm, đang ở bước nào, sản phẩm của từng bước. Thẻ duyệt nằm ngay trên đầu trang việc và trong "Chờ bạn duyệt".
+  - Đăng bài hay chạy quảng cáo bị lỗi thì hỏi bạn "Thử lại / Bỏ qua bước này", không âm thầm bỏ qua.
+  - Việc nào đang "Chờ người dùng" mà không còn yêu cầu nào chờ bạn thì có nút "Cho chạy tiếp".
 - **Fanpage tự vận hành** (nút "Vận hành Fanpage"): ba người phụ trách tự lặp lại mỗi ngày như người thật.
   - **An (nội dung)**, đến giờ đăng (mặc định 09:00 và 19:30):
     - Tự làm bài hoàn chỉnh, dùng sản phẩm và giá thật nếu có, kèm ảnh thiết kế 1080×1080.

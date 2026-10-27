@@ -22,6 +22,7 @@ import { startAutomation } from './automation.js';
 import { startBrowse } from './browse.js';
 import { askTask, listQa } from './taskqa.js';
 import { listRequests, respond, pendingCount } from './requests.js';
+import { startCampaign, getCampaign, CAMPAIGN_TEAM, checkNow } from './campaign.js';
 import { overview as fanpageOverview, updateOps as updateFanpageOps, runCycle as runFanpageCycle, postImage } from './fanpage.js';
 import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
@@ -384,8 +385,13 @@ app.post('/api/tasks', auth, wrap((req, res) => {
     productName: a.productName || undefined, priceNote: a.priceNote || undefined,
     data: /^image\/(png|jpeg|gif|webp)$/.test(a.mimeType) ? String(a.data || '') : undefined,
   }));
-  const id = createTask(req.accountId, { title, description, kind, assigneeIds, attachments: atts, taskKind });
-  if (kind === 'general') startGeneralTask(req.accountId, id);
+  // Quy trình chuẩn Fanpage (form tự chọn khi việc nói về Fanpage / theo dõi / quảng cáo; người dùng đổi được) → từng bước, không họp tranh luận.
+  const fanpageFlow = kind === 'general' && req.body.workflow === 'fanpage';
+  const id = createTask(req.accountId, { title, description, kind, assigneeIds: fanpageFlow ? CAMPAIGN_TEAM : assigneeIds, attachments: atts, taskKind });
+  if (fanpageFlow) {
+    startCampaign(req.accountId, id, { title, description, budget: req.body.budget, days: req.body.days });
+    executeTask(req.accountId, id).catch((e) => console.error(e));
+  } else if (kind === 'general') startGeneralTask(req.accountId, id);
   else executeTask(req.accountId, id).catch((e) => console.error(e));
   res.json(rowToTask(getTaskRow(req.accountId, id)));
 }));
@@ -394,7 +400,13 @@ app.get('/api/tasks/:id', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);
   if (!row) throw new Error('Không tìm thấy việc.');
   const task = rowToTask(row);
-  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }) });
+  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }), campaign: getCampaign(req.accountId, task.id) });
+}));
+
+app.post('/api/tasks/:id/check-now', auth, wrap((req, res) => {
+  checkNow(req.accountId, req.params.id);
+  executeTask(req.accountId, req.params.id).catch((e) => console.error(e));
+  res.json({ ok: true });
 }));
 
 // Ô hỏi dưới mỗi việc: người làm việc trả lời trực tiếp về việc đã giao.

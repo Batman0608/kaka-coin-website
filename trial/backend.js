@@ -24,6 +24,7 @@ import {
   CONTENT_ID, ADS_ID, ANALYST_ID, AD_KINDS, vnd,
 } from '../shared/fanpage.js';
 import { drawDesign } from '../shared/design.js';
+import { advanceCampaign, initCampaign, MANAGER as CAMPAIGN_MANAGER } from '../shared/campaign.js';
 import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
@@ -453,10 +454,20 @@ async function finishSession(taskId) {
 }
 
 // Việc chung: làm theo bản chốt rồi Phúc kiểm tra từng kết quả. Việc riêng: nháp → đồng nghiệp phản biện → bản cuối.
+// Có yêu cầu chạy lại trong lúc việc đang chạy (vd. người dùng vừa trả lời) → chạy thêm một lượt ngay khi xong.
+const rerun = new Set();
 async function executeTask(taskId) {
-  if (executing.has(taskId)) return;
+  if (executing.has(taskId)) { rerun.add(taskId); return; }
   executing.add(taskId);
   try {
+    await executeOnce(taskId);
+  } finally {
+    executing.delete(taskId);
+    if (rerun.delete(taskId)) bg(executeTask(taskId));
+  }
+}
+async function executeOnce(taskId) {
+  {
     let t = getTask(taskId);
     if (t.status === 'returned_for_redo') t.outputs = [];
     t.status = 'in_progress'; t.lastError = null;
@@ -480,6 +491,17 @@ async function executeTask(taskId) {
       },
     });
     let result;
+    if (t.campaign) {
+      // Quy trình chuẩn Fanpage: từng bước một người phụ trách, chốt duyệt của người dùng.
+      let r;
+      try { r = await runCampaign(taskId, io.pushOutput); } catch (e) { const cur = getTask(taskId); Object.assign(cur, { status: 'in_progress', lastError: e.message }); saveTask(cur); return; }
+      if (isBlocked(taskId)) return;
+      const cur = getTask(taskId);
+      cur.status = r.status === 'done' ? 'done' : r.status === 'waiting_user' ? 'waiting_user' : 'in_progress';
+      saveTask(cur);
+      if (r.status === 'done') bg(learnFromTask(taskId));
+      return;
+    }
     if (t.kind === 'general') {
       const fallback = executionPlan(t).map((x, i) => ({
         key: `f${i + 1}`, staff: getStaff(x.staffId), label: x.label || `Phần của ${getStaff(x.staffId).name}`, ask: x.ask || 'Làm phần việc phù hợp nhất với bạn theo bản chốt.', criteria: '',
@@ -492,14 +514,35 @@ async function executeTask(taskId) {
     if (result.status === 'stopped' || isBlocked(taskId)) return; // lệnh dừng của Quản lý luôn thắng
     t = getTask(taskId);
     if (result.status === 'returned_for_redo') Object.assign(t, { status: 'returned_for_redo', returnReason: `Phúc kiểm tra: ${result.returnReason}`, passCriteria: result.passCriteria });
-    else if (result.status === 'waiting_user') t.status = 'waiting_user';
+    else if (result.status === 'waiting_user') {
+      t.status = 'waiting_user';
+      // Người dùng đã trả lời trong lúc các bước khác còn chạy → không để việc kẹt ở "Chờ người dùng".
+      if ((t.outputs || []).some((o) => o.waiting && o.requestId && getRequest(o.requestId)?.status !== 'pending')) rerun.add(taskId);
+    }
     else if (result.status === 'done') t.status = 'done';
     else Object.assign(t, { status: 'in_progress', lastError: result.error || null });
     saveTask(t);
     if (result.status === 'done' || result.status === 'returned_for_redo') bg(learnFromTask(taskId));
-  } finally {
-    executing.delete(taskId);
   }
+}
+
+// ---------- Quy trình chuẩn Fanpage (shared/campaign.js) ----------
+async function runCampaign(taskId, pushOutput) {
+  const t = getTask(taskId);
+  const campaign = t.campaign;
+  const fpx = fpIo(CONTENT_ID);
+  return advanceCampaign({
+    ...fpx, campaign,
+    save: () => { const cur = getTask(taskId); cur.campaign = campaign; saveTask(cur); },
+    think: (staffId, ctx) => think(getStaff(staffId), { ...ctx, kind: staffId === CONTENT_ID ? 'writing' : 'deep_analysis' }),
+    staffName: (id) => getStaff(id)?.name || id,
+    getPost: (id) => fp().posts.find((x) => x.id === id) || null,
+    publishPost: (post) => fpx.publish({ text: post.text, image: store.docs.get(`fpimg-${post.id}`)?.dataUrl || null, post }),
+    runAd: (item, post) => trialRunAd(fpx.ops, item, post),
+    createRequest: (q) => createRequest({ ...q, taskId, staffId: q.type === 'post' ? CONTENT_ID : q.type === 'retry' ? ANALYST_ID : ADS_ID }),
+    getRequest,
+    pushOutput,
+  });
 }
 
 // ---------- Tự học sau mỗi việc ----------
@@ -524,6 +567,7 @@ async function runAutomation() {
   autoBusy = true;
   try {
     for (const due of dueCycles(fp().ops)) if (!fpRunning.has(due.cycle)) bg(runFpCycle(due.cycle, due.slot));
+    for (const t of tasksAll()) if (t.campaign && t.status === 'in_progress' && !executing.has(t.id)) bg(executeTask(t.id));
     for (const s of office().staff) {
       for (const r of dueRoutines(s.routines || [])) {
         r.lastRunDate = hcmToday(); saveOffice(); // đánh dấu trước để không chạy hai lần
@@ -910,7 +954,19 @@ function renderDesign(spec) {
     return null;
   }
 }
-const fpLink = (ops) => { if (!ops.fanpageLinkId) throw new Error('Chưa chọn Fanpage trong "Vận hành Fanpage".'); return needLink(ops.fanpageLinkId); };
+// Fanpage đang dùng: chọn trong "Vận hành Fanpage", chưa chọn thì lấy Fanpage đầu tiên đã kết nối (ưu tiên của An).
+const fpLink = (ops) => {
+  if (ops.fanpageLinkId) return needLink(ops.fanpageLinkId);
+  const l = [...listDoc('links').list].sort((a, b) => (b.staffId === CONTENT_ID) - (a.staffId === CONTENT_ID)).find((x) => x.kind === 'facebook_page');
+  if (!l) throw new Error('Chưa kết nối Fanpage: thêm phần mềm loại "Fanpage Facebook" cho An (trang nhân viên → Phần mềm).');
+  return l;
+};
+async function trialRunAd(ops, item, post) {
+  const link = ops.adsLinkId || fpLink(ops).id;
+  const desc = `${AD_KINDS[item.loai]}${post ? ` cho bài: ${post.url || post.topic}` : ' cho cả trang'}; ngân sách ${vnd(item.nganSachNgay)}/ngày trong ${item.soNgay} ngày; đối tượng ${item.doiTuong.tuoiTu}-${item.doiTuong.tuoiDen} tuổi, ${item.doiTuong.khuVuc}; mục tiêu: ${item.mucTieu}`;
+  const res = await browseOnce(link, { mode: 'ads', content: desc, budgetCap: item.nganSachNgay, goal: 'Chạy quảng cáo đã duyệt', url: post?.url || null });
+  return { ok: res.status === 'published', message: res.message };
+}
 function fpIo(staffId) {
   const d = fp();
   const ops = d.ops;
@@ -980,12 +1036,7 @@ async function approveAdsPlan(planId) {
   const x = fpIo(ADS_ID);
   return executeAdsPlan({
     ...x, plan,
-    runAd: async (item, post) => {
-      const link = x.ops.adsLinkId || fpLink(x.ops).id;
-      const desc = `${AD_KINDS[item.loai]}${post ? ` cho bài: ${post.url || post.topic}` : ' cho cả trang'}; ngân sách ${vnd(item.nganSachNgay)}/ngày trong ${item.soNgay} ngày; đối tượng ${item.doiTuong.tuoiTu}-${item.doiTuong.tuoiDen} tuổi, ${item.doiTuong.khuVuc}; mục tiêu: ${item.mucTieu}`;
-      const res = await browseOnce(link, { mode: 'ads', content: desc, budgetCap: item.nganSachNgay, goal: 'Chạy quảng cáo đã duyệt', url: post?.url || null });
-      return { ok: res.status === 'published', message: res.message };
-    },
+    runAd: (item, post) => trialRunAd(x.ops, item, post),
   });
 }
 on('GET', '/api/fanpage', () => ({ ...fp(), posts: fp().posts.slice(0, 20), running: [...fpRunning] }));
@@ -1038,7 +1089,10 @@ on('POST', '/api/requests/([\\w-]+)', (b, [id]) => {
       .catch((e) => Object.assign(r, { status: 'failed', result: e.message })).finally(() => store.save('requests')));
     return requestView(r);
   }
-  else if (r.type === 'info') { if (!text) throw fail('Nhập câu trả lời.'); Object.assign(r, { status: 'answered', answer: text }); }
+  else if (['plan', 'post', 'campaign_ads', 'retry'].includes(r.type)) {
+    Object.assign(r, { status: 'approved', answer: text || null });
+    if (r.type === 'post' && b.content !== undefined) r.content = String(b.content).slice(0, 8000);
+  } else if (r.type === 'info') { if (!text) throw fail('Nhập câu trả lời.'); Object.assign(r, { status: 'answered', answer: text }); }
   else if (r.type === 'access') {
     const l = needLink(r.linkId);
     if (b.always !== false) { l.accessGranted = true; l.logs = pushLog(l.logs, 'Cho phép nhân viên tự truy cập', true, ''); store.save('links'); }
@@ -1187,8 +1241,14 @@ on('POST', '/api/tasks', (b) => {
     imageCache.set(id, new Blob([bin], { type: a.mimeType }));
     return { id, fileName: String(a.fileName || 'anh'), mimeType: a.mimeType, productName: a.productName || undefined, priceNote: a.priceNote || undefined };
   });
-  const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: ids, attachments, taskKind: b.taskKind || kindOfText(text) });
-  if (b.kind === 'general') startGeneral(t);
+  // Quy trình chuẩn Fanpage (form tự chọn khi việc nói về Fanpage / theo dõi / quảng cáo; người dùng đổi được) → từng bước, không họp tranh luận.
+  const fanpageFlow = b.kind === 'general' && b.workflow === 'fanpage';
+  const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: fanpageFlow ? [ANALYST_ID, ADS_ID, CONTENT_ID, CAMPAIGN_MANAGER] : ids, attachments, taskKind: b.taskKind || kindOfText(text) });
+  if (fanpageFlow) {
+    t.campaign = initCampaign({ title: t.title, description: t.description, budget: b.budget, days: b.days });
+    saveTask(t);
+    bg(executeTask(t.id));
+  } else if (b.kind === 'general') startGeneral(t);
   else bg(executeTask(t.id));
   return publicTask(t);
 });
@@ -1196,7 +1256,7 @@ const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tì
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
   const requests = reqDoc().list.filter((r) => r.taskId === id).map(requestView);
-  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests };
+  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests, campaign: t.campaign || null };
   const participants = t.assigneeIds.map(getStaff).filter(Boolean);
   return {
     task: publicTask(t),
@@ -1208,6 +1268,14 @@ on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
     },
     qa: t.qa || [], requests,
   };
+});
+on('POST', '/api/tasks/([\\w-]+)/check-now', (b, [id]) => {
+  const t = needTask(id);
+  const st = t.campaign?.steps.find((x) => !['done', 'skipped'].includes(x.status));
+  if (!st || !st.key.startsWith('check_')) throw fail('Bước hiện tại không phải bước đo kết quả.');
+  st.runNow = true; saveTask(t);
+  bg(executeTask(id));
+  return { ok: true };
 });
 on('POST', '/api/tasks/([\\w-]+)/retry', (b, [id]) => {
   const t = needTask(id);

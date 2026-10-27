@@ -459,6 +459,39 @@ let zIds = [];
     `nhóm nhận: ${JSON.stringify(gNew.map((x) => x.slice(0, 80)))}`);
 }
 
+// --- Quy trình chuẩn Fanpage: từng bước một người phụ trách, bạn duyệt kế hoạch / bài / quảng cáo ---
+{
+  const C = client(base);
+  await C('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const t = (await C('/api/tasks', { title: 'Tăng 1000 folow cho fanpage', description: 'ngân sách khoảng 500.000 đ, thời gian 7 ngày hãy lên kế hoạch và triển khai cho tôi', kind: 'general', workflow: 'fanpage' })).data;
+  const fbBefore = (fake.state.fbPosts || []).length;
+  const adsBefore = (fake.state.ads || []).length;
+  const log = [];
+  let rejected = false; let ranBeforeApproval = false;
+  const final = await waitFor(async () => {
+    const d = (await C(`/api/tasks/${t.id}`)).data;
+    const cur = d.campaign.steps.find((s) => !['done', 'skipped'].includes(s.status));
+    const p = d.requests.find((r) => r.status === 'pending');
+    if (p) {
+      log.push(p.type);
+      if (p.type === 'campaign_ads' && (fake.state.ads || []).length !== adsBefore + (log.filter((x) => x === 'campaign_ads').length - 1) * 4) ranBeforeApproval = true;
+      if (p.type === 'plan' && !rejected) { rejected = true; await C(`/api/requests/${p.id}`, { action: 'reject', answer: 'Thêm bài về khách hàng (TEST)' }); }
+      else if (p.type === 'post') await C(`/api/requests/${p.id}`, { action: 'approve', content: `${p.content}\n(chủ sửa TEST)` });
+      else await C(`/api/requests/${p.id}`, { action: 'approve' });
+    } else if (cur?.key.startsWith('check_') && cur.status === 'waiting') await C(`/api/tasks/${t.id}/check-now`, {});
+    return d.task.status === 'done' && d;
+  }, 120000);
+  const steps = final?.campaign.steps || [];
+  const fbNew = (fake.state.fbPosts || []).slice(fbBefore);
+  const budgets = (fake.state.ads || []).slice(adsBefore).filter((x) => x.kind === 'adsets').map((x) => Number(/name="daily_budget"\r\n\r\n(\d+)/.exec(x.raw)?.[1]));
+  const planned = steps.filter((s) => s.item).map((s) => s.item.nganSachNgay);
+  check('Quy trình chuẩn Fanpage: Tuấn kiểm tra → Bình lập kế hoạch (bạn yêu cầu sửa, rồi duyệt) → An viết + ảnh (bạn sửa, duyệt) → An tự đăng → Bình đề xuất quảng cáo (bạn duyệt) → chạy → Tuấn đo → … → Phúc tổng kết',
+    final && t.assigneeIds.join() === 'STAFF-003,STAFF-002,STAFF-001,STAFF-007' && steps.every((s) => s.status === 'done') && /Bản sửa theo góp ý/.test(final.campaign.plan.tomTat)
+      && fbNew.length === final.campaign.plan.soBai && fbNew.every((x) => x.hasImage && /chủ sửa TEST/.test(x.message)) && budgets.join() === planned.join() && !ranBeforeApproval
+      && log.filter((x) => x === 'post').length === final.campaign.plan.soBai,
+    final ? `${steps.length} bước xong; duyệt: ${[...new Set(log)].join(', ')}; Facebook nhận ${fbNew.length} bài (bản đã sửa, có ảnh); ngân sách quảng cáo ${budgets.join(', ')}/ngày` : `chưa xong: ${JSON.stringify((await C(`/api/tasks/${t.id}`)).data.campaign.steps.map((s) => `${s.key}:${s.status}`))}`);
+}
+
 // --- Báo cáo cuối ngày + hoạt động 3D ---
 {
   const R = client(base); // server vừa khởi động lại ở ca trên

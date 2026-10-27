@@ -26,6 +26,7 @@ function rowToRequest(r) {
     id: r.id, taskId: r.task_id, taskTitle: task?.title || null, stepKey: r.step_key, staffId: r.staff_id, staffName: getStaff(r.account_id, r.staff_id)?.name || r.staff_id,
     type: r.type, question: r.question, content: r.content, linkId: r.link_id, linkName: link?.software_name || null,
     status: r.status, answer: r.answer, result: r.result, createdAt: r.created_at, answeredAt: r.answered_at,
+    postId: ['post', 'campaign_ads'].includes(r.type) ? r.link_id : null,
   };
 }
 
@@ -76,6 +77,9 @@ export function respond(accountId, id, { action, answer = '', content, always = 
       .then((res) => set(id, { status: res.status === 'failed' ? 'failed' : 'published', result: res.message }))
       .catch((e) => set(id, { status: 'failed', result: e.message }));
     return getRequest(accountId, id);
+  } else if (['plan', 'post', 'campaign_ads', 'retry'].includes(r.type)) {
+    // Chốt duyệt của quy trình chuẩn Fanpage: ghi lại quyết định (và nội dung đã sửa), việc tự chạy bước tiếp.
+    set(id, { status: 'approved', answer: text || null, answered_at: now(), ...(r.type === 'post' && content !== undefined ? { content: String(content).slice(0, 8000) } : {}) });
   } else if (r.type === 'info') {
     if (!text) throw new Error('Nhập câu trả lời.');
     set(id, { status: 'answered', answer: text, answered_at: now() });

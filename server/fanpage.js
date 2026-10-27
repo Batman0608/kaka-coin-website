@@ -82,9 +82,12 @@ async function renderDesign(spec) {
 }
 
 // ---------- Kênh thật: API nếu có mã, không thì nhân viên tự điều khiển trình duyệt ----------
+// Fanpage đang dùng: chọn trong "Vận hành Fanpage", chưa chọn thì lấy Fanpage đầu tiên đã kết nối cho nhân viên.
 function fanpageLink(accountId, ops) {
-  if (!ops.fanpageLinkId) throw new Error('Chưa chọn Fanpage trong "Vận hành Fanpage".');
-  return getRow(accountId, ops.fanpageLinkId);
+  if (ops.fanpageLinkId) return getRow(accountId, ops.fanpageLinkId);
+  const r = db.prepare("SELECT id FROM software_links WHERE account_id = ? AND kind = 'facebook_page' ORDER BY (staff_id = 'STAFF-001') DESC LIMIT 1").get(accountId);
+  if (!r) throw new Error('Chưa kết nối Fanpage: thêm phần mềm loại "Fanpage Facebook" cho An (trang nhân viên → Phần mềm).');
+  return getRow(accountId, r.id);
 }
 async function publish(accountId, ops, { text, image }) {
   const r = fanpageLink(accountId, ops);
@@ -153,7 +156,7 @@ async function shareToGroup(accountId, ops, post, group) {
 }
 
 // ---------- Ghép io cho các chu kỳ ----------
-function io(accountId, staffId) {
+export function fanpageIo(accountId, staffId) {
   const ops = getOps(accountId);
   const staff = getStaff(accountId, staffId);
   return {
@@ -166,6 +169,9 @@ function io(accountId, staffId) {
     plans: () => plans(accountId, 5),
     render: renderDesign,
     publish: (p) => publish(accountId, ops, p),
+    runAd: (item, post) => runAd(accountId, ops, item, post),
+    getPost: (id) => listPosts(accountId, 200).find((p) => p.id === id) || null,
+    postImage: (id) => postImage(accountId, id),
     readMetrics: () => readMetrics(accountId, ops),
     shareToGroup: (post, g) => shareToGroup(accountId, ops, post, g),
     savePost: (p) => {
@@ -174,7 +180,11 @@ function io(accountId, staffId) {
         .run(id, accountId, p.topic, p.text, JSON.stringify(p.design), p.image || null, p.status, p.brainLabel || null, now());
       return rowToPost(db.prepare('SELECT * FROM fanpage_posts WHERE id = ?').get(id));
     },
-    updatePost: (id, f) => db.prepare('UPDATE fanpage_posts SET status = ?, result = ?, url = ?, fb_post_id = ?, posted_at = ? WHERE id = ?').run(f.status, f.result, f.url, f.fbPostId, f.postedAt, id),
+    updatePost: (id, f) => {
+      const cols = { status: 'status', result: 'result', url: 'url', fbPostId: 'fb_post_id', postedAt: 'posted_at', text: 'text' };
+      const keys = Object.keys(f).filter((k) => cols[k] && f[k] !== undefined);
+      if (keys.length) db.prepare(`UPDATE fanpage_posts SET ${keys.map((k) => `${cols[k]} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => f[k]), id);
+    },
     markShared: (id, url, ok, message) => {
       const p = db.prepare('SELECT shares FROM fanpage_posts WHERE id = ?').get(id);
       db.prepare('UPDATE fanpage_posts SET shares = ? WHERE id = ?').run(JSON.stringify([...JSON.parse(p.shares), { url, ok, message: String(message).slice(0, 300), at: now() }]), id);
@@ -206,10 +216,10 @@ export async function runCycle(accountId, cycle, slot = null) {
   markRun(ops, cycle, slot);
   saveOps(accountId, { ...getOps(accountId), lastRun: ops.lastRun }); // đánh dấu trước để không chạy hai lần
   try {
-    if (cycle === 'content') return await runContentCycle(io(accountId, CONTENT_ID));
-    if (cycle === 'analyst') return await runAnalystCycle(io(accountId, ANALYST_ID));
-    if (cycle === 'ads') return await runAdsCycle(io(accountId, ADS_ID));
-    if (cycle === 'share') return await runShareCycle(io(accountId, ADS_ID));
+    if (cycle === 'content') return await runContentCycle(fanpageIo(accountId, CONTENT_ID));
+    if (cycle === 'analyst') return await runAnalystCycle(fanpageIo(accountId, ANALYST_ID));
+    if (cycle === 'ads') return await runAdsCycle(fanpageIo(accountId, ADS_ID));
+    if (cycle === 'share') return await runShareCycle(fanpageIo(accountId, ADS_ID));
     throw new Error('Chu kỳ không hợp lệ.');
   } catch (e) {
     addMessage(accountId, 'group', { content: CONTENT_ID, analyst: ANALYST_ID }[cycle] || ADS_ID, `Lỗi khi chạy "${cycle}": ${e.message}`, null, true);
@@ -225,7 +235,7 @@ export async function approveAdsPlan(accountId, planId) {
   if (!p) throw new Error('Không tìm thấy kế hoạch quảng cáo.');
   const plan = rowToPlan(p);
   db.prepare("UPDATE ad_plans SET status = 'starting' WHERE id = ?").run(planId);
-  const x = io(accountId, ADS_ID);
+  const x = fanpageIo(accountId, ADS_ID);
   return executeAdsPlan({ ...x, plan, runAd: (item, post) => runAd(accountId, x.ops, item, post) });
 }
 export function rejectAdsPlan(accountId, planId, reason) {

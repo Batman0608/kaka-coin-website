@@ -10,6 +10,7 @@ import { runWorkStep } from '../shared/worker.js';
 import { listLinks } from './links.js';
 import { createRequest, getRequest, knownAnswers } from './requests.js';
 import { readSoftware } from './browse.js';
+import { runCampaign } from './campaign.js';
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
 
@@ -219,10 +220,21 @@ export async function finishSession(accountId, sessionId) {
 
 // Thực hiện việc: việc chung theo bản chốt (người làm do Phúc chọn theo năng lực) rồi Phúc kiểm tra từng kết quả;
 // việc riêng qua bản nháp → đồng nghiệp phản biện → bản cuối.
+// Có yêu cầu chạy lại trong lúc việc đang chạy (vd. người dùng vừa trả lời) → chạy thêm một lượt ngay khi xong.
+const rerun = new Set();
 export async function executeTask(accountId, taskId) {
-  if (executing.has(taskId)) return;
+  if (executing.has(taskId)) { rerun.add(taskId); return; }
   executing.add(taskId);
   try {
+    await executeOnce(accountId, taskId);
+  } finally {
+    executing.delete(taskId);
+    if (rerun.delete(taskId)) executeTask(accountId, taskId).catch((e) => console.error('rerun', e));
+  }
+}
+
+async function executeOnce(accountId, taskId) {
+  {
     let row = getTaskRow(accountId, taskId);
     const fresh = row.status === 'returned_for_redo';
     updateTask(accountId, taskId, { status: 'in_progress', last_error: null, ...(fresh ? { outputs: '[]' } : {}) });
@@ -251,6 +263,18 @@ export async function executeTask(accountId, taskId) {
       },
     });
     let result;
+    if (row.campaign) {
+      // Quy trình chuẩn Fanpage: từng bước một người phụ trách, chốt duyệt của người dùng.
+      let r;
+      try { r = await runCampaign(accountId, taskId, outputsIo.pushOutput); } catch (e) {
+        updateTask(accountId, taskId, { status: 'in_progress', last_error: e.message });
+        return;
+      }
+      if (isTaskBlocked(accountId, taskId)) return;
+      updateTask(accountId, taskId, { status: r.status === 'done' ? 'done' : r.status === 'waiting_user' ? 'waiting_user' : 'in_progress' });
+      if (r.status === 'done') learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
+      return;
+    }
     if (task.kind === 'general') {
       const s = row.debate_session_id ? sessionRow(row.debate_session_id) : null;
       const plan = s?.final_plan ? JSON.parse(s.final_plan) : null;
@@ -269,14 +293,15 @@ export async function executeTask(accountId, taskId) {
       learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
     } else if (result.status === 'waiting_user') {
       updateTask(accountId, taskId, { status: 'waiting_user' });
+      // Người dùng đã trả lời trong lúc các bước khác còn chạy → không để việc kẹt ở "Chờ người dùng".
+      const outs = JSON.parse(getTaskRow(accountId, taskId).outputs).filter((o) => o.waiting && o.requestId);
+      if (outs.some((o) => getRequest(accountId, o.requestId)?.status !== 'pending')) rerun.add(taskId);
     } else if (result.status === 'done') {
       updateTask(accountId, taskId, { status: 'done' });
       learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
     } else {
       updateTask(accountId, taskId, { status: 'in_progress', last_error: result.error || null });
     }
-  } finally {
-    executing.delete(taskId);
   }
 }
 

@@ -316,3 +316,13 @@ ol.trace .kv { overflow-wrap: anywhere; }
 .post-img { display: block; width: 100%; max-width: 420px; height: auto; aspect-ratio: 1; border-radius: 12px; margin-top: 8px; background: var(--surface-3); }
 .post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .post .post-img { margin-top: 0; max-width: none; }
+
+/* Quy trình chuẩn Fanpage */
+ol.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+ol.flow li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--surface-3); font-size: 14px; }
+ol.flow li .ic { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; border: 2px solid var(--line-2); }
+ol.flow li.done .ic { background: var(--teal); border-color: var(--teal); color: #072a24; }
+ol.flow li.skipped { opacity: .6; }
+ol.flow li.cur { outline: 1.5px solid var(--gold); }
+ol.flow li.cur .ic, ol.flow li.waiting .ic, ol.flow li.doing .ic { border-color: var(--gold); color: var(--gold-2); }
+ol.flow summary { cursor: pointer; }
