@@ -17,7 +17,7 @@ const TASK_STATUS = {
   open: 'Mới', in_progress: 'Đang làm', debating: 'Đang phản biện', stopped_by_manager: 'Quản lý đã dừng',
   waiting_user: 'Chờ người dùng', done: 'Đã xong', returned_for_redo: 'Trả làm lại',
 };
-const TASK_TONE = { done: 'teal', stopped_by_manager: 'red', returned_for_redo: 'red', debating: 'orange', in_progress: 'orange', open: 'gold' };
+const TASK_TONE = { done: 'teal', stopped_by_manager: 'red', returned_for_redo: 'red', debating: 'orange', in_progress: 'orange', open: 'gold', waiting_user: 'gold' };
 const WAREHOUSE = { pending: 'Chờ Kho nhận', stock_checked: 'Đã rà tồn', preparing: 'Đang chuẩn bị', delivered: 'Đã giao', delivery_photo_recorded: 'Đã ghi ảnh giao hàng' };
 const WAREHOUSE_NEXT = { pending: 'stock_checked', stock_checked: 'preparing', preparing: 'delivered', delivered: 'delivery_photo_recorded' };
 const PHASE_TITLES = {
@@ -25,7 +25,7 @@ const PHASE_TITLES = {
   score: 'Vòng 4 — Chấm lại kế hoạch đã sửa', judge: 'Phúc chọn ý tưởng tốt nhất',
 };
 const COLOR_CHOICES = ['#f2a516', '#e2645a', '#c03fd6', '#e23b3b', '#7fa6f0', '#c78ae6', '#5fcf7e', '#2fd1b4', '#1f9bb5', '#7a3fe0', '#f07fb0', '#9aa64a'];
-const ACTIVE_TASK = new Set(['open', 'debating', 'in_progress', 'returned_for_redo']);
+const ACTIVE_TASK = new Set(['open', 'debating', 'in_progress', 'returned_for_redo', 'waiting_user']);
 
 const state = {
   me: null, staff: [], tasks: [], activity: { working: [], said: {} }, overview: {},
@@ -219,7 +219,7 @@ document.addEventListener('keydown', (e) => {
 // ---------- Bảng chi tiết (sheet) ----------
 const VIEW_TITLES = {
   group: 'Chat nhóm công ty', tasks: 'Họp / Việc chung', slips: 'Phiếu bán hàng', zalo: 'Hàng chờ Zalo', reports: 'Báo cáo cuối ngày',
-  settings: 'Cài đặt văn phòng', links: 'Liên kết phần mềm', overview: 'Chi tiết văn phòng', more: 'Thêm',
+  settings: 'Cài đặt văn phòng', links: 'Liên kết phần mềm', overview: 'Chi tiết văn phòng', more: 'Thêm', requests: 'Nhân viên chờ bạn',
 };
 const VIEWS = {};
 
@@ -373,6 +373,7 @@ function liveCard(id, box) {
       <summary><h3>Xem trực tiếp</h3><span class="grow kv live-sum">${esc(task.title)}${steps.length ? ` · ${doneN}/${steps.length} bước` : ''}</span><span class="pill ${tone}"><i class="dot"></i>${esc(TASK_STATUS[task.status])}</span></summary>
       <div class="stack" style="margin-top:12px;gap:10px">
       <p style="margin:0">Việc ${active ? 'đang làm' : 'gần nhất'}: <b>${esc(task.title)}</b></p>
+      ${task.status === 'waiting_user' ? `<p class="notice" style="margin:0">${esc(s.name)} đang chờ bạn trả lời / duyệt. <button type="button" class="link-btn" data-task="${task.id}">Mở việc để trả lời</button></p>` : ''}
       <p class="kv" style="margin:0">Bộ não đang dùng: ${esc(s.currentBrain.label)} · Cập nhật lúc ${esc(fmtTime(task.updatedAt))} · Tự làm mới mỗi 3 giây</p>
       ${steps.length ? `<div class="row between kv"><span>Tiến trình: ${doneN}/${steps.length} bước</span><span>${pct}%</span></div>
       <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ''}
@@ -774,6 +775,7 @@ function linkFields(l) {
       ${k === 'facebook_page' ? `<label>Page ID <input name="pageId" value="${esc(l.pageId || '')}" autocomplete="off"></label>` : ''}
       <label>Phạm vi quyền <input name="permissionScope" value="${esc(l.permissionScope || '')}" placeholder="Ví dụ: chỉ đọc"></label>
     </div>
+    <label class="check"><input type="checkbox" name="accessGranted" ${l.accessGranted ? 'checked' : ''}> Cho phép ${esc(nameOf(l.staffId) || 'nhân viên')} tự mở phần mềm này khi làm việc (không chọn: nhân viên xin phép bạn lần đầu)</label>
     <label>${SECRET_LABEL[k]} (chỉ nhập ở đây; chỉ hiện 4 ký tự cuối${state.me.trial ? '; bản trải nghiệm không lưu mã đầy đủ' : ''})
       <input name="accessCode" type="password" autocomplete="new-password" placeholder="${l.accessCodeLast4 ? `•••• ${esc(l.accessCodeLast4)} — để trống nếu giữ nguyên` : 'Chưa nhập'}"></label>`;
 }
@@ -888,6 +890,7 @@ function bindLinkActions(container, after) {
     const id = f.closest('[data-link]').dataset.link;
     const v = Object.fromEntries(new FormData(f));
     if (!v.accessCode) delete v.accessCode;
+    v.accessGranted = f.accessGranted.checked;
     if (await act(() => api(`/api/links/${id}`, { method: 'PUT', body: v }), 'Đã lưu liên kết.')) after(id);
   });
 }
@@ -1064,6 +1067,7 @@ function renderDebateTurns(turns) {
 
 function viewTaskDetail(id) {
   const wrap = el(`<button class="btn sm" type="button" id="back">← Tất cả việc</button><div id="tHead" class="stack"></div>
+    <div id="reqBox" class="stack tight"></div>
     <section class="card gold stack tight" id="qaBox" aria-live="polite">
       <div class="row between"><h3>Hỏi về việc này</h3><span class="kv">Người làm việc trả lời dựa trên tiến độ và kết quả của chính việc</span></div>
       <div id="qaList" class="chat"></div><div id="qaForm"></div>
@@ -1096,7 +1100,12 @@ function viewTaskDetail(id) {
     await post('say', { text });
   });
   async function refresh() {
-    const { task: t, session: s, qa = [] } = await api(`/api/tasks/${id}`);
+    const { task: t, session: s, qa = [], requests = [] } = await api(`/api/tasks/${id}`);
+    if (!typingReq($('#reqBox', wrap))) {
+      const open = requests.filter((r) => ['pending', 'publishing'].includes(r.status));
+      const past = requests.filter((r) => !['pending', 'publishing'].includes(r.status));
+      $('#reqBox', wrap).innerHTML = `${open.map((r) => requestCard(r, false)).join('')}${past.length ? `<details class="card fold"><summary><h3>Đã trao đổi với nhân viên</h3><small>${past.length}</small></summary><div class="stack tight">${past.map((r) => requestCard(r, false)).join('')}</div></details>` : ''}`;
+    }
     $('#sheetTitle').textContent = t.title;
     if (!$('#qaForm form', wrap)) $('#qaForm', wrap).innerHTML = askBar({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }, false);
     $('#qaList', wrap).innerHTML = qa.map((q) => `
@@ -1113,10 +1122,11 @@ function viewTaskDetail(id) {
       ${t.returnReason ? `<div class="notice">Trả làm lại: ${esc(t.returnReason)} — Tiêu chí đạt: ${esc(t.passCriteria)}</div>` : ''}
       ${t.lastError ? `<div class="error">Lỗi gần nhất (trạng thái việc được giữ nguyên để thử lại):\n${esc(t.lastError)}</div>` : ''}`;
     $('#outputs', wrap).innerHTML = t.outputs.length ? `<div class="eyebrow">Kết quả thực hiện</div><div class="steps">${t.outputs.map((o) => `
-      <div class="step ${o.error ? 'fail' : 'done'}"><span class="tick">${o.error ? ICON_X : ICON_CHECK}</span><div style="min-width:0">
-        <h4>${esc(o.step || 'Thực hiện')} <small class="kv">${esc(o.staffName)}</small></h4>
+      <div class="step ${o.error ? 'fail' : o.waiting ? 'now' : 'done'}"><span class="tick">${o.error ? ICON_X : o.waiting ? '' : ICON_CHECK}</span><div style="min-width:0">
+        <h4>${esc(o.step || 'Thực hiện')} <small class="kv">${esc(o.staffName)}</small>${o.waiting ? ' <small class="ok">Đang chờ bạn</small>' : ''}</h4>
+        ${traceHtml(o.trace)}
         ${o.why ? `<div class="sub">Được giao vì: ${esc(o.why)}${o.criteria ? ` · Đạt khi: ${esc(o.criteria)}` : ''}</div>` : ''}
-        <div class="detail-box open">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>
+        ${o.waiting ? '' : `<div class="detail-box open">${esc(o.error ? `Bộ não lỗi: ${o.error}` : o.text)}</div>`}
         ${o.brainLabel ? `<div class="kv" style="margin-top:6px;color:var(--teal)">Bộ não: ${esc(o.brainLabel)}</div>` : ''}
       </div></div>`).join('')}</div>` : '';
     if (s) {
@@ -1129,6 +1139,67 @@ function viewTaskDetail(id) {
     }
   }
   mount(wrap, refresh);
+}
+
+// ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
+const REQ_TYPE = { info: 'Cần bạn trả lời', access: 'Xin phép truy cập phần mềm', publish: 'Xin duyệt trước khi đăng' };
+const REQ_STATUS = { pending: 'Chờ bạn', answered: 'Đã trả lời', approved: 'Đã cho phép', rejected: 'Đã từ chối', publishing: 'Đang đăng…', published: 'Đã đăng', failed: 'Đăng lỗi' };
+function requestCard(r, showTask = true) {
+  const tone = r.status === 'pending' ? 'gold' : ['published', 'answered', 'approved'].includes(r.status) ? 'teal' : r.status === 'publishing' ? 'orange' : 'red';
+  const head = `<div class="row between"><b>${esc(r.staffName)} · ${esc(REQ_TYPE[r.type])}</b><span class="pill ${tone}">${esc(REQ_STATUS[r.status] || r.status)}</span></div>
+    ${showTask && r.taskTitle ? `<button type="button" class="link-btn kv" data-task-open="${r.taskId}">Việc: ${esc(r.taskTitle)}</button>` : ''}
+    <p style="margin:0;white-space:pre-wrap">${esc(r.question)}</p>`;
+  if (r.status !== 'pending') {
+    return `<div class="card req stack tight" data-req="${r.id}">${head}
+      ${r.content ? `<div class="detail-box open">${esc(r.content)}</div>` : ''}
+      ${r.answer ? `<div class="kv">Bạn: ${esc(r.answer)}</div>` : ''}${r.result ? `<div class="kv">Kết quả: ${esc(r.result)}</div>` : ''}</div>`;
+  }
+  const body = r.type === 'info'
+    ? `<textarea name="answer" placeholder="Câu trả lời của bạn" style="min-height:70px"></textarea>
+       <div class="row"><button class="btn gold sm" type="submit" data-a="answer">Trả lời</button><button class="btn sm" type="button" data-a="reject">Bỏ qua câu này</button></div>`
+    : r.type === 'access'
+      ? `<p class="kv" style="margin:0">Cho phép thì ${esc(r.staffName)} được tự mở ${esc(r.linkName || 'phần mềm')} để đọc dữ liệu (chỉ đọc, không tự đăng nhập; thu hồi được trong thẻ phần mềm).</p>
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Cho phép</button><button class="btn sm danger" type="button" data-a="reject">Không cho phép</button></div>`
+      : `<label>Nội dung sẽ đăng lên ${esc(r.linkName || 'phần mềm')} (sửa được trước khi duyệt)<textarea name="content" style="min-height:140px">${esc(r.content || '')}</textarea></label>
+         <input name="answer" placeholder="Lý do nếu không duyệt (không bắt buộc)">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; đăng</button><button class="btn sm danger" type="button" data-a="reject">Không duyệt</button></div>`;
+  return `<form class="card gold req stack tight" data-req="${r.id}">${head}${body}</form>`;
+}
+async function sendRequest(form, action) {
+  const body = { action, answer: form.answer?.value || '' };
+  if (form.content) body.content = form.content.value;
+  const r = await act(() => api(`/api/requests/${form.dataset.req}`, { body }), action === 'reject' ? 'Đã gửi.' : 'Đã gửi — nhân viên làm tiếp.');
+  if (r) { await loadActivity(); state.refresh?.(); }
+}
+document.addEventListener('submit', (e) => {
+  const f = e.target.closest('form[data-req]');
+  if (!f) return;
+  e.preventDefault();
+  sendRequest(f, e.submitter?.dataset.a || 'answer');
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('form[data-req] button[data-a="reject"]');
+  if (b) sendRequest(b.closest('form'), 'reject');
+  const t = e.target.closest('[data-task-open]');
+  if (t) openView('tasks', t.dataset.taskOpen);
+});
+const typingReq = (box) => [...box.querySelectorAll('form[data-req] textarea, form[data-req] input')].some((i) => i === document.activeElement || (i.name === 'answer' && i.value));
+
+VIEWS.requests = () => {
+  const wrap = el(`<p class="kv" style="margin:0">Nhân viên làm việc thật: cần thông tin chỉ bạn biết thì hỏi, lần đầu mở phần mềm thì xin phép, muốn đăng gì thì xin duyệt. Việc dừng ở "Chờ người dùng" tới khi bạn trả lời.</p><div id="reqList" class="stack tight"></div>`);
+  mount(wrap, async () => {
+    const box = $('#reqList', wrap);
+    if (typingReq(box)) return;
+    const list = await api('/api/requests');
+    box.innerHTML = list.length ? list.map((r) => requestCard(r)).join('') : '<p class="muted">Không có yêu cầu nào.</p>';
+  });
+};
+
+// Từng lượt làm việc thật của một bước (xem phần mềm, hỏi bạn, xin duyệt, nộp).
+const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt đăng', nop: 'Nộp kết quả' };
+function traceHtml(trace) {
+  if (!trace?.length) return '';
+  return `<ol class="trace">${trace.map((t) => `<li><b>${esc(TRACE_LABEL[t.hanhDong] || t.hanhDong)}</b>${t.chiTiet ? ` — ${esc(t.chiTiet)}` : ''}${t.ketQua == null ? ' <span class="pill gold">Đang chờ bạn</span>' : t.hanhDong === 'nop' ? '' : `<div class="kv">${esc(String(t.ketQua).slice(0, 400))}</div>`}</li>`).join('')}</ol>`;
 }
 
 // ---------- Phiếu bán hàng ----------
@@ -1442,6 +1513,11 @@ async function loadActivity() {
   const a = await api('/api/activity').catch(() => null);
   if (!a) return;
   state.activity = { working: a.working || [], said: a.said || {} };
+  const n = a.pendingRequests || 0;
+  $('#reqCount').textContent = n;
+  $('#reqBtn').classList.toggle('hidden', !n);
+  if (n > (state.lastPending ?? n)) toast(`Nhân viên đang chờ bạn (${n} yêu cầu). Bấm "Chờ bạn duyệt" ở đầu trang.`, 7000);
+  state.lastPending = n;
   const warn = a.storageWarning || state.me?.storageWarning || '';
   $('#notice').textContent = warn; $('#notice').classList.toggle('hidden', !warn);
 }

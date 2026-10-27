@@ -6,6 +6,10 @@ import { executionPlan } from '../shared/core.js';
 import { runDebatePhases, runJudge, executeWithReview, runIndividual, reviewerFor, scoreboard } from '../shared/deliberation.js';
 import { runLearning, TRAINER_ID } from '../shared/staffkit.js';
 import { applyLessons } from './staffops.js';
+import { runWorkStep } from '../shared/worker.js';
+import { listLinks } from './links.js';
+import { createRequest, getRequest, knownAnswers } from './requests.js';
+import { readSoftware } from './browse.js';
 
 export const DEBATE_MINUTES = Number(process.env.DEBATE_MINUTES || 10);
 
@@ -235,6 +239,17 @@ export async function executeTask(accountId, taskId) {
       baseCtx: () => taskContext(getTaskRow(accountId, taskId)),
       think: thinker(accountId, row.debate_session_id, row.task_kind),
     };
+    // Làm việc thật: xem phần mềm, hỏi người dùng, xin duyệt đăng (shared/worker.js).
+    outputsIo.work = (s, ctx, trace) => runWorkStep({
+      staff: s.staff, ask: ctx.question, ctx, think: outputsIo.think, trace,
+      tools: {
+        listLinks: (staffId) => listLinks(accountId, staffId),
+        readSoftware: (linkId, want) => readSoftware(accountId, linkId, want),
+        createRequest: (q) => createRequest(accountId, { ...q, taskId, stepKey: s.key, staffId: s.staff.id }),
+        getRequest: (id) => getRequest(accountId, id),
+        knownAnswers: () => knownAnswers(accountId, taskId),
+      },
+    });
     let result;
     if (task.kind === 'general') {
       const s = row.debate_session_id ? sessionRow(row.debate_session_id) : null;
@@ -252,6 +267,8 @@ export async function executeTask(accountId, taskId) {
     if (result.status === 'returned_for_redo') {
       updateTask(accountId, taskId, { status: 'returned_for_redo', return_reason: `Phúc kiểm tra: ${result.returnReason}`, pass_criteria: result.passCriteria });
       learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));
+    } else if (result.status === 'waiting_user') {
+      updateTask(accountId, taskId, { status: 'waiting_user' });
     } else if (result.status === 'done') {
       updateTask(accountId, taskId, { status: 'done' });
       learnFromTask(accountId, taskId).catch((e) => console.error('learn', e));

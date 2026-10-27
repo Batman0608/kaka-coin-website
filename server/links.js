@@ -5,7 +5,7 @@ import { putSecret, getSecret, deleteSecret, last4 } from './secrets.js';
 import { CONNECTORS } from './connectors.js';
 import { LINK_KINDS, parseImport, pushLog } from '../shared/staffkit.js';
 
-for (const col of ['kind TEXT', 'purpose TEXT', 'extra TEXT', 'logs TEXT']) {
+for (const col of ['kind TEXT', 'purpose TEXT', 'extra TEXT', 'logs TEXT', 'access_granted INTEGER NOT NULL DEFAULT 0']) {
   try { db.exec(`ALTER TABLE software_links ADD COLUMN ${col}`); } catch { /* đã có */ }
 }
 db.exec(`CREATE TABLE IF NOT EXISTS link_data (
@@ -25,7 +25,7 @@ export function rowToLink(r) {
     id: r.id, staffId: r.staff_id, softwareName: r.software_name, url: r.url, status: r.status, permissionScope: r.permission_scope,
     kind: r.kind || 'other', purpose: r.purpose || '', retailer: extra.retailer || '', clientId: extra.clientId || '', pageId: extra.pageId || '',
     lastSyncAt: r.last_sync_at, lastCheckAt: r.last_check_at, lastOpenedAt: r.last_opened_at, accessCodeLast4: r.access_code_last4,
-    logs: r.logs ? JSON.parse(r.logs) : [], browsing: browsing.get(r.id) || null,
+    accessGranted: !!r.access_granted, logs: r.logs ? JSON.parse(r.logs) : [], browsing: browsing.get(r.id) || null,
     data: data ? { kind: data.kind, source: data.source, at: data.at, count: JSON.parse(data.items).length } : null,
   };
 }
@@ -88,6 +88,10 @@ export function updateLink(accountId, id, b) {
     .run(v.softwareName ?? r.software_name, v.url ?? r.url, v.status ?? r.status, v.permissionScope ?? r.permission_scope, v.kind ?? r.kind ?? 'other',
       v.purpose ?? r.purpose ?? '', JSON.stringify(extra), r.access_code_ref, r.access_code_last4, v.status ? now() : r.last_check_at,
       b.opened ? now() : r.last_opened_at, id);
+  if (b.accessGranted !== undefined) {
+    db.prepare('UPDATE software_links SET access_granted = ? WHERE id = ?').run(b.accessGranted ? 1 : 0, id);
+    addLog(id, b.accessGranted ? 'Cho phép nhân viên tự truy cập' : 'Thu hồi quyền tự truy cập', true, '');
+  }
   if (b.opened) addLog(id, 'Mở trình duyệt', true, r.url);
   if (v.status === 'expired') addLog(id, 'Đánh dấu hết hạn', true, 'Chờ người dùng tự đăng nhập lại.');
   return rowToLink(getRow(accountId, id));

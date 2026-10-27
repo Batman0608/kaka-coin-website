@@ -344,9 +344,21 @@ let zIds = [];
   const lgDone = await waitFor(async () => { const l = (await W('/api/links')).data.find((x) => x.id === lg.id); return !l.browsing && l.logs.some((g) => /Kết quả/.test(g.action)) && l; }, 30000);
   check('Gặp trang đăng nhập: dừng, chuyển "Hết hạn", không tự đăng nhập', lgDone?.status === 'expired' && lgDone.logs.some((g) => g.action === 'Cần đăng nhập'), lgDone ? `${lgDone.status}; ${lgDone.logs[0].detail}` : 'không xong');
 
-  // Hỏi trực tiếp về việc đã giao
+  // Làm việc thật: lần đầu nhân viên xin phép truy cập phần mềm, việc dừng chờ; cho phép thì tự xem phần mềm rồi làm tiếp.
   const t = (await W('/api/tasks', { title: 'Soạn báo giá phốt Fleetrite cho khách (TEST)', kind: 'individual', assigneeIds: ['STAFF-004'] })).data;
-  await waitFor(async () => (await W(`/api/tasks/${t.id}`)).data.task.status === 'done', 15000);
+  const wait1 = await waitFor(async () => { const d = (await W(`/api/tasks/${t.id}`)).data; return d.task.status === 'waiting_user' && d.requests[0] && d; }, 15000);
+  const rq = wait1?.requests[0];
+  const pend = (await W('/api/activity')).data.pendingRequests;
+  await W(`/api/requests/${rq?.id}`, { action: 'approve' });
+  const doneT = await waitFor(async () => {
+    const d = (await W(`/api/tasks/${t.id}`)).data;
+    for (const r of d.requests.filter((x) => x.status === 'pending')) await W(`/api/requests/${r.id}`, { action: 'approve' });
+    return d.task.status === 'done' && d;
+  }, 60000);
+  const draft = doneT?.task.outputs.find((o) => o.key === 'draft');
+  check('Làm việc thật: xin phép truy cập phần mềm → chờ người dùng → được phép thì tự xem phần mềm, dùng số liệu thật',
+    rq?.type === 'access' && /xin phép truy cập/.test(rq.question) && pend >= 1 && draft?.trace?.[0]?.hanhDong === 'xem_phan_mem' && /Dữ liệu .*mục/.test(draft.trace[0].ketQua) && doneT.task.status === 'done',
+    rq ? `${rq.staffName}: "${rq.question}" → cho phép → ${draft?.trace?.map((x) => `${x.hanhDong}: ${String(x.ketQua).slice(0, 70)}`).join(' | ')}` : 'không thấy yêu cầu');
   const b2 = fake.state.calls.length;
   const ask = await W(`/api/tasks/${t.id}/ask`, { question: 'Báo giá đã gửi khách chưa, giá bao nhiêu?', staffId: 'STAFF-004' });
   const qa = await waitFor(async () => { const q = (await W(`/api/tasks/${t.id}`)).data.qa; return q?.[0]?.answer && q; }, 10000);
@@ -355,6 +367,48 @@ let zIds = [];
   check('Hỏi dưới mỗi việc: đúng người làm việc trả lời, dựa trên tiến độ và kết quả của việc', ask.status === 200 && qa?.[0].staffId === 'STAFF-004' && /Sơn/.test(qa[0].answer)
     && /Soạn báo giá phốt Fleetrite/.test(askSys) && /ketQuaTungBuoc/.test(askSys) && wrong.status === 400,
     qa ? `${qa[0].staffName}: "${qa[0].answer.slice(0, 90)}"; hỏi người ngoài việc → ${wrong.status} "${wrong.data.error}"` : JSON.stringify(ask.data));
+}
+
+// --- Làm việc thật: hỏi người dùng, soạn bài và xin duyệt, duyệt xong tự đăng lên Fanpage ---
+{
+  const K = client(base);
+  await K('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const t1 = (await K('/api/tasks', { title: '(HỎI) Lên kế hoạch tăng like Fanpage (TEST)', kind: 'individual', assigneeIds: ['STAFF-001'] })).data;
+  // An có phần mềm được giao thì xin phép mở trước (cho phép), rồi hỏi người dùng số like (trả lời).
+  const w1 = await waitFor(async () => {
+    const d = (await K(`/api/tasks/${t1.id}`)).data;
+    for (const r of d.requests.filter((x) => x.status === 'pending' && x.type === 'access')) await K(`/api/requests/${r.id}`, { action: 'approve' });
+    return d.requests.find((r) => r.type === 'info' && r.status === 'pending') && d;
+  }, 30000);
+  const info = w1?.requests.find((r) => r.type === 'info');
+  await K(`/api/requests/${info?.id}`, { action: 'answer', answer: 'Hiện có 1200 like (TEST)' });
+  const d1 = await waitFor(async () => {
+    const d = (await K(`/api/tasks/${t1.id}`)).data;
+    for (const r of d.requests.filter((x) => x.status === 'pending' && x.type !== 'info')) await K(`/api/requests/${r.id}`, { action: 'reject', answer: 'Chưa đăng (TEST)' });
+    return d.task.status === 'done' && d;
+  }, 30000);
+  const tr = d1?.task?.outputs.find((o) => o.key === 'draft')?.trace || [];
+  check('Cần thông tin chỉ người dùng biết: nhân viên hỏi, việc dừng chờ, trả lời xong làm tiếp với câu trả lời',
+    info && /Số like Fanpage/.test(info.question) && tr.some((x) => x.hanhDong === 'hoi_nguoi_dung' && /1200 like/.test(x.ketQua)) && /1200 like/.test(d1.task.outputs.find((o) => o.key === 'draft').text) && d1.requests.filter((r) => r.type === 'info').length === 1,
+    info ? `Hỏi: "${info.question.split('\n')[0]}" → trả lời "1200 like" → ${d1?.task?.status}` : `không có câu hỏi: ${JSON.stringify((await K(`/api/tasks/${t1.id}`)).data).slice(0, 900)}`);
+
+  const fb = (await K('/api/staff/STAFF-002/links', { softwareName: 'Fanpage (TEST)', url: `${fake.url}/fb-web/`, kind: 'facebook_page', purpose: 'Đăng bài và đọc bình luận' })).data.find((l) => l.softwareName === 'Fanpage (TEST)');
+  await K(`/api/links/${fb.id}`, { accessGranted: true }, 'PUT');
+  const t2 = (await K('/api/tasks', { title: 'Viết và đăng bài Fanpage lọc gió (TEST)', description: 'Soạn đăng bài giới thiệu lọc gió', kind: 'individual', assigneeIds: ['STAFF-002'] })).data;
+  const w2 = await waitFor(async () => { const d = (await K(`/api/tasks/${t2.id}`)).data; return d.requests.find((r) => r.type === 'publish' && r.status === 'pending') && d; }, 60000);
+  const pub = w2?.requests.find((r) => r.type === 'publish');
+  const before = (fake.state.posts || []).length;
+  await K(`/api/requests/${pub?.id}`, { action: 'approve', content: `${pub?.content} (đã sửa bởi chủ)` });
+  const d2 = await waitFor(async () => {
+    const d = (await K(`/api/tasks/${t2.id}`)).data;
+    for (const r of d.requests.filter((x) => x.status === 'pending' && x.type === 'publish')) await K(`/api/requests/${r.id}`, { action: 'reject', answer: 'Đã đăng một bài rồi' });
+    return d.task.status === 'done' && d;
+  }, 90000);
+  const posted = (fake.state.posts || []).slice(before);
+  const pubAfter = d2?.requests.find((r) => r.id === pub?.id);
+  check('Soạn nội dung → xin duyệt → chủ sửa và duyệt → nhân viên tự mở Fanpage đăng đúng nội dung đã duyệt',
+    pub?.status === 'pending' && /Lọc gió Vios/.test(pub.content) && posted.length === 1 && /đã sửa bởi chủ/.test(posted[0]) && pubAfter?.status === 'published' && d2?.task.status === 'done',
+    `đăng: ${JSON.stringify(posted)}; yêu cầu → ${pubAfter?.status} (${pubAfter?.result})`);
 }
 
 // --- Báo cáo cuối ngày + hoạt động 3D ---

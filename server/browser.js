@@ -4,7 +4,7 @@
 import path from 'node:path';
 import dns from 'node:dns/promises';
 import { isPrivateAddress } from './brain.js';
-import { RISKY } from '../shared/browseragent.js';
+import { clickBlocked } from '../shared/browseragent.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 
@@ -78,10 +78,11 @@ export async function openStaffBrowser(accountId, linkId) {
       const hits = all.split('\n').filter((l) => words.some((w) => l.toLowerCase().includes(w))).slice(0, 60);
       return hits.length ? `Các dòng có "${q}":\n${hits.join('\n')}` : `Không thấy "${q}" trên trang.`;
     },
-    async click(ref) {
+    async click(ref, mode) {
       const e = el(ref);
       const label = ((await e.innerText().catch(() => '')) || (await e.getAttribute('value')) || (await e.getAttribute('aria-label')) || '').trim();
-      if (RISKY.test(label)) throw new Error(`Không bấm "${label}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`);
+      const blocked = clickBlocked(label, mode);
+      if (blocked) throw new Error(blocked);
       await e.click({ timeout: 10000 });
       await settle();
       await page.waitForTimeout(500);

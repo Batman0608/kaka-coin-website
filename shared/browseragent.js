@@ -6,10 +6,40 @@ import { pushLog } from './staffkit.js';
 
 export const MAX_STEPS = 8;
 const OBS_LIMIT = 9000;
-// Nút có chữ như thế này làm thay đổi dữ liệu → không bấm.
-export const RISKY = /x[oó]a|delete|remove|thanh to[aá]n|đặt h[aà]ng|mua ngay|g[uử]i|send|submit|l[uư]u|save|h[uủ]y|cancel|đăng xuất|log ?out|sign ?out|chuyển khoản|tạo đơn|xác nhận/i;
+// Nút luôn bị chặn (xoá, tiền, đơn hàng, đăng xuất) và nút ghi dữ liệu (chỉ được bấm khi đăng nội dung người dùng đã duyệt).
+export const BLOCK_ALWAYS = /x[oó]a|delete|remove|thanh to[aá]n|đặt h[aà]ng|mua ngay|h[uủ]y|cancel|đăng xuất|log ?out|sign ?out|chuyển khoản|tạo đơn|trả tiền|nạp tiền/i;
+export const WRITE = /g[uử]i|send|submit|l[uư]u|save|đăng|post|chia sẻ|share|xác nhận|publish/i;
+export const RISKY = new RegExp(`${BLOCK_ALWAYS.source}|${WRITE.source}`, 'i');
+export function clickBlocked(label, mode = 'read') {
+  const l = String(label || '');
+  if (BLOCK_ALWAYS.test(l)) return `Không bấm "${l.slice(0, 80)}": nút này có thể xoá dữ liệu, tạo đơn hoặc liên quan tiền (luôn bị chặn).`;
+  if (mode !== 'publish' && WRITE.test(l)) return `Không bấm "${l.slice(0, 80)}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`;
+  return null;
+}
 
-export function browseQuestion({ link, goal, history, observation, step, maxSteps }) {
+export function browseQuestion({ link, goal, history, observation, step, maxSteps, mode = 'read', content = '' }) {
+  if (mode === 'publish') {
+    return `Bạn đang tự điều khiển trình duyệt để ĐĂNG nội dung NGƯỜI DÙNG ĐÃ DUYỆT lên "${link.softwareName}" (${link.url}).
+Nội dung đã duyệt (đăng ĐÚNG NGUYÊN VĂN, không sửa):
+<<<NOIDUNG
+${content}
+NOIDUNG>>>
+Bước ${step}/${maxSteps}. Các bước đã làm: ${JSON.stringify(history.slice(-8))}
+
+Trang hiện tại (nguyên văn trình duyệt trả về, đã cắt bớt):
+<<<
+${String(observation || '').slice(0, OBS_LIMIT)}
+>>>
+
+Quy tắc: chỉ đăng đúng một lần nội dung trên. Không xoá, không mua bán, không đổi cài đặt. Không tự đăng nhập: gặp trang đăng nhập thì dừng với "canDangNhap": true.
+Chỉ trả về MỘT đối tượng JSON:
+{"hanhDong":"bam","ref":"mã phần tử","vi":"lý do"}
+{"hanhDong":"nhap","ref":"mã ô soạn bài","noiDung":"nội dung đã duyệt"}
+{"hanhDong":"tim","tuKhoa":"chữ cần tìm"}
+{"hanhDong":"doc"}
+{"hanhDong":"xong","ketQua":"đã đăng ở đâu, thấy bài trên trang chưa"}
+{"hanhDong":"dung","lyDo":"vì sao dừng","canDangNhap":false}`;
+  }
   return `Bạn đang tự điều khiển trình duyệt để lấy dữ liệu từ phần mềm "${link.softwareName}" (${link.url}).
 Mục đích dùng phần mềm: ${link.purpose || '(chưa ghi)'}
 Việc cần lấy lần này: ${goal || link.purpose || 'Lấy dữ liệu chính của phần mềm (sản phẩm, giá, tồn kho; hoặc bài đăng, bình luận).'}
@@ -61,7 +91,7 @@ export function normalizeItems(kind, list) {
  * Lỗi của trình duyệt được đưa nguyên văn cho bộ não ở bước sau và ghi vào nhật ký.
  * Trả về { status: 'saved' | 'need_login' | 'stopped' | 'error', message, data? , steps }.
  */
-export async function runBrowserAgent({ staff, link, goal, think, browser, log = () => {}, maxSteps = MAX_STEPS, isCancelled = () => false }) {
+export async function runBrowserAgent({ staff, link, goal, think, browser, log = () => {}, maxSteps = MAX_STEPS, isCancelled = () => false, mode = 'read', content = '' }) {
   const history = [];
   let observation;
   try {
@@ -75,7 +105,7 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
     if (isCancelled()) return { status: 'stopped', message: 'Đã dừng theo yêu cầu.', steps: history };
     let r;
     try {
-      r = await think(staff, { question: browseQuestion({ link, goal, history, observation, step, maxSteps }) });
+      r = await think(staff, { question: browseQuestion({ link, goal, history, observation, step, maxSteps, mode, content }) });
     } catch (e) {
       log('Bộ não', false, e.message);
       return { status: 'error', message: `Bộ não lỗi: ${e.message}`, steps: history };
@@ -98,6 +128,10 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
       log('Lấy dữ liệu qua trình duyệt', true, `${items.length} ${kind === 'products' ? 'sản phẩm' : 'dòng'}. ${act.ketLuan || ''}`.trim());
       return { status: 'saved', message: act.ketLuan || `Đã lấy ${items.length} mục.`, data: { kind, items }, steps: history };
     }
+    if (act.hanhDong === 'xong' && mode === 'publish') {
+      log('Đăng nội dung đã duyệt', true, act.ketQua || '');
+      return { status: 'published', message: act.ketQua || 'Đã đăng.', steps: history };
+    }
     if (act.hanhDong === 'dung') {
       const login = !!act.canDangNhap;
       log(login ? 'Cần đăng nhập' : 'Dừng', false, act.lyDo || '');
@@ -105,7 +139,7 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
     }
     try {
       if (act.hanhDong === 'tim') observation = await browser.find(String(act.tuKhoa || ''));
-      else if (act.hanhDong === 'bam') observation = await browser.click(String(act.ref || ''), String(act.vi || ''));
+      else if (act.hanhDong === 'bam') observation = await browser.click(String(act.ref || ''), mode);
       else if (act.hanhDong === 'nhap') observation = await browser.type(String(act.ref || ''), String(act.noiDung || ''));
       else if (act.hanhDong === 'di') observation = await browser.go(String(act.url || ''));
       else observation = await browser.read();

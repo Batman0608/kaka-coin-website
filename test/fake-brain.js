@@ -40,7 +40,29 @@ export function fakeAnswer(prompt, flags = {}) {
     const names = [...question.matchAll(/^- ([^:\n]+): /gm)].map((m) => m[1]);
     return JSON.stringify({ baiHoc: names.map((n) => ({ nhanVien: n, baiHoc: [`[TEST] ${n}: kiểm tra số liệu nền trước khi đề xuất`] })) });
   }
+  if (/BẠN ĐANG LÀM VIỆC THẬT/.test(question)) {
+    // Làm việc thật: xem phần mềm của mình trước, hỏi người dùng khi việc có "(HỎI)", soạn bài và xin duyệt khi cần đăng.
+    const grab = (re) => { try { return JSON.parse(re.exec(question)?.[1] || '[]'); } catch { return []; } };
+    const links = grab(/^Phần mềm của bạn[^:]*: (\[.*\])$/m);
+    const trace = grab(/^Các lượt bạn đã làm trong bước này: (\[.*\])$/m);
+    const has = (a) => trace.some((t) => t.hanhDong === a);
+    const fb = links.find((l) => l.loai === 'facebook_page' || /fanpage/i.test(l.ten));
+    if (links.length && !has('xem_phan_mem')) return JSON.stringify({ hanhDong: 'xem_phan_mem', phanMem: (links.find((l) => l !== fb) || links[0]).ma, canLay: 'giá và tồn kho' });
+    if (/\(HỎI\)/.test(question) && !has('hoi_nguoi_dung') && !/"hoi":"/.test(question)) return JSON.stringify({ hanhDong: 'hoi_nguoi_dung', cauHoi: '[TEST] Số like Fanpage hiện tại là bao nhiêu?', vi: 'cần số liệu nền' });
+    if (/đăng bài/i.test(question) && fb && !has('xin_duyet_dang') && !/"daXinDang":/.test(question)) return JSON.stringify({ hanhDong: 'xin_duyet_dang', phanMem: fb.ma, noiDung: `[TEST] Bài đăng của ${name}: Lọc gió Vios chính hãng, còn hàng.`, ghiChu: 'đăng ngay' });
+    const seen = trace.map((t) => t.ketQua).filter(Boolean).join(' | ').slice(0, 400);
+    return JSON.stringify({ hanhDong: 'nop', ketQua: `[TEST] ${name} (${who[2] || ''}) — trả lời: nộp kết quả sau ${trace.length} lượt làm việc. Đã đọc ${priorCount} lượt trước.${seen ? ` Dữ kiện: ${seen}` : ''}` });
+  }
   if (/Bạn đang tự điều khiển trình duyệt/.test(question)) {
+    if (/ĐĂNG nội dung NGƯỜI DÙNG ĐÃ DUYỆT/.test(question)) {
+      const pg = question.slice(question.lastIndexOf('<<<'), question.lastIndexOf('>>>'));
+      if (/Đã đăng bài/.test(pg)) return JSON.stringify({ hanhDong: 'xong', ketQua: '[TEST] Bài đã hiện trên trang' });
+      const box = /\[(r\d+|ref_\d+)\][^\n]*(textarea|Bạn đang nghĩ gì)/.exec(pg);
+      const btn = /\[(r\d+|ref_\d+)\][^\n]*"Đăng"/.exec(pg);
+      if (box && !/"hanhDong":"nhap","ref":"(r\d+|ref_\d+)"/.test(question)) return JSON.stringify({ hanhDong: 'nhap', ref: box[1], noiDung: /<<<NOIDUNG\n([\s\S]*?)\nNOIDUNG>>>/.exec(question)?.[1] || '' });
+      if (btn) return JSON.stringify({ hanhDong: 'bam', ref: btn[1], vi: 'đăng bài' });
+      return JSON.stringify({ hanhDong: 'doc' });
+    }
     // Đọc trang thật mà trình duyệt trả về: có bảng hàng → lưu; trang đăng nhập → dừng; còn lại bấm vào "Hàng hóa".
     const page = question.slice(question.indexOf('<<<'), question.indexOf('>>>'));
     if (/CÓ Ô MẬT KHẨU|type="?password|textbox "Mật khẩu"/i.test(page)) return JSON.stringify({ hanhDong: 'dung', canDangNhap: true, lyDo: '[TEST] Trang yêu cầu đăng nhập' });

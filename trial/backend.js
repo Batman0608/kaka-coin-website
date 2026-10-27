@@ -16,7 +16,9 @@ import {
   normalizeTraining, compileTraining, pushHistory, validateProfileFull, validateRoutines, dueRoutines, hcmToday, seedTraining,
   LINK_KINDS, parseImport, pushLog, softwareFacts, runLearning, mergeLessons, TRAINER_ID,
 } from '../shared/staffkit.js';
-import { runBrowserAgent, logInto, RISKY } from '../shared/browseragent.js';
+import { runBrowserAgent, logInto, clickBlocked } from '../shared/browseragent.js';
+import { runWorkStep, settledExchanges } from '../shared/worker.js';
+import { pickRelevant } from '../shared/staffkit.js';
 import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
@@ -461,6 +463,17 @@ async function executeTask(taskId) {
       isStopped: () => isBlocked(taskId),
       baseCtx: () => taskCtx(getTask(taskId)),
     };
+    // Làm việc thật: xem phần mềm (xin phép lần đầu), hỏi người dùng, xin duyệt trước khi đăng.
+    io.work = (st, ctx, trace) => runWorkStep({
+      staff: st.staff, ask: ctx.question, ctx, think, trace,
+      tools: {
+        listLinks: (staffId) => linksOf(staffId),
+        readSoftware,
+        createRequest: (q) => createRequest({ ...q, taskId, stepKey: st.key, staffId: st.staff.id }),
+        getRequest,
+        knownAnswers: () => settledExchanges(reqDoc().list.filter((r) => r.taskId === taskId).map(requestView)),
+      },
+    });
     let result;
     if (t.kind === 'general') {
       const fallback = executionPlan(t).map((x, i) => ({
@@ -474,6 +487,7 @@ async function executeTask(taskId) {
     if (result.status === 'stopped' || isBlocked(taskId)) return; // lệnh dừng của Quản lý luôn thắng
     t = getTask(taskId);
     if (result.status === 'returned_for_redo') Object.assign(t, { status: 'returned_for_redo', returnReason: `Phúc kiểm tra: ${result.returnReason}`, passCriteria: result.passCriteria });
+    else if (result.status === 'waiting_user') t.status = 'waiting_user';
     else if (result.status === 'done') t.status = 'done';
     else Object.assign(t, { status: 'in_progress', lastError: result.error || null });
     saveTask(t);
@@ -736,6 +750,10 @@ function applyLinkFields(l, b) {
   for (const k of ['purpose', 'permissionScope']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 2000);
   for (const k of ['retailer', 'clientId', 'pageId']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 200);
   if (b.accessCode) l.accessCodeLast4 = String(b.accessCode).slice(-4);
+  if (b.accessGranted !== undefined) {
+    l.accessGranted = !!b.accessGranted;
+    l.logs = pushLog(l.logs, l.accessGranted ? 'Cho phép nhân viên tự truy cập' : 'Thu hồi quyền tự truy cập', true, '');
+  }
 }
 on('GET', '/api/links', () => linksOf());
 on('POST', '/api/staff/(STAFF-\\d+)/links', (b, [id]) => {
@@ -804,50 +822,112 @@ function claudeBrowser(mcp) {
     async go(url) { await call('navigate', { url }); return read(); },
     read,
     find: (q) => call('find', { query: q }),
-    async click(ref) {
+    async click(ref, mode) {
       const line = elements.split('\n').find((l) => new RegExp(`\\b${ref.replace(/[^\w-]/g, '')}\\b`).test(l)) || '';
-      if (RISKY.test(line)) throw new Error(`Không bấm "${line.trim().slice(0, 80)}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`);
+      const blocked = clickBlocked(line.trim(), mode);
+      if (blocked) throw new Error(blocked);
       await call('computer', { action: 'left_click', ref }); await new Promise((ok) => setTimeout(ok, 1200)); return read(); },
     async type(ref, text) { await call('form_input', { ref, value: text }); return read(); },
   };
 }
-on('POST', '/api/links/([\\w-]+)/browse', async (b, [id]) => {
+async function browseOnce(id, { goal = '', mode = 'read', content = '' } = {}) {
   const l = needLink(id);
-  if (browsing.has(id)) throw fail('Nhân viên đang mở trình duyệt cho phần mềm này.');
+  if (browsing.has(id)) return { status: 'error', message: 'Nhân viên đang dùng trình duyệt cho phần mềm này, thử lại sau.' };
   const mcp = await getMcp();
   const log = logInto(l);
   if (!mcp) {
-    log('Mở trình duyệt', false, MCP_HINT.server_not_connected);
+    log(mode === 'publish' ? 'Đăng nội dung' : 'Mở trình duyệt', false, MCP_HINT.server_not_connected);
     store.save('links');
-    throw fail(MCP_HINT.server_not_connected);
+    return { status: 'error', message: MCP_HINT.server_not_connected };
   }
   const staff = getStaff(l.staffId);
   browsing.set(id, { step: 'Đang mở trình duyệt…', at: now() });
-  (async () => {
-    try {
-      const res = await runBrowserAgent({
-        staff, link: l, goal: String(b.goal || '').slice(0, 1000), browser: claudeBrowser(mcp),
-        think: (st, ctx) => think(st, { ...ctx, kind: 'deep_analysis' }),
-        log: (action, ok, detail) => { log(action, ok, detail); browsing.set(id, { step: `${action}${detail ? `: ${String(detail).slice(0, 80)}` : ''}`, at: now() }); store.save('links'); },
-      });
-      l.lastOpenedAt = now();
-      if (res.status === 'saved') {
-        const doc = { kind: res.data.kind, source: `${staff.name} lấy qua trình duyệt`, at: now(), items: res.data.items };
-        while (JSON.stringify(doc).length > 240000 && doc.items.length > 10) doc.items = doc.items.slice(0, Math.floor(doc.items.length * 0.8));
-        store.docs.set(`linkdata-${id}`, doc); store.save(`linkdata-${id}`);
-        Object.assign(l, { status: 'connected', lastSyncAt: now(), lastCheckAt: now() });
-      } else if (res.status === 'need_login') {
-        Object.assign(l, { status: 'expired', lastCheckAt: now() }); // không tự đăng nhập lại
-      }
-      log('Kết quả lấy dữ liệu qua trình duyệt', res.status === 'saved', res.message);
-    } catch (e) {
-      log('Lấy dữ liệu qua trình duyệt', false, e.message);
-    } finally {
-      browsing.delete(id);
-      store.save('links');
+  try {
+    const res = await runBrowserAgent({
+      staff, link: l, goal: String(goal || '').slice(0, 1000), browser: claudeBrowser(mcp), mode, content,
+      think: (st, ctx) => think(st, { ...ctx, kind: 'deep_analysis' }),
+      log: (action, ok, detail) => { log(action, ok, detail); browsing.set(id, { step: `${action}${detail ? `: ${String(detail).slice(0, 80)}` : ''}`, at: now() }); store.save('links'); },
+    });
+    l.lastOpenedAt = now();
+    if (res.status === 'saved') {
+      const doc = { kind: res.data.kind, source: `${staff.name} lấy qua trình duyệt`, at: now(), items: res.data.items };
+      while (JSON.stringify(doc).length > 240000 && doc.items.length > 10) doc.items = doc.items.slice(0, Math.floor(doc.items.length * 0.8));
+      store.docs.set(`linkdata-${id}`, doc); store.save(`linkdata-${id}`);
+      Object.assign(l, { status: 'connected', lastSyncAt: now(), lastCheckAt: now() });
+    } else if (res.status === 'need_login') {
+      Object.assign(l, { status: 'expired', lastCheckAt: now() }); // không tự đăng nhập lại
     }
-  })();
+    log(mode === 'publish' ? 'Kết quả đăng nội dung' : 'Kết quả lấy dữ liệu qua trình duyệt', res.status === 'saved' || res.status === 'published', res.message);
+    return res;
+  } catch (e) {
+    log(mode === 'publish' ? 'Đăng nội dung' : 'Lấy dữ liệu qua trình duyệt', false, e.message);
+    return { status: 'error', message: e.message };
+  } finally {
+    browsing.delete(id);
+    store.save('links');
+  }
+}
+on('POST', '/api/links/([\\w-]+)/browse', async (b, [id]) => {
+  const l = needLink(id);
+  if (browsing.has(id)) throw fail('Nhân viên đang mở trình duyệt cho phần mềm này.');
+  if (!(await getMcp())) throw fail(MCP_HINT.server_not_connected);
+  bg(browseOnce(id, { goal: b.goal }));
   return linkView(l);
+});
+// Nhân viên xem phần mềm trong lúc làm việc: trình duyệt của ứng dụng Claude; không được thì dùng dữ liệu đã lưu.
+async function readSoftware(id, want = '') {
+  const l = needLink(id);
+  const res = await browseOnce(id, { goal: want });
+  const note = res.status === 'saved' ? '' : `Trình duyệt chưa lấy được dữ liệu (${res.status === 'need_login' ? 'phần mềm yêu cầu đăng nhập — người dùng phải tự đăng nhập trong trình duyệt của ứng dụng Claude' : res.message}). `;
+  const d = store.docs.get(`linkdata-${id}`);
+  if (!d) return `${note}Chưa có dữ liệu nào của ${l.softwareName}.`;
+  return `${note}Dữ liệu ${l.softwareName} (${d.source}, lúc ${d.at}, tổng ${d.items.length} mục). Các mục liên quan: ${JSON.stringify(pickRelevant(d.items, want, 30))}`;
+}
+
+// ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
+// Cần thông tin / xin phép truy cập / xin duyệt đăng. Việc dừng "Chờ người dùng"; trả lời xong thì tự chạy tiếp.
+const reqDoc = () => listDoc('requests');
+const requestView = (r) => ({ ...r, staffName: getStaff(r.staffId)?.name || r.staffId, linkName: r.linkId ? listDoc('links').list.find((x) => x.id === r.linkId)?.softwareName || null : null, taskTitle: r.taskId ? getTask(r.taskId)?.title || null : null });
+function createRequest(q) {
+  const r = { id: rid('RQ-'), status: 'pending', answer: null, result: null, content: null, linkId: null, createdAt: now(), answeredAt: null, ...q };
+  const d = reqDoc();
+  d.list = [r, ...d.list].slice(0, 120);
+  store.save('requests');
+  return r.id;
+}
+const getRequest = (id) => { const r = reqDoc().list.find((x) => x.id === id); return r ? requestView(r) : null; };
+function resumeTask(taskId) {
+  const t = taskId && getTask(taskId);
+  if (t && t.status === 'waiting_user') bg(executeTask(taskId));
+}
+on('GET', '/api/requests', () => reqDoc().list.filter((r) => ['pending', 'publishing'].includes(r.status) || Date.now() - Date.parse(r.createdAt) < 3 * 86400000).map(requestView));
+on('POST', '/api/requests/([\\w-]+)', (b, [id]) => {
+  const r = reqDoc().list.find((x) => x.id === id);
+  if (!r) throw fail('Không tìm thấy yêu cầu.');
+  if (r.status !== 'pending') throw fail('Yêu cầu này đã được xử lý.');
+  const text = String(b.answer || '').trim().slice(0, 4000);
+  r.answeredAt = now();
+  if (b.action === 'reject') Object.assign(r, { status: 'rejected', answer: text || null });
+  else if (r.type === 'info') { if (!text) throw fail('Nhập câu trả lời.'); Object.assign(r, { status: 'answered', answer: text }); }
+  else if (r.type === 'access') {
+    const l = needLink(r.linkId);
+    if (b.always !== false) { l.accessGranted = true; l.logs = pushLog(l.logs, 'Cho phép nhân viên tự truy cập', true, ''); store.save('links'); }
+    Object.assign(r, { status: 'approved', answer: text || null });
+  } else if (r.type === 'publish') {
+    const final = String(b.content ?? r.content ?? '').trim();
+    if (!final) throw fail('Nội dung đăng đang trống.');
+    Object.assign(r, { status: 'publishing', content: final });
+    store.save('requests');
+    bg(browseOnce(r.linkId, { mode: 'publish', content: final, goal: r.question }).then((res) => {
+      Object.assign(r, { status: res.status === 'published' ? 'published' : 'failed', result: res.message });
+      store.save('requests');
+      resumeTask(r.taskId);
+    }));
+    return requestView(r);
+  } else throw fail('Thao tác không hợp lệ.');
+  store.save('requests');
+  resumeTask(r.taskId);
+  return requestView(r);
 });
 
 const NO_NETWORK = 'Bản trải nghiệm chạy trong Claude nên không gọi được API KiotViet / Facebook. Hãy bấm "Nhân viên lấy qua trình duyệt" (cần ứng dụng Claude trên máy tính) hoặc "Nhập dữ liệu" (dán / tải CSV). Kết nối API trực tiếp có ở bản server.';
@@ -985,7 +1065,8 @@ on('POST', '/api/tasks', (b) => {
 const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tìm thấy việc.'); return t; };
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
-  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [] };
+  const requests = reqDoc().list.filter((r) => r.taskId === id).map(requestView);
+  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests };
   const participants = t.assigneeIds.map(getStaff).filter(Boolean);
   return {
     task: publicTask(t),
@@ -995,6 +1076,7 @@ on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
       scoreboard: scoreboard(t.session.turns, participants, (x) => getStaff(x)?.name || x),
       runnerActive: running.has(t.id) || finishing.has(t.id) || executing.has(t.id),
     },
+    qa: t.qa || [], requests,
   };
 });
 on('POST', '/api/tasks/([\\w-]+)/retry', (b, [id]) => {
@@ -1151,7 +1233,7 @@ on('POST', '/api/reports', () => { if (reportRunning) throw fail('Báo cáo đan
 on('GET', '/api/activity', () => {
   bg(runAutomation());
   const recent = Object.fromEntries([...said].filter(([, v]) => Date.now() - Date.parse(v.at) < 90000));
-  return { working: [...working.keys()], said: recent, storageWarning: store.writeError };
+  return { working: [...working.keys()], said: recent, storageWarning: store.writeError, pendingRequests: reqDoc().list.filter((r) => r.status === 'pending').length };
 });
 on('GET', '/api/overview', () => {
   const z = zaloDoc();

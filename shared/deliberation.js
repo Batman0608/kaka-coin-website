@@ -272,6 +272,20 @@ export function planSteps(plan, allStaff) {
 }
 
 // ---------- Thực hiện theo bản chốt + Quản lý kiểm tra từng kết quả ----------
+// Một bước "làm": có io.work thì nhân viên làm việc thật (xem phần mềm, hỏi người dùng, xin duyệt đăng — shared/worker.js),
+// không thì chỉ suy nghĩ một lượt. Bước đang chờ người dùng được lưu lại (waiting + trace) và chạy tiếp từ đó.
+async function doStep(io, s, ctx) {
+  if (!io.work) {
+    const r = await io.think(s.staff, ctx);
+    return { status: 'done', text: r.text, brainLabel: r.brainLabel };
+  }
+  const prev = io.outputs().find((o) => o.key === s.key && o.waiting);
+  return io.work(s, ctx, prev?.trace || []);
+}
+function stepOutput(base, r) {
+  if (r.status === 'waiting') return { ...base, waiting: true, requestId: r.requestId, trace: r.trace, text: '', brainLabel: r.brainLabel };
+  return { ...base, text: r.text, brainLabel: r.brainLabel, ...(r.trace?.length ? { trace: r.trace } : {}) };
+}
 export function resolveStaff(name, allStaff) {
   const n = str(name).toLocaleLowerCase('vi');
   if (!n) return null;
@@ -295,19 +309,21 @@ export async function executeWithReview(io, plan, fallbackSteps, summaryText) {
   const done = () => io.outputs();
   for (const s of steps) {
     if (io.isStopped()) return { status: 'stopped' };
-    if (done().some((o) => o.key === s.key && !o.error)) continue;
+    if (done().some((o) => o.key === s.key && !o.error && !o.waiting)) continue;
+    const base = { key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label, why: s.why || null, criteria: s.criteria || null };
     try {
-      const r = await io.think(s.staff, {
+      const r = await doStep(io, s, {
         ...io.baseCtx(),
         question: `${summaryText ? `Bản chốt của Phúc:\n${summaryText}\n\n` : ''}${s.ask}\nHãy thực hiện bước này và trả về KẾT QUẢ CỤ THỂ (sản phẩm, nội dung, số liệu đã có, việc đã làm), tự kiểm tra lại theo tiêu chí đạt trước khi nộp.`,
-        priorTurns: done().filter((o) => !o.error).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text })),
+        priorTurns: done().filter((o) => !o.error && !o.waiting).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text })),
       });
-      io.pushOutput({ key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label, why: s.why || null, criteria: s.criteria || null, text: r.text, brainLabel: r.brainLabel });
+      io.pushOutput(stepOutput(base, r));
     } catch (e) {
-      io.pushOutput({ key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label, error: e.message, brainLabel: e.brainLabel });
+      io.pushOutput({ ...base, error: e.message, brainLabel: e.brainLabel });
     }
   }
   if (io.isStopped()) return { status: 'stopped' };
+  if (done().some((o) => o.waiting)) return { status: 'waiting_user' };
   const results = done().filter((o) => o.key !== 'review');
   const failed = results.filter((o) => o.error);
   if (failed.length) return { status: 'in_progress', error: failed.map((f) => `${f.staffName}: ${f.error}`).join('\n') };
@@ -393,14 +409,19 @@ export const consultDecisionQuestion = (question) =>
 export async function runIndividual(io) {
   for (const s of individualSteps(io.task, io.assignee, io.reviewer)) {
     if (io.isStopped()) return { status: 'stopped' };
-    if (io.outputs().some((o) => o.key === s.key && !o.error)) continue;
+    if (io.outputs().some((o) => o.key === s.key && !o.error && !o.waiting)) continue;
+    const base = { key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label };
     try {
-      const r = await io.think(s.staff, {
+      const ctx = {
         ...io.baseCtx(),
         question: s.ask,
-        priorTurns: io.outputs().filter((o) => !o.error).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text })),
-      });
-      io.pushOutput({ key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label, text: s.json ? renderPeerReview(r.text) : r.text, brainLabel: r.brainLabel });
+        priorTurns: io.outputs().filter((o) => !o.error && !o.waiting).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: o.text })),
+      };
+      // Phản biện của đồng nghiệp là một lượt suy nghĩ; bản nháp và bản cuối là làm việc thật.
+      const r = s.json ? { status: 'done', ...(await io.think(s.staff, ctx)) } : await doStep(io, s, ctx);
+      if (s.json) r.text = renderPeerReview(r.text);
+      io.pushOutput(stepOutput(base, r));
+      if (r.status === 'waiting') return { status: 'waiting_user' };
     } catch (e) {
       io.pushOutput({ key: s.key, staffId: s.staff.id, staffName: s.staff.name, step: s.label, error: e.message, brainLabel: e.brainLabel });
       return { status: 'in_progress', error: `${s.staff.name}: ${e.message}` };

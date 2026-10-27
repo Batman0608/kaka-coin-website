@@ -21,6 +21,7 @@ import { listLinks, createLink, updateLink, deleteLink, checkLink, syncLink, imp
 import { startAutomation } from './automation.js';
 import { startBrowse } from './browse.js';
 import { askTask, listQa } from './taskqa.js';
+import { listRequests, respond, pendingCount } from './requests.js';
 import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
@@ -392,7 +393,7 @@ app.get('/api/tasks/:id', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);
   if (!row) throw new Error('Không tìm thấy việc.');
   const task = rowToTask(row);
-  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id) });
+  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }) });
 }));
 
 // Ô hỏi dưới mỗi việc: người làm việc trả lời trực tiếp về việc đã giao.
@@ -486,7 +487,11 @@ app.post('/api/reports', auth, wrap((req, res) => {
 }));
 
 // Nhân viên đang suy nghĩ — cho văn phòng 3D
-app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId) })));
+app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId), pendingRequests: pendingCount(req.accountId) })));
+
+// Yêu cầu của nhân viên trong lúc làm việc (cần thông tin, xin phép truy cập, xin duyệt đăng).
+app.get('/api/requests', auth, wrap((req, res) => res.json(listRequests(req.accountId))));
+app.post('/api/requests/:id', auth, wrap((req, res) => res.json(respond(req.accountId, req.params.id, req.body || {}))));
 
 // ---------- Tổng quan ----------
 app.get('/api/overview', auth, wrap((req, res) => {
