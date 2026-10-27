@@ -12,6 +12,10 @@
   - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
   - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
 - **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
+- **Nhân viên tự điều khiển trình duyệt để lấy dữ liệu:** trong thẻ phần mềm, bấm "<tên> lấy qua trình duyệt" và ghi cần lấy gì. Nhân viên mở phần mềm, đọc trang, tự bấm và tìm từng bước (tối đa 8 bước), rồi lưu sản phẩm, giá, tồn kho hoặc bài đăng vào dữ liệu của mình. Nhân viên chỉ đọc: hệ thống chặn các nút xoá, lưu, gửi, đặt hàng, thanh toán và đăng xuất, và nhân viên không tự nhập mật khẩu. Gặp trang đăng nhập thì liên kết chuyển "Hết hạn"; bạn tự đăng nhập rồi chạy lại.
+  - *Bản trải nghiệm* dùng trình duyệt có sẵn trong ứng dụng Claude trên máy tính, nên chỉ chạy khi mở văn phòng trong ứng dụng đó. Ứng dụng hỏi bạn cho phép ở lần đầu và có thể hỏi xác nhận khi nhân viên bấm hoặc nhập.
+  - *Bản server* dùng Playwright (`npm i playwright && npx playwright install chromium`), mỗi phần mềm có một hồ sơ trình duyệt riêng. Muốn dùng phần mềm cần đăng nhập, chạy server trên máy bạn với `VPA_BROWSER_HEADFUL=1` và tự đăng nhập một lần; phiên đăng nhập được giữ lại. Trình duyệt không vào được địa chỉ nội bộ.
+- **Hỏi dưới mỗi việc:** mỗi việc trong danh sách và trong trang việc có một thanh hỏi. Chọn người (người được giao, người làm từng bước, Phúc với việc chung) rồi gõ câu hỏi. Người đó trả lời dựa trên mô tả, tiến độ, kết quả từng bước và đánh giá của chính việc này. Câu hỏi và câu trả lời lưu trong trang việc.
 - **KiotViet và Facebook thật (bản server):** KiotViet dùng Public API (Retailer, Client ID, Client Secret) để lấy sản phẩm, giá và tồn kho. Fanpage dùng Graph API (Page ID, Page Access Token) để lấy bài đăng, lượt thích và bình luận. Sai mã hoặc hết hạn thì liên kết chuyển sang "Hết hạn" và hệ thống không tự đăng nhập lại. Phần này mới được kiểm thử với máy chủ giả lập, chưa thử với tài khoản thật.
 - **Dữ kiện thật nội bộ:** mỗi lượt trả lời đều nhận số liệu văn phòng đang có (phiếu, việc, hàng chờ, phần mềm đã liên kết). Nguồn chưa kết nối (giá, tồn kho KiotViet, số liệu Fanpage) được ghi rõ là "chưa cập nhật".
 - **10 nhân sự cố định:** An, Bình, Tuấn (Marketing); Sơn, Dũng, Hà, Phúc (Vận hành và kiểm soát); Chi, Trang, Minh (Hỗ trợ và kỹ thuật). Phúc là Quản lý, ngồi giữa phía dưới, giữa hai dãy bàn.
@@ -25,7 +29,10 @@ Bản trải nghiệm dùng chung giao diện và logic nghiệp vụ với bả
 
 - Không cần đăng nhập riêng: tài khoản claude.ai chính là tài khoản văn phòng. Dữ liệu của mỗi tài khoản nằm trong nhánh riêng tư của tài khoản đó.
 - Bộ não của mọi nhân viên là Claude, gọi qua tài khoản claude.ai của người xem và dùng hạn mức của tài khoản đó. Lần đầu dùng, Claude sẽ hỏi bạn cho phép. Phúc (Quản lý) dùng mức model cao nhất.
-- Những phần chỉ có ở bản server: gắn API riêng cho từng nhân viên, lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), cầu nối Zalo, thời tiết thật, kết nối và đồng bộ KiotViet/Facebook trực tiếp (bản trải nghiệm không gọi được mạng ngoài; dùng Nhập dữ liệu bằng CSV), và tự động khi trình duyệt đã tắt. Lịch tự động và báo cáo 21:00 của bản trải nghiệm chỉ chạy khi trang đang mở.
+- **API riêng từng nhân viên** (mục Bộ não / API, theo mẫu "Đính API AI riêng" và "Danh sách API"):
+  - Chọn *Claude qua claude.ai* để đặt model riêng (Opus, Sonnet, Haiku, Fable) và mức suy nghĩ, không cần key.
+  - Hoặc gắn key Claude, OpenAI hay nhà cung cấp tương thích OpenAI. Key chỉ giữ trong trang đang mở và không lưu; tải lại trang thì nhập lại. Lỗi nhà cung cấp hiện nguyên văn, và khi lỗi nhân viên chuyển sang Claude qua claude.ai với nhãn ghi rõ lý do.
+- Những phần chỉ có ở bản server: lưu mã truy cập phần mềm đầy đủ (bản trải nghiệm chỉ giữ 4 ký tự cuối), lưu key API lâu dài, cầu nối Zalo, thời tiết thật, kết nối và đồng bộ KiotViet/Facebook trực tiếp (bản trải nghiệm dùng trình duyệt của ứng dụng Claude hoặc Nhập dữ liệu bằng CSV), và tự động khi trình duyệt đã tắt. Lịch tự động và báo cáo 21:00 của bản trải nghiệm chỉ chạy khi trang đang mở.
 - Một việc chung 3 người tốn khoảng 13 lượt gọi Claude cho phần phản biện và chọn, cộng mỗi bước thực hiện một lượt và một lượt Phúc kiểm tra.
 
 Đóng gói lại sau khi sửa code: `node scripts/build-trial.js`. Lệnh này tạo `dist-trial/`; thư mục này được publish thành Artifact. Backend của bản trải nghiệm nằm ở `trial/backend.js`.
@@ -89,8 +96,9 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 ```
 shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
           deliberation.js (phản biện chéo) · staffkit.js (đào tạo nhiều mục, lịch tự động, dữ liệu phần mềm, tự học)
+          browseragent.js (nhân viên điều khiển trình duyệt) · taskqa.js (hỏi về việc đã giao)
 server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
-          reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+          reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · browser.js + browse.js (trình duyệt Playwright) · taskqa.js · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
 trial/    main.js · backend.js — bản trải nghiệm chạy trong Claude (trang được sinh từ public/index.html khi đóng gói)
 public/   index.html · app.js (giao diện: ngăn kéo nhân viên, văn phòng 3D, bảng chi tiết) · office3d.js (Three.js, sàn 30x20) · music.js (nhạc nền tự tạo) · style.css
 bridge/   zalo-bridge.js (chạy trên máy người dùng)

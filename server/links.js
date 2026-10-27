@@ -15,20 +15,22 @@ db.exec(`CREATE TABLE IF NOT EXISTS link_data (
 )`);
 
 const STATUSES = ['connected', 'expired', 'not_connected'];
+// Liên kết đang được nhân viên điều khiển trình duyệt: linkId → { step, at }.
+export const browsing = new Map();
 
-function rowToLink(r) {
+export function rowToLink(r) {
   const extra = r.extra ? JSON.parse(r.extra) : {};
   const data = db.prepare('SELECT kind, source, at, items FROM link_data WHERE link_id = ?').get(r.id);
   return {
     id: r.id, staffId: r.staff_id, softwareName: r.software_name, url: r.url, status: r.status, permissionScope: r.permission_scope,
     kind: r.kind || 'other', purpose: r.purpose || '', retailer: extra.retailer || '', clientId: extra.clientId || '', pageId: extra.pageId || '',
     lastSyncAt: r.last_sync_at, lastCheckAt: r.last_check_at, lastOpenedAt: r.last_opened_at, accessCodeLast4: r.access_code_last4,
-    logs: r.logs ? JSON.parse(r.logs) : [],
+    logs: r.logs ? JSON.parse(r.logs) : [], browsing: browsing.get(r.id) || null,
     data: data ? { kind: data.kind, source: data.source, at: data.at, count: JSON.parse(data.items).length } : null,
   };
 }
 
-function getRow(accountId, id) {
+export function getRow(accountId, id) {
   const r = db.prepare('SELECT * FROM software_links WHERE account_id = ? AND id = ?').get(accountId, id);
   if (!r) throw new Error('Không tìm thấy liên kết.');
   return r;
@@ -58,7 +60,7 @@ function validate(b, partial = false) {
   return out;
 }
 
-function addLog(id, action, ok, detail) {
+export function addLog(id, action, ok, detail) {
   const r = db.prepare('SELECT logs FROM software_links WHERE id = ?').get(id);
   db.prepare('UPDATE software_links SET logs = ? WHERE id = ?').run(JSON.stringify(pushLog(r?.logs ? JSON.parse(r.logs) : [], action, ok, detail)), id);
 }
@@ -122,7 +124,7 @@ export async function checkLink(accountId, id) {
   }
 }
 
-function storeData(accountId, id, kind, source, items) {
+export function storeData(accountId, id, kind, source, items) {
   const capped = items.slice(0, 3000);
   db.prepare(`INSERT INTO link_data (link_id, account_id, kind, source, items, at) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(link_id) DO UPDATE SET kind = excluded.kind, source = excluded.source, items = excluded.items, at = excluded.at`)

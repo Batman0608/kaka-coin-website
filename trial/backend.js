@@ -16,6 +16,8 @@ import {
   normalizeTraining, compileTraining, pushHistory, validateProfileFull, validateRoutines, dueRoutines, hcmToday, seedTraining,
   LINK_KINDS, parseImport, pushLog, softwareFacts, runLearning, mergeLessons, TRAINER_ID,
 } from '../shared/staffkit.js';
+import { runBrowserAgent, logInto, RISKY } from '../shared/browseragent.js';
+import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
 const MSG_KEEP = 80;
@@ -175,26 +177,125 @@ const SAMPLE_ERRORS = {
   prompt_too_large: 'Bối cảnh quá dài cho một lượt.',
 };
 
+// API riêng của từng nhân viên. "claude_ai": chọn model Claude qua tài khoản claude.ai (không cần key).
+// Key Claude / OpenAI / tương thích OpenAI: chỉ giữ trong bộ nhớ của trang (không lưu vào kho dữ liệu), gọi thẳng
+// từ trình duyệt; lỗi nhà cung cấp hiện nguyên văn và nhân viên chuyển sang Claude qua claude.ai, nhãn ghi rõ lý do.
+const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1'];
+const TRIAL_PROVIDERS = ['claude_ai', 'anthropic', 'openai', 'openai_compatible'];
+const API_ROLES = ['general', 'image_design', 'writing', 'deep_analysis', 'zalo_channel'];
+const sessionKeys = new Map();
+const brainsOf = (ownerId) => {
+  if (ownerId === 'company') return (office().companyBrains ||= []);
+  const raw = rawStaff(ownerId);
+  if (!raw) throw fail('Không tìm thấy nhân viên.');
+  return (raw.brains ||= []);
+};
+const allBrains = () => [...(office().companyBrains || []), ...office().staff.flatMap((x) => x.brains || [])];
+const publicBrain = (c) => ({ ...c, keyInSession: c.provider === 'claude_ai' || sessionKeys.has(c.id) });
+const PROVIDER_NAME = { claude_ai: 'Claude qua claude.ai', anthropic: 'Claude (key riêng)', openai: 'OpenAI', openai_compatible: 'Tương thích OpenAI' };
+
+function pickConfig(staff, kind) {
+  const own = (rawStaff(staff.id)?.brains || []).filter((c) => c.enabled);
+  const c = own.find((x) => x.role === kind && x.lastCheckOk) || own.find((x) => x.role === 'general' && x.lastCheckOk)
+    || own.find((x) => x.role === kind) || own.find((x) => x.role === 'general');
+  if (c) return { cfg: c, where: c.role === kind && kind !== 'general' ? `API chuyên môn ${c.role}` : 'API riêng' };
+  const company = (office().companyBrains || []).find((x) => x.enabled && x.role === 'general');
+  return company ? { cfg: company, where: 'API mặc định công ty' } : null;
+}
+
+async function fetchJson(url, opts) {
+  let r;
+  try { r = await fetch(url, opts); } catch (e) { throw new Error(`Không kết nối được tới nhà cung cấp (${e.name}): ${e.message}`); }
+  const text = await r.text();
+  let body = null;
+  try { body = JSON.parse(text); } catch { /* không phải JSON */ }
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${body?.error?.message || text.slice(0, 300) || r.statusText}`);
+  return body;
+}
+const openaiBase = (c) => (c.provider === 'openai' ? 'https://api.openai.com/v1' : String(c.baseUrl || '').replace(/\/+$/, ''));
+function anthropicHeaders(key) {
+  const h = { 'content-type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+  if (key.startsWith('sk-ant-oat')) Object.assign(h, { authorization: `Bearer ${key}`, 'anthropic-beta': 'oauth-2025-04-20' });
+  else h['x-api-key'] = key;
+  return h;
+}
+async function callExternal(c, key, system, user) {
+  if (c.provider === 'anthropic') {
+    const body = await fetchJson('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: anthropicHeaders(key),
+      body: JSON.stringify({ model: c.model || 'claude-opus-5-5', max_tokens: 8000, system, messages: [{ role: 'user', content: user }] }),
+    });
+    return (body.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('\n').trim();
+  }
+  const body = await fetchJson(`${openaiBase(c)}/chat/completions`, {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: c.model || 'gpt-4o', messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+  });
+  return String(body.choices?.[0]?.message?.content || '').trim();
+}
+// Kiểm tra key = CHỈ liệt kê model, không gửi câu hỏi thử.
+async function listModels(c, key) {
+  if (c.provider === 'claude_ai') return CLAUDE_MODELS;
+  if (!key) throw new Error('Chưa có key trong phiên này (bản trải nghiệm không lưu key) — nhập lại key.');
+  if (c.provider === 'anthropic') return ((await fetchJson('https://api.anthropic.com/v1/models', { headers: anthropicHeaders(key) })).data || []).map((m) => m.id);
+  return ((await fetchJson(`${openaiBase(c)}/models`, { headers: { authorization: `Bearer ${key}` } })).data || []).map((m) => m.id);
+}
+
 async function think(staff, ctx) {
   const sample = await getSample();
   const tier = staff.id === MANAGER_ID ? 'complex' : 'default'; // Quản lý dùng bộ não tốt nhất
-  const baseLabel = `Claude qua tài khoản claude.ai (${tier})`;
-  if (!sample) throw new BrainError('Không gọi được Claude trong khung xem này (cần mở văn phòng trong claude.ai và cho phép dùng Claude).', baseLabel);
+  const kind = ctx.kind || (staff.id === MANAGER_ID ? 'deep_analysis' : 'general');
+  const picked = pickConfig(staff, kind);
   const o = office();
-  const prompt = `${buildThinkingPrompt(staff, o.companyName, { ...ctx, realData: realData(staff.id, ctx.question) })}\n\nCâu hỏi / việc cần xử lý: ${ctx.question}`;
-  const images = (ctx.imageIds || []).map((id) => imageCache.get(id)).filter(Boolean).slice(0, 4);
+  const system = buildThinkingPrompt(staff, o.companyName, { ...ctx, realData: realData(staff.id, ctx.question) });
+  const prompt = `${system}\n\nCâu hỏi / việc cần xử lý: ${ctx.question}`;
+  const providerErrors = [];
+  let fallbackNote = '';
   working.set(staff.id, (working.get(staff.id) || 0) + 1);
-  try {
-    const opts = { modelTier: tier, cache: false };
-    if (images.length) opts.images = images;
-    const r = await sample(prompt, opts);
-    const label = `Claude qua tài khoản claude.ai (${r.modelTierApplied})${r.truncated ? ' — câu trả lời bị cắt do quá dài' : ''}`;
+  const done = (text, label) => {
     rawStaff(staff.id).lastBrainLabel = label; saveOffice();
-    if (!/^\s*[{[`]/.test(r.text)) said.set(staff.id, { text: r.text.replace(/\s+/g, ' ').slice(0, 140), at: now() });
-    return { text: r.text.trim(), brainLabel: label, providerErrors: [] };
-  } catch (e) {
-    const msg = `${SAMPLE_ERRORS[e?.code] || 'Lỗi khi gọi Claude.'} [mã: ${e?.code || 'unknown'}] ${e?.message || ''}`.trim();
-    throw new BrainError(msg, baseLabel);
+    if (!/^\s*[{[`]/.test(text)) said.set(staff.id, { text: text.replace(/\s+/g, ' ').slice(0, 140), at: now() });
+    return { text: text.trim(), brainLabel: label, providerErrors };
+  };
+  try {
+    const c = picked?.cfg;
+    if (c && c.provider !== 'claude_ai') {
+      const label = `${PROVIDER_NAME[c.provider]} · ${c.model || 'mặc định'} (${picked.where} ···${c.keyLast4})`;
+      const key = sessionKeys.get(c.id);
+      if (!key) {
+        fallbackNote = `${label}: chưa nhập key trong phiên này (bản trải nghiệm không lưu key)`;
+      } else {
+        try {
+          const text = await callExternal(c, key, system, ctx.question);
+          c.lastProviderError = null; saveOffice();
+          return done(text, label);
+        } catch (e) {
+          c.lastProviderError = e.message; saveOffice();
+          providerErrors.push({ label, error: e.message });
+          fallbackNote = `${label} lỗi: ${e.message}`;
+        }
+      }
+    }
+    const baseLabel = `Claude qua tài khoản claude.ai (${tier})`;
+    if (!sample) throw new BrainError(`Không gọi được Claude trong khung xem này (cần mở văn phòng trong claude.ai và cho phép dùng Claude).${fallbackNote ? ` Trước đó: ${fallbackNote}` : ''}`, baseLabel);
+    const images = (ctx.imageIds || []).map((id) => imageCache.get(id)).filter(Boolean).slice(0, 4);
+    const opts = { modelTier: tier, cache: false };
+    if (c?.provider === 'claude_ai') {
+      if (c.model) opts.model = c.model;
+      if (c.effort) opts.effort = c.effort;
+    }
+    if (images.length) opts.images = images;
+    try {
+      const r = await sample(prompt, opts);
+      const applied = r.modelApplied || r.modelTierApplied;
+      const label = c?.provider === 'claude_ai'
+        ? `Claude qua claude.ai · ${applied}${c.model && r.modelApplied !== c.model ? ` (đã chọn ${c.model}, nền tảng chạy ${applied})` : ''} (${picked.where})`
+        : `Claude qua tài khoản claude.ai (${applied})${fallbackNote ? ` (dự phòng: ${fallbackNote})` : ''}`;
+      return done(r.text, `${label}${r.truncated ? ' — câu trả lời bị cắt do quá dài' : ''}`);
+    } catch (e) {
+      const msg = `${SAMPLE_ERRORS[e?.code] || 'Lỗi khi gọi Claude.'} [mã: ${e?.code || 'unknown'}] ${e?.message || ''}`.trim();
+      throw new BrainError(fallbackNote ? `${fallbackNote}\nDự phòng Claude qua claude.ai cũng lỗi: ${msg}` : msg, baseLabel);
+    }
   } finally {
     const n = working.get(staff.id) - 1;
     if (n > 0) working.set(staff.id, n); else working.delete(staff.id);
@@ -503,7 +604,7 @@ on('POST', '/api/logout', () => ({ ok: true }));
 on('GET', '/api/staff', () => staffList().map((s) => ({
   ...s,
   currentBrain: { label: `Claude qua tài khoản claude.ai (${s.id === MANAGER_ID ? 'complex' : 'default'})`, source: 'claude_account', fallbackReason: null },
-  apiConfigs: [], softwareLinks: linksOf(s.id),
+  apiConfigs: (rawStaff(s.id)?.brains || []).map(publicBrain), softwareLinks: linksOf(s.id),
 })));
 on('PUT', '/api/staff/(STAFF-\\d+)/training', (b, [id]) => {
   if (!rawStaff(id)) throw fail('Không tìm thấy nhân viên.');
@@ -551,17 +652,75 @@ on('PUT', '/api/staff/(STAFF-\\d+)/profile', (b, [id]) => {
   return getStaff(id);
 });
 
-const NO_API = () => { throw fail('Bản trải nghiệm dùng Claude qua tài khoản claude.ai. Gắn API riêng có ở bản server.'); };
-on('GET', '/api/apis/.+', () => []);
-on('POST', '/api/apis/.+', NO_API);
-on('PUT|DELETE|POST', '/api/api-config/.+', NO_API);
+// API riêng: cùng hợp đồng với bản server (/api/apis/:owner, /api/api-config/:id), thêm nhà cung cấp "claude_ai".
+const needBrain = (id) => { const c = allBrains().find((x) => x.id === id); if (!c) throw fail('Không tìm thấy API.'); return c; };
+on('POST', '/api/apis/list-models', async (b) => {
+  if (!TRIAL_PROVIDERS.includes(b.provider)) throw fail('Nhà cung cấp không hợp lệ.');
+  if (b.provider !== 'claude_ai' && !b.apiKey) throw fail('Nhập key trước.');
+  try { return { ok: true, models: await listModels({ provider: b.provider, baseUrl: b.baseUrl }, String(b.apiKey || '').trim()) }; } catch (e) { return { ok: false, error: e.message }; }
+});
+on('GET', '/api/apis/(company|STAFF-\\d+)', (b, [owner]) => brainsOf(owner).map(publicBrain));
+on('POST', '/api/apis/(company|STAFF-\\d+)', (b, [owner]) => {
+  const list = brainsOf(owner);
+  if (!TRIAL_PROVIDERS.includes(b.provider)) throw fail('Nhà cung cấp không hợp lệ.');
+  const role = b.role || 'general';
+  if (!API_ROLES.includes(role)) throw fail('Vai trò API không hợp lệ.');
+  const key = String(b.apiKey || '').trim();
+  if (b.provider !== 'claude_ai' && !key) throw fail('Thiếu key.');
+  if (b.provider === 'openai_compatible' && !/^https:\/\//i.test(String(b.baseUrl || '').trim())) throw fail('Nhà cung cấp tương thích OpenAI cần Base URL bắt đầu bằng https://');
+  if (b.provider === 'claude_ai' && b.model && !CLAUDE_MODELS.includes(b.model)) throw fail('Model Claude không hợp lệ.');
+  if (list.length >= 8) throw fail('Tối đa 8 API cho mỗi nhân viên.');
+  const c = {
+    id: rid('API-'), staffId: owner === 'company' ? null : owner, provider: b.provider, role, model: String(b.model || '').trim() || null,
+    effort: ['low', 'medium', 'high'].includes(b.effort) ? b.effort : null, baseUrl: b.provider === 'openai_compatible' ? String(b.baseUrl).trim() : null,
+    keyLast4: key ? key.slice(-4) : null, enabled: true, lastCheckAt: b.provider === 'claude_ai' ? now() : null, lastCheckOk: b.provider === 'claude_ai', lastProviderError: null, createdAt: now(),
+  };
+  if (key) sessionKeys.set(c.id, key);
+  list.push(c); saveOffice();
+  return publicBrain(c);
+});
+on('PUT', '/api/api-config/([\\w-]+)', (b, [id]) => {
+  const c = needBrain(id);
+  if (b.enabled !== undefined) c.enabled = !!b.enabled;
+  if (b.model !== undefined) c.model = String(b.model || '').trim() || null;
+  if (b.effort !== undefined) c.effort = ['low', 'medium', 'high'].includes(b.effort) ? b.effort : null;
+  if (b.role !== undefined) { if (!API_ROLES.includes(b.role)) throw fail('Vai trò API không hợp lệ.'); c.role = b.role; }
+  if (b.apiKey) { const k = String(b.apiKey).trim(); sessionKeys.set(c.id, k); c.keyLast4 = k.slice(-4); c.lastCheckOk = false; }
+  saveOffice();
+  return publicBrain(c);
+});
+on('DELETE', '/api/api-config/([\\w-]+)', (b, [id]) => {
+  needBrain(id);
+  sessionKeys.delete(id);
+  const o = office();
+  o.companyBrains = (o.companyBrains || []).filter((x) => x.id !== id);
+  for (const x of o.staff) if (x.brains) x.brains = x.brains.filter((c) => c.id !== id);
+  saveOffice();
+  return { ok: true };
+});
+on('POST', '/api/api-config/([\\w-]+)/check', async (b, [id]) => {
+  const c = needBrain(id);
+  const note = c.provider === 'claude_ai'
+    ? 'Claude qua claude.ai không cần key: dùng hạn mức tài khoản claude.ai của bạn. Model không mở được cho tài khoản thì nền tảng tự chạy model cùng hạng, nhãn câu trả lời ghi model thật.'
+    : 'Kiểm tra chỉ liệt kê danh sách model. Kiểm tra đạt KHÔNG có nghĩa gọi trả lời sẽ thành công.';
+  try {
+    const models = await listModels(c, sessionKeys.get(c.id));
+    Object.assign(c, { lastCheckAt: now(), lastCheckOk: true });
+    saveOffice();
+    return { ok: true, models, note, config: publicBrain(c) };
+  } catch (e) {
+    Object.assign(c, { lastCheckAt: now(), lastCheckOk: false, lastProviderError: e.message });
+    saveOffice();
+    return { ok: false, error: e.message, note, config: publicBrain(c) };
+  }
+});
 
 // Phần mềm làm việc. Bản trải nghiệm không lưu mã bí mật (chỉ 4 ký tự cuối) và không gọi được mạng ngoài:
 // dữ liệu nạp bằng "Nhập dữ liệu" (dán / tải CSV xuất từ KiotViet). Mỗi lần thao tác ghi vào nhật ký.
 const LINK_STATUSES = ['connected', 'expired', 'not_connected'];
 const linkView = (l) => {
   const d = store.docs.get(`linkdata-${l.id}`);
-  return { kind: 'other', purpose: '', retailer: '', clientId: '', pageId: '', logs: [], ...l, data: d ? { kind: d.kind, source: d.source, at: d.at, count: d.items.length } : null };
+  return { kind: 'other', purpose: '', retailer: '', clientId: '', pageId: '', logs: [], ...l, browsing: browsing.get(l.id) || null, data: d ? { kind: d.kind, source: d.source, at: d.at, count: d.items.length } : null };
 };
 const linksOf = (staffId) => listDoc('links').list.filter((l) => !staffId || l.staffId === staffId).map(linkView);
 function needLink(id) {
@@ -603,7 +762,95 @@ on('DELETE', '/api/links/([\\w-]+)', (b, [id]) => {
   store.save('links'); store.remove(`linkdata-${id}`);
   return linksOf(l.staffId);
 });
-const NO_NETWORK = 'Bản trải nghiệm chạy trong Claude nên không gọi được mạng ngoài (KiotViet, Facebook). Hãy dùng "Nhập dữ liệu": dán hoặc tải file CSV xuất từ phần mềm. Kết nối và đồng bộ tự động có ở bản server.';
+// Nhân viên tự điều khiển trình duyệt có sẵn trong ứng dụng Claude (máy tính) để lấy dữ liệu phần mềm.
+// Chỉ chạy khi mở văn phòng trong ứng dụng Claude desktop; mỗi lần bấm / nhập ứng dụng có thể hỏi bạn xác nhận.
+const BROWSER = 'host:claude_browser';
+const browsing = new Map();
+let mcpPromise = null;
+const getMcp = () => (mcpPromise ||= (globalThis.claude ? globalThis.claude.use('mcp') : Promise.resolve(null)));
+const mcpText = (r) => {
+  const t = (r?.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('\n');
+  return t || (typeof r?.payload === 'string' ? r.payload : JSON.stringify(r?.payload ?? r ?? ''));
+};
+const MCP_HINT = {
+  server_not_connected: 'Trình duyệt chỉ dùng được khi mở văn phòng trong ứng dụng Claude trên máy tính.',
+  not_in_manifest: 'Bạn chưa cho phép văn phòng dùng trình duyệt (mở menu Quyền của trang để bật lại).',
+  approval_required: 'Thao tác cần bạn xác nhận trong ứng dụng Claude.',
+  cancelled: 'Bạn đã từ chối thao tác này trong ứng dụng Claude.',
+};
+function claudeBrowser(mcp) {
+  let tabId;
+  let elements = ''; // danh sách phần tử lần đọc gần nhất, để biết nút sắp bấm là nút gì
+  const call = async (tool, input) => {
+    try {
+      return mcpText(await mcp.callTool(BROWSER, tool, tabId === undefined ? input : { ...input, tabId }));
+    } catch (e) {
+      throw new Error(`${MCP_HINT[e?.code] ? `${MCP_HINT[e.code]} ` : ''}[${e?.code || 'lỗi'}] ${e?.message || e}`);
+    }
+  };
+  const read = async () => {
+    const text = await call('get_page_text', {});
+    elements = await call('read_page', { filter: 'interactive' }).catch((e) => `(không đọc được phần tử: ${e.message})`);
+    return `${text.slice(0, 7000)}\n--- Phần tử (mã ref để bấm / nhập) ---\n${elements.slice(0, 5000)}`;
+  };
+  return {
+    async open(url) {
+      const r = await mcp.callTool(BROWSER, 'preview_start', { url }).catch((e) => { throw new Error(`${MCP_HINT[e?.code] || ''} [${e?.code || 'lỗi'}] ${e?.message || e}`.trim()); });
+      const id = r?.payload?.tabId ?? r?.structuredContent?.tabId ?? Number(/tab\s*id\D{0,5}(\d+)/i.exec(mcpText(r))?.[1]);
+      if (Number.isFinite(Number(id))) tabId = Number(id);
+      await new Promise((ok) => setTimeout(ok, 1500));
+      return read();
+    },
+    async go(url) { await call('navigate', { url }); return read(); },
+    read,
+    find: (q) => call('find', { query: q }),
+    async click(ref) {
+      const line = elements.split('\n').find((l) => new RegExp(`\\b${ref.replace(/[^\w-]/g, '')}\\b`).test(l)) || '';
+      if (RISKY.test(line)) throw new Error(`Không bấm "${line.trim().slice(0, 80)}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`);
+      await call('computer', { action: 'left_click', ref }); await new Promise((ok) => setTimeout(ok, 1200)); return read(); },
+    async type(ref, text) { await call('form_input', { ref, value: text }); return read(); },
+  };
+}
+on('POST', '/api/links/([\\w-]+)/browse', async (b, [id]) => {
+  const l = needLink(id);
+  if (browsing.has(id)) throw fail('Nhân viên đang mở trình duyệt cho phần mềm này.');
+  const mcp = await getMcp();
+  const log = logInto(l);
+  if (!mcp) {
+    log('Mở trình duyệt', false, MCP_HINT.server_not_connected);
+    store.save('links');
+    throw fail(MCP_HINT.server_not_connected);
+  }
+  const staff = getStaff(l.staffId);
+  browsing.set(id, { step: 'Đang mở trình duyệt…', at: now() });
+  (async () => {
+    try {
+      const res = await runBrowserAgent({
+        staff, link: l, goal: String(b.goal || '').slice(0, 1000), browser: claudeBrowser(mcp),
+        think: (st, ctx) => think(st, { ...ctx, kind: 'deep_analysis' }),
+        log: (action, ok, detail) => { log(action, ok, detail); browsing.set(id, { step: `${action}${detail ? `: ${String(detail).slice(0, 80)}` : ''}`, at: now() }); store.save('links'); },
+      });
+      l.lastOpenedAt = now();
+      if (res.status === 'saved') {
+        const doc = { kind: res.data.kind, source: `${staff.name} lấy qua trình duyệt`, at: now(), items: res.data.items };
+        while (JSON.stringify(doc).length > 240000 && doc.items.length > 10) doc.items = doc.items.slice(0, Math.floor(doc.items.length * 0.8));
+        store.docs.set(`linkdata-${id}`, doc); store.save(`linkdata-${id}`);
+        Object.assign(l, { status: 'connected', lastSyncAt: now(), lastCheckAt: now() });
+      } else if (res.status === 'need_login') {
+        Object.assign(l, { status: 'expired', lastCheckAt: now() }); // không tự đăng nhập lại
+      }
+      log('Kết quả lấy dữ liệu qua trình duyệt', res.status === 'saved', res.message);
+    } catch (e) {
+      log('Lấy dữ liệu qua trình duyệt', false, e.message);
+    } finally {
+      browsing.delete(id);
+      store.save('links');
+    }
+  })();
+  return linkView(l);
+});
+
+const NO_NETWORK = 'Bản trải nghiệm chạy trong Claude nên không gọi được API KiotViet / Facebook. Hãy bấm "Nhân viên lấy qua trình duyệt" (cần ứng dụng Claude trên máy tính) hoặc "Nhập dữ liệu" (dán / tải CSV). Kết nối API trực tiếp có ở bản server.';
 for (const [path, action] of [['check', 'Kiểm tra kết nối'], ['sync', 'Đồng bộ dữ liệu']]) {
   on('POST', `/api/links/([\\w-]+)/${path}`, (b, [id]) => {
     const l = needLink(id);
@@ -681,6 +928,36 @@ on('POST', '/api/staff/(STAFF-\\d+)/consult', (b, [ownerId]) => {
 });
 
 // Việc
+// Ô hỏi dưới mỗi việc: người làm việc trả lời trực tiếp dựa trên tiến độ và kết quả của chính việc đó.
+on('POST', '/api/tasks/([\\w-]+)/ask', (b, [id]) => {
+  const t = needTask(id);
+  const q = String(b.question || '').trim();
+  if (!q) throw fail('Nhập câu hỏi.');
+  if (q.length > 4000) throw fail('Câu hỏi quá dài (tối đa 4000 ký tự).');
+  const task = { ...t, planSteps: planSteps(t.session?.finalPlan, staffList()) };
+  const people = taskPeople(task, MANAGER_ID);
+  const who = b.staffId || people[0];
+  if (!people.includes(who)) throw fail('Chỉ hỏi được người đang làm việc này.');
+  const staff = getStaff(who);
+  const entry = { id: rid('QA-'), staffId: who, staffName: staff.name, question: q, answer: null, brainLabel: null, isError: false, createdAt: now(), answeredAt: null };
+  const ctx = taskQaContext(task, { finalSummary: t.session?.finalSummary, qa: t.qa || [], staffName: staff.name });
+  t.qa = [...(t.qa || []), entry].slice(-30);
+  saveTask(t);
+  bg((async () => {
+    try {
+      const r = await think(staff, { ...ctx, question: q, kind: t.taskKind, imageIds: (t.attachments || []).map((a) => a.id) });
+      Object.assign(entry, { answer: r.text, brainLabel: r.brainLabel });
+    } catch (e) {
+      Object.assign(entry, { answer: `Bộ não lỗi, chưa trả lời được: ${e.message}`, brainLabel: e.brainLabel || null, isError: true });
+    }
+    entry.answeredAt = now();
+    const cur = getTask(id);
+    const i = (cur.qa || []).findIndex((x) => x.id === entry.id);
+    if (i >= 0) cur.qa[i] = entry;
+    store.docs.set(`task-${id}`, cur); store.save(`task-${id}`); // không đổi updatedAt: hỏi đáp không phải tiến độ việc
+  })());
+  return { qa: t.qa };
+});
 on('GET', '/api/tasks', () => tasksAll().map((t) => ({ ...publicTask(t), planSteps: planSteps(t.session?.finalPlan, staffList()) })));
 on('POST', '/api/tasks', (b) => {
   if (!['individual', 'general'].includes(b.kind)) throw fail('Loại việc không hợp lệ.');
@@ -708,7 +985,7 @@ on('POST', '/api/tasks', (b) => {
 const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tìm thấy việc.'); return t; };
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
-  if (!t.session) return { task: publicTask(t), session: null };
+  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [] };
   const participants = t.assigneeIds.map(getStaff).filter(Boolean);
   return {
     task: publicTask(t),

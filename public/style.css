@@ -293,3 +293,14 @@ table.score tr.lead td { color: var(--gold-2); font-weight: 700; }
   .stage { height: clamp(420px, 58vh, 720px); }
   .toast { bottom: 24px; }
 }
+
+/* Thanh hỏi dưới mỗi việc */
+.ask-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; cursor: default; }
+.ask-bar select { flex: 0 1 120px; min-height: 38px; padding: 4px 34px 4px 12px; font-size: 14px; }
+.ask-bar input { flex: 1 1 160px; min-height: 38px; padding: 6px 12px; font-size: 14px; }
+.ask-bar.compact { padding-top: 8px; border-top: 1px dashed var(--line); }
+#qaList:empty { display: none; }
+#qaList .msg { padding: 10px 12px; }
+
+/* Danh sách API của nhân viên */
+.api-item { padding: 12px; border-radius: 12px; background: var(--surface-3); border: 1px solid var(--line); }

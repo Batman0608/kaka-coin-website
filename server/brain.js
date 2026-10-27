@@ -141,6 +141,9 @@ const PRIVATE = new net.BlockList();
 for (const [a, p] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.168.0.0', 16], ['224.0.0.0', 4], ['240.0.0.0', 4]]) PRIVATE.addSubnet(a, p, 'ipv4');
 for (const [a, p] of [['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['::ffff:0:0', 96]]) PRIVATE.addSubnet(a, p, 'ipv6');
 
+// Địa chỉ IP nội bộ (dùng chung cho kiểm tra Base URL và trình duyệt của nhân viên).
+export const isPrivateAddress = (address, family) => PRIVATE.check(address, family === 6 ? 'ipv6' : 'ipv4');
+
 export async function assertPublicBaseUrl(raw) {
   if (process.env.ALLOW_PRIVATE_BASE_URL === 'true') return;
   let u;

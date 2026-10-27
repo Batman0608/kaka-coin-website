@@ -409,23 +409,55 @@ function subChat(s, body) {
   return refresh;
 }
 
+// Người hỏi được về một việc: người được giao, người làm từng bước, và Phúc với việc chung (khớp shared/taskqa.js).
+function taskPeople(t) {
+  const ids = [...new Set([...t.assigneeIds, ...(t.planSteps || []).map((p) => p.staffId), ...(t.outputs || []).map((o) => o.staffId)].filter(Boolean))];
+  if (t.kind === 'general' && !ids.includes('STAFF-007')) ids.push('STAFF-007');
+  return ids;
+}
+// Thanh hỏi dưới mỗi việc: hỏi thẳng người đang làm việc đó; câu trả lời hiện trong trang việc.
+function askBar(t, compact = true) {
+  const people = taskPeople(t);
+  return `<form class="ask-bar ${compact ? 'compact' : ''}" data-ask="${t.id}">
+    <select name="staffId" aria-label="Hỏi ai">${people.map((id) => `<option value="${id}">${esc(nameOf(id))}</option>`).join('')}</select>
+    <input name="question" autocomplete="off" aria-label="Câu hỏi về việc ${esc(t.title)}" placeholder="Hỏi về việc này…" maxlength="4000">
+    <button class="btn gold sm" type="submit">Hỏi</button>
+  </form>`;
+}
+// Danh sách tự làm mới mỗi 3 giây: không vẽ lại khi bạn đang gõ câu hỏi dở.
+const typingAsk = (box) => [...box.querySelectorAll('.ask-bar input')].some((i) => i.value || i === document.activeElement);
+document.addEventListener('submit', async (e) => {
+  const f = e.target.closest('form[data-ask]');
+  if (!f) return;
+  e.preventDefault();
+  const question = f.question.value.trim();
+  if (!question) return;
+  const r = await act(() => api(`/api/tasks/${f.dataset.ask}/ask`, { body: { question, staffId: f.staffId.value } }));
+  if (!r) return;
+  f.question.value = '';
+  if (state.taskDetail !== f.dataset.ask) openView('tasks', f.dataset.ask);
+  else state.refresh?.();
+});
+
 function taskCard(t) {
   const steps = t.planSteps?.length ? t.planSteps.length : null;
   const done = steps ? t.planSteps.filter((p) => t.outputs.some((o) => o.key === p.key && !o.error)).length : null;
-  const people = [...new Set([...t.assigneeIds, ...(t.planSteps || []).map((p) => p.staffId).filter(Boolean)])];
+  const people = taskPeople(t);
   return `<div class="card clickable stack" style="gap:10px" role="button" tabindex="0" data-task="${t.id}" aria-label="Mở việc ${esc(t.title)}">
     <div class="row between"><b class="grow">${esc(t.title)}</b><span class="pill ${TASK_TONE[t.status] || ''}"><i class="dot"></i>${esc(TASK_STATUS[t.status] || t.status)}</span></div>
     <div class="row">${people.slice(0, 6).map((id) => avatar(staffById(id), 'sm')).join('')}<span class="kv">${t.kind === 'general' ? 'Việc chung' : 'Việc riêng'} · ${esc(fmtTime(t.createdAt))}</span></div>
     ${steps ? `<div class="progress"><i style="width:${Math.round((done / steps) * 100)}%"></i></div>` : ''}
     ${t.lastError ? `<div class="error" style="font-size:13px">${esc(t.lastError)}</div>` : ''}
+    ${askBar(t)}
   </div>`;
 }
 function openTaskFrom(e) {
+  if (e.target.closest('.ask-bar')) return;
   const c = e.target.closest('[data-task]');
   if (c && $('#panel').contains(c) && c.classList.contains('card')) openView('tasks', c.dataset.task);
 }
 document.addEventListener('click', openTaskFrom);
-document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.card[data-task]')) { e.preventDefault(); openTaskFrom(e); } });
+document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.card[data-task]') && !e.target.closest('.ask-bar')) { e.preventDefault(); openTaskFrom(e); } });
 
 function subTasks(s, body) {
   body.innerHTML = `
@@ -446,6 +478,7 @@ function subTasks(s, body) {
   });
   return async () => {
     const list = state.tasks.filter((t) => involves(t, s.id));
+    if (typingAsk($('#taskList', body))) return;
     $('#taskList', body).innerHTML = list.length ? list.map(taskCard).join('') : '<p class="muted">Chưa có việc.</p>';
   };
 }
@@ -588,43 +621,79 @@ function subAuto(s, body) {
 
 // Trình quản lý API dùng chung cho nhân viên và API mặc định công ty.
 function subBrain(s, body) { return apiConfigEditor(s.id, body, `Bộ não của ${s.name}`); }
+const PROVIDERS_UI = {
+  claude_ai: 'Claude qua tài khoản claude.ai (chọn model, không cần key)',
+  anthropic: 'Claude (Anthropic) — key sk-ant-… hoặc token sk-ant-oat…',
+  openai: 'OpenAI',
+  openai_compatible: 'Tương thích OpenAI (Gemini, DeepSeek, OpenRouter…)',
+};
+const CLAUDE_MODELS = [['', 'Theo hạng mặc định của nhân viên'], ['claude-opus-5-5', 'Claude Opus 5.5'], ['claude-sonnet-5-5', 'Claude Sonnet 5.5'], ['claude-haiku-5-5', 'Claude Haiku 5.5'], ['claude-fable-5-1', 'Claude Fable 5.1']];
+const providerLabel = (p) => ({ claude_ai: 'Claude qua claude.ai', anthropic: 'Claude', openai: 'OpenAI', openai_compatible: 'Tương thích OpenAI' }[p] || p);
+
 function apiConfigEditor(ownerId, body, title) {
-  if (state.me.trial) {
-    body.innerHTML = `<div class="card stack"><h3>Bản trải nghiệm</h3>
-      <p class="kv" style="margin:0">Bộ não hiện tại: Claude qua tài khoản claude.ai của bạn. Gắn API riêng (Claude, OpenAI, Gemini…) theo vai trò, kiểm tra key và chọn model có ở bản server khi đưa ra ngoài.</p></div>`;
-    return null;
-  }
+  const who = ownerId === 'company' ? 'công ty' : nameOf(ownerId);
+  const trial = !!state.me.trial;
+  const providers = Object.entries(PROVIDERS_UI).filter(([k]) => trial || k !== 'claude_ai');
   body.innerHTML = `
-    <p class="kv" style="margin:0">Thứ tự chọn bộ não: API chuyên môn khớp loại việc và đã kiểm tra đạt → API chung → API mặc định công ty → Claude mặc định (dự phòng, có ghi lý do).
-    <b>Kiểm tra key chỉ liệt kê model</b>, không gửi câu hỏi thử; kiểm tra đạt không có nghĩa gọi trả lời sẽ thành công.</p>
-    <div id="cfgList" class="stack"></div>
-    <form class="card form" id="cfgForm">
-      <h3>${esc(title)}: gắn API mới</h3>
-      <label>Nhà cung cấp <select name="provider">
-        <option value="anthropic">Claude (Anthropic) — key sk-ant-… hoặc token OAuth sk-ant-oat…</option>
-        <option value="openai">OpenAI</option>
-        <option value="openai_compatible">Tương thích OpenAI (Gemini, DeepSeek, OpenRouter…)</option>
+    <form class="card form tight" id="cfgForm">
+      <div class="row"><h3>Đính API AI riêng cho ${esc(who)}</h3><span class="pill gold" id="cfgCount">…</span></div>
+      <label>Nhà cung cấp AI <select name="provider">
+        <option value="">Claude mặc định — chưa gắn API riêng</option>
+        ${providers.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}
       </select></label>
-      <label class="base-url hidden">Base URL <input name="baseUrl" placeholder="https://…/v1"></label>
-      <label>Vai trò <select name="role">${Object.entries(ROLE_NAME).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
-      <label>Key (chỉ lưu ở server, mã hoá; chỉ hiện 4 ký tự cuối) <input name="apiKey" type="password" autocomplete="off" required></label>
-      <div class="row"><button class="btn sm" type="button" id="listModels">Lấy danh sách model từ key</button><span id="lmStatus" class="kv"></span></div>
-      <label>Model (tự chọn; để trống = mặc định của nhà cung cấp) <select name="model"><option value="">— mặc định —</option></select></label>
-      <button class="btn gold" type="submit">Lưu API</button>
-    </form>`;
+      <p class="kv hint" style="margin:0">Chọn một nhà cung cấp ở trên để hiện ô nhập API key cho ${esc(who)}.</p>
+      <div class="pf hidden stack tight">
+        <div class="field-row">
+          <label>Dùng cho <select name="role">${Object.entries(ROLE_NAME).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
+          <label class="p-claude hidden">Mức suy nghĩ <select name="effort"><option value="">Mặc định</option><option value="low">Thấp (nhanh)</option><option value="medium">Vừa</option><option value="high">Cao (kỹ)</option></select></label>
+        </div>
+        <label class="p-base hidden">Base URL <input name="baseUrl" placeholder="https://…/v1"></label>
+        <label class="p-key">API key (${trial ? 'bản trải nghiệm chỉ giữ key trong trang đang mở, không lưu; tải lại trang phải nhập lại' : 'lưu mã hoá ở server'}; chỉ hiện 4 ký tự cuối)
+          <input name="apiKey" type="password" autocomplete="new-password"></label>
+        <label>Model <select name="model"></select></label>
+        <p class="kv" id="lmStatus" style="margin:0"></p>
+      </div>
+      <div class="row"><button class="btn gold" type="submit" disabled>Lưu API cho ${esc(who)}</button><button class="btn outline" type="button" id="listModels" disabled>Kiểm tra API</button></div>
+    </form>
+    <section class="card stack tight">
+      <div class="row between"><h3 id="cfgTitle">Danh sách API của ${esc(who)}</h3><button class="btn gold sm" type="button" id="addApi">+ Thêm API</button></div>
+      <p class="kv" style="margin:0">Thứ tự chọn: API đúng loại việc đã kiểm tra đạt → API chung → API mặc định công ty → Claude mặc định (nhãn ghi lý do). <b>Kiểm tra chỉ liệt kê model</b>, không gửi câu hỏi thử.</p>
+      <div id="cfgList" class="stack tight"></div>
+    </section>`;
   const form = $('#cfgForm', body);
-  form.provider.addEventListener('change', () => $('.base-url', body).classList.toggle('hidden', form.provider.value !== 'openai_compatible'));
+  const fillModels = (list) => {
+    form.model.innerHTML = form.provider.value === 'claude_ai'
+      ? CLAUDE_MODELS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')
+      : '<option value="">— mặc định của nhà cung cấp —</option>' + (list || []).map((m) => `<option>${esc(m)}</option>`).join('');
+  };
+  const onProvider = () => {
+    const p = form.provider.value;
+    $('.pf', body).classList.toggle('hidden', !p);
+    $('.hint', body).classList.toggle('hidden', !!p);
+    $('.p-base', body).classList.toggle('hidden', p !== 'openai_compatible');
+    $('.p-key', body).classList.toggle('hidden', p === 'claude_ai');
+    $('.p-claude', body).classList.toggle('hidden', p !== 'claude_ai');
+    form.apiKey.required = !!p && p !== 'claude_ai';
+    for (const b of $$('button', form)) b.disabled = !p;
+    $('#lmStatus', body).textContent = p === 'claude_ai' ? 'Dùng hạn mức tài khoản claude.ai của bạn. Model tài khoản không mở được thì nền tảng chạy model cùng hạng; nhãn câu trả lời ghi model thật.' : '';
+    fillModels([]);
+  };
+  form.provider.addEventListener('change', onProvider);
+  onProvider();
+  $('#addApi', body).addEventListener('click', () => { form.provider.focus(); form.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   $('#listModels', body).addEventListener('click', async () => {
-    $('#lmStatus', body).textContent = 'Đang liệt kê…';
+    $('#lmStatus', body).textContent = 'Đang liệt kê model…';
     const r = await act(() => api('/api/apis/list-models', { body: { provider: form.provider.value, apiKey: form.apiKey.value, baseUrl: form.baseUrl.value } }));
     if (!r) return ($('#lmStatus', body).textContent = '');
-    if (!r.ok) { $('#lmStatus', body).innerHTML = `<span class="error">${esc(r.error)}</span>`; return; }
-    $('#lmStatus', body).innerHTML = `<span class="ok">Liệt kê được ${r.models.length} model. Hãy tự chọn model bên dưới.</span>`;
-    form.model.innerHTML = '<option value="">— mặc định —</option>' + r.models.map((m) => `<option>${esc(m)}</option>`).join('');
+    if (!r.ok) { $('#lmStatus', body).innerHTML = `<span class="error">Kiểm tra không đạt (nguyên văn nhà cung cấp): ${esc(r.error)}</span>`; return; }
+    $('#lmStatus', body).innerHTML = `<span class="ok">Liệt kê được ${r.models.length} model. Hãy tự chọn model.</span>`;
+    if (form.provider.value !== 'claude_ai') fillModels(r.models);
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await act(() => api(`/api/apis/${ownerId}`, { body: Object.fromEntries(new FormData(form)) }), 'Đã lưu API. Bấm "Kiểm tra" để liệt kê model.')) { form.reset(); refresh(); loadStaff(); }
+    if (await act(() => api(`/api/apis/${ownerId}`, { body: Object.fromEntries(new FormData(form)) }), `Đã gắn API cho ${who}.${form.provider.value === 'claude_ai' ? '' : ' Bấm "Kiểm tra" trong danh sách để liệt kê model.'}`)) {
+      form.reset(); onProvider(); refresh(true); loadStaff();
+    }
   });
   const list = $('#cfgList', body);
   list.addEventListener('click', async (e) => {
@@ -638,15 +707,18 @@ function apiConfigEditor(ownerId, body, title) {
         $(`[data-out="${id}"]`, list).innerHTML = r.ok
           ? `<span class="ok">Kiểm tra đạt: liệt kê được ${r.models.length} model.</span> <span class="kv">${esc(r.note)}</span>
              <label>Chọn model <select data-model="${id}"><option value="">— mặc định —</option>${r.models.map((m) => `<option ${m === r.config.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>`
-          : `<span class="error">Kiểm tra không đạt: ${esc(r.error)}</span>`;
+          : `<span class="error">Kiểm tra không đạt (nguyên văn): ${esc(r.error)}</span>`;
         loadStaff();
       }
-      b.disabled = false; b.textContent = 'Kiểm tra (liệt kê model)';
+      b.disabled = false; b.textContent = 'Kiểm tra API';
+    } else if (b.dataset.act === 'key') {
+      const k = $(`[data-key="${id}"]`, list).value.trim();
+      if (k && await act(() => api(`/api/api-config/${id}`, { method: 'PUT', body: { apiKey: k } }), 'Đã nhập key.')) refresh(true);
     } else if (b.dataset.act === 'toggle') {
       await act(() => api(`/api/api-config/${id}`, { method: 'PUT', body: { enabled: b.dataset.enabled !== '1' } }));
-      refresh(); loadStaff();
+      refresh(true); loadStaff();
     } else if (b.dataset.act === 'delete') {
-      if (await askConfirm('Xoá API này? Key sẽ bị xoá khỏi server.', 'Xoá')) { await act(() => api(`/api/api-config/${id}`, { method: 'DELETE' })); refresh(); loadStaff(); }
+      if (await askConfirm('Xoá API này? Key sẽ bị xoá.', 'Xoá')) { await act(() => api(`/api/api-config/${id}`, { method: 'DELETE' })); refresh(true); loadStaff(); }
     }
   });
   list.addEventListener('change', async (e) => {
@@ -654,23 +726,26 @@ function apiConfigEditor(ownerId, body, title) {
     if (sel) { await act(() => api(`/api/api-config/${sel.dataset.model}`, { method: 'PUT', body: { model: sel.value } }), 'Đã đổi model.'); loadStaff(); }
   });
   let rendered = false;
-  async function refresh() {
-    if (rendered && list.querySelector('select[data-model]')) return; // không xoá lựa chọn model đang mở
+  async function refresh(force = false) {
+    if (!force && rendered && (list.querySelector('select[data-model]') || typingAsk(list) || list.querySelector('input[data-key]:focus'))) return; // không xoá lựa chọn đang mở
     const cfgs = await api(`/api/apis/${ownerId}`);
     rendered = true;
+    $('#cfgCount', body).textContent = cfgs.length ? `${cfgs.length} API` : 'Chưa gắn API';
+    $('#cfgTitle', body).textContent = `Danh sách API của ${who} (${cfgs.length} API)`;
     list.innerHTML = cfgs.length ? cfgs.map((c) => `
-      <div class="card stack" style="gap:8px">
-        <div class="row between"><b>${esc(c.provider)} · ${esc(ROLE_NAME[c.role])}</b>
+      <div class="api-item stack tight">
+        <div class="row between"><b>${esc(providerLabel(c.provider))} · ${esc(ROLE_NAME[c.role])}</b>
           <span class="row"><span class="pill ${c.lastCheckOk ? 'teal' : c.lastCheckAt ? 'red' : ''}">${c.lastCheckOk ? 'Kiểm tra đạt' : c.lastCheckAt ? 'Kiểm tra lỗi' : 'Chưa kiểm tra'}</span><span class="pill">${c.enabled ? 'Bật' : 'Tắt'}</span></span></div>
-        <div class="kv">Key ···${esc(c.keyLast4)} · Model: ${esc(c.model || 'mặc định')}${c.baseUrl ? ` · ${esc(c.baseUrl)}` : ''} · Kiểm tra lúc ${esc(fmtTime(c.lastCheckAt))}</div>
+        <div class="kv">${c.keyLast4 ? `Key ···${esc(c.keyLast4)} · ` : ''}Model: ${esc(c.model || 'mặc định')}${c.effort ? ` · suy nghĩ ${esc(c.effort)}` : ''}${c.baseUrl ? ` · ${esc(c.baseUrl)}` : ''} · Kiểm tra lúc ${esc(fmtTime(c.lastCheckAt))}</div>
+        ${c.keyInSession === false ? `<div class="row"><span class="notice grow" style="padding:6px 12px">Chưa có key trong phiên này — nhân viên đang dùng Claude dự phòng.</span><input type="password" data-key="${c.id}" aria-label="Nhập lại key" placeholder="Nhập lại key" autocomplete="new-password" style="flex:1 1 160px"><button class="btn sm" type="button" data-act="key" data-id="${c.id}">Dùng key</button></div>` : ''}
         ${c.lastProviderError ? `<div class="error" style="font-size:13px">Lỗi nhà cung cấp gần nhất (nguyên văn): ${esc(c.lastProviderError)}</div>` : ''}
         <div data-out="${c.id}"></div>
         <div class="row">
-          <button class="btn sm" type="button" data-act="check" data-id="${c.id}">Kiểm tra (liệt kê model)</button>
+          <button class="btn sm" type="button" data-act="check" data-id="${c.id}">Kiểm tra API</button>
           <button class="btn sm" type="button" data-act="toggle" data-id="${c.id}" data-enabled="${c.enabled ? 1 : 0}">${c.enabled ? 'Tắt' : 'Bật'}</button>
           <button class="btn sm danger" type="button" data-act="delete" data-id="${c.id}">Xoá</button>
         </div>
-      </div>`).join('') : '<p class="muted">Chưa gắn API riêng — đang dùng bộ não mặc định.</p>';
+      </div>`).join('') : `<p class="muted" style="margin:0">${esc(who)} chưa có API nào — bấm "+ Thêm API" để gắn API đầu tiên.</p>`;
   }
   return refresh;
 }
@@ -717,10 +792,12 @@ function linkCard(l, showOwner = false) {
         <div><span>Kiểm tra gần nhất</span><b>${esc(fmtTime(l.lastCheckAt))}</b></div>
         <div><span>Lần mở</span><b>${esc(fmtTime(l.lastOpenedAt))}</b></div>
       </div>
+      ${l.browsing ? `<p class="typing" style="margin:0">${esc(nameOf(l.staffId))} đang điều khiển trình duyệt: ${esc(l.browsing.step)}</p>` : ''}
       ${l.status === 'expired' ? '<p class="error" style="margin:0">Phiên đăng nhập đã hết hạn. Hệ thống không tự đăng nhập lại — hãy nhập lại mã và bấm Kiểm tra kết nối.</p>' : ''}
       <div class="row">
         <a class="btn sm outline" href="${esc(l.url)}" target="_blank" rel="noopener" data-opened="${l.id}">Mở trình duyệt</a>
         ${l.kind !== 'other' ? `<button class="btn sm" type="button" data-lact="check">Kiểm tra kết nối</button><button class="btn sm" type="button" data-lact="sync">Đồng bộ</button>` : ''}
+        <button class="btn sm gold" type="button" data-lact="browse" ${l.browsing ? 'disabled' : ''}>${l.browsing ? 'Đang lấy qua trình duyệt…' : `${esc(nameOf(l.staffId))} lấy qua trình duyệt`}</button>
         <button class="btn sm" type="button" data-lact="import">Nhập dữ liệu</button>
         ${d ? '<button class="btn sm" type="button" data-lact="data">Xem dữ liệu</button>' : ''}
         ${l.status !== 'expired' ? '<button class="btn sm" type="button" data-lact="expire">Đánh dấu hết hạn</button>' : ''}
@@ -769,6 +846,22 @@ function bindLinkActions(container, after) {
         const box = $(`[data-link="${id}"] [data-lout]`, container);
         if (box) box.innerHTML = `<p class="${r.ok ? 'ok' : 'error'}" style="margin:0">${esc(r.message)}</p>`;
       } catch (err) { out.innerHTML = `<p class="error">${esc(err.message)}</p>`; b.disabled = false; }
+    } else if (a === 'browse') {
+      out.innerHTML = `<form class="form tight" data-bform>
+        <label>Cần lấy gì lần này (để trống: theo mục đích dùng)
+          <input name="goal" placeholder="Ví dụ: giá và tồn kho nhóm Lọc gió; hoặc 20 bài đăng mới và bình luận"></label>
+        <p class="kv" style="margin:0">${state.me.trial
+    ? 'Nhân viên dùng trình duyệt có sẵn trong ứng dụng Claude trên máy tính (bảng Trình duyệt). Lần đầu ứng dụng hỏi bạn cho phép; phần mềm cần đăng nhập thì bạn tự đăng nhập trong trình duyệt đó trước — nhân viên không tự đăng nhập.'
+    : 'Nhân viên mở trình duyệt trên server, chỉ đọc. Phần mềm cần đăng nhập: chạy server trên máy bạn với VPA_BROWSER_HEADFUL=1 và tự đăng nhập một lần; hết phiên thì liên kết chuyển "Hết hạn", không tự đăng nhập lại.'}</p>
+        <button class="btn gold sm" type="submit">Bắt đầu</button>
+      </form>`;
+      $('[data-bform]', out).addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        if (await act(() => api(`/api/links/${id}/browse`, { body: { goal: ev.target.goal.value } }), 'Nhân viên đang mở trình duyệt — tiến độ hiện trong thẻ và nhật ký.')) {
+          await after(id);
+          watchBrowse(container, id, after);
+        }
+      });
     } else if (a === 'data') {
       out.innerHTML = '<p class="typing">Đang tải…</p>';
       try { out.innerHTML = dataTable(await api(`/api/links/${id}/data`)); } catch (err) { out.innerHTML = `<p class="error">${esc(err.message)}</p>`; }
@@ -797,6 +890,17 @@ function bindLinkActions(container, after) {
     if (!v.accessCode) delete v.accessCode;
     if (await act(() => api(`/api/links/${id}`, { method: 'PUT', body: v }), 'Đã lưu liên kết.')) after(id);
   });
+}
+
+// Theo dõi tiến độ khi nhân viên đang điều khiển trình duyệt: làm mới thẻ mỗi 2 giây tới khi xong.
+function watchBrowse(container, id, after) {
+  const timer = setInterval(async () => {
+    if (!document.body.contains(container)) return clearInterval(timer);
+    const l = (await api('/api/links').catch(() => [])).find((x) => x.id === id);
+    if (container.querySelector('[data-lout] input:focus, [data-lform] :focus')) return;
+    await after(id);
+    if (!l?.browsing) clearInterval(timer);
+  }, 2000);
 }
 
 function subSoftware(s, body) {
@@ -930,6 +1034,7 @@ VIEWS.tasks = (arg) => {
     if (t) { await loadTasks(); openView('tasks', t.id); }
   });
   mount(wrap, async () => {
+    if (typingAsk($('#tList', wrap))) return;
     $('#tList', wrap).innerHTML = state.tasks.length ? state.tasks.map(taskCard).join('') : '<p class="muted">Chưa có việc nào. Giao việc chung ở trên, hoặc giao việc riêng trong trang của từng nhân viên.</p>';
   });
   if (arg === 'new' || meeting) setTimeout(() => $('#gTitle')?.focus(), 250);
@@ -959,6 +1064,10 @@ function renderDebateTurns(turns) {
 
 function viewTaskDetail(id) {
   const wrap = el(`<button class="btn sm" type="button" id="back">← Tất cả việc</button><div id="tHead" class="stack"></div>
+    <section class="card gold stack tight" id="qaBox" aria-live="polite">
+      <div class="row between"><h3>Hỏi về việc này</h3><span class="kv">Người làm việc trả lời dựa trên tiến độ và kết quả của chính việc</span></div>
+      <div id="qaList" class="chat"></div><div id="qaForm"></div>
+    </section>
     <div id="outputs" class="stack"></div>
     <div id="sess" class="stack"></div>
     <form class="composer hidden" id="sayForm">
@@ -987,8 +1096,13 @@ function viewTaskDetail(id) {
     await post('say', { text });
   });
   async function refresh() {
-    const { task: t, session: s } = await api(`/api/tasks/${id}`);
+    const { task: t, session: s, qa = [] } = await api(`/api/tasks/${id}`);
     $('#sheetTitle').textContent = t.title;
+    if (!$('#qaForm form', wrap)) $('#qaForm', wrap).innerHTML = askBar({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }, false);
+    $('#qaList', wrap).innerHTML = qa.map((q) => `
+      <div class="msg user"><div class="who">Bạn hỏi ${esc(q.staffName)} <span class="t">${esc(fmtClock(q.createdAt))}</span></div><div class="body">${esc(q.question)}</div></div>
+      ${q.answer ? `<div class="msg staff ${q.isError ? 'err' : ''}"><div class="who">${esc(q.staffName)} <span class="t">${esc(fmtClock(q.answeredAt))}</span></div><div class="body">${esc(q.answer)}</div>${q.brainLabel ? `<div class="brain">Bộ não: ${esc(q.brainLabel)}</div>` : ''}</div>`
+        : `<div class="typing">${esc(q.staffName)} đang xem lại việc và trả lời…</div>`}`).join('') || '<p class="kv" style="margin:0">Chưa có câu hỏi. Hỏi tiến độ, lý do, kết quả hoặc yêu cầu làm rõ — người làm việc sẽ trả lời đúng về việc này.</p>';
     $('#tHead', wrap).innerHTML = `
       <div class="row"><span class="pill ${TASK_TONE[t.status] || ''}"><i class="dot"></i>${esc(TASK_STATUS[t.status])}</span>${t.legalCleared ? '<span class="pill teal">Pháp lý đã cho qua</span>' : ''}
         <span class="kv">${t.kind === 'general' ? 'Việc chung' : 'Việc riêng'} · ${t.assigneeIds.map((x) => esc(nameOf(x))).join(', ')}</span></div>

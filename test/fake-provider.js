@@ -27,6 +27,11 @@ export function startFakeProvider() {
       ];
       return send(200, { total: data.length, pageSize: 100, data });
     }
+    // Trang web KiotViet giả lập (cho nhân viên tự điều khiển trình duyệt)
+    const html = (body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(`<!doctype html><meta charset=utf-8><title>KiotViet (TEST)</title><body>${body}</body>`); };
+    if (url.pathname === '/kv-web/') return html('<h1>Tổng quan cửa hàng (TEST)</h1><nav><a href="/kv-web/hang-hoa">Hàng hóa</a> <a href="/kv-web/don">Đơn hàng</a></nav><button onclick="document.title=\'DA XOA\'">Xóa dữ liệu</button>');
+    if (url.pathname === '/kv-web/hang-hoa') return html('<h1>Hàng hóa (TEST)</h1><table><tr><th>Mã hàng</th><th>Tên hàng</th><th>Giá bán</th><th>Tồn kho</th></tr><tr><td>WEB-001</td><td>Lọc gió Vios (TEST)</td><td>185000</td><td>9</td></tr><tr><td>WEB-002</td><td>Má phanh Ranger (TEST)</td><td>640000</td><td>0</td></tr></table>');
+    if (url.pathname === '/kv-login/') return html('<h1>Đăng nhập KiotViet (TEST)</h1><form><input name="u" placeholder="Tên đăng nhập"><input type="password" name="p" placeholder="Mật khẩu"><button>Đăng nhập</button></form>');
     // Facebook Graph giả lập
     if (url.pathname === '/fbpage-test') {
       if (url.searchParams.get('access_token') !== 'fb-token-PLACEHOLDER') return send(400, { error: { message: 'Invalid OAuth access token (TEST)', code: 190 } });

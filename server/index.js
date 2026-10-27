@@ -19,6 +19,8 @@ import { STAFF_STATUSES } from '../shared/core.js';
 import { saveTraining, restoreTraining, saveProfile, saveRoutines } from './staffops.js';
 import { listLinks, createLink, updateLink, deleteLink, checkLink, syncLink, importLink, linkData } from './links.js';
 import { startAutomation } from './automation.js';
+import { startBrowse } from './browse.js';
+import { askTask, listQa } from './taskqa.js';
 import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
@@ -317,6 +319,8 @@ app.post('/api/links/:id/import', auth, wrap((req, res) => {
   if (text.length > 3_000_000) throw new Error('Dữ liệu quá lớn (tối đa khoảng 3 MB).');
   res.json(importLink(req.accountId, req.params.id, text));
 }));
+// Nhân viên tự mở trình duyệt, điều khiển phần mềm để lấy dữ liệu (chạy nền; tiến độ ở nhật ký và trường browsing).
+app.post('/api/links/:id/browse', auth, wrap((req, res) => res.json(startBrowse(req.accountId, req.params.id, req.body?.goal))));
 app.get('/api/links/:id/data', auth, wrap((req, res) => res.json(linkData(req.accountId, req.params.id))));
 
 // ---------- Chat ----------
@@ -388,8 +392,11 @@ app.get('/api/tasks/:id', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);
   if (!row) throw new Error('Không tìm thấy việc.');
   const task = rowToTask(row);
-  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null });
+  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id) });
 }));
+
+// Ô hỏi dưới mỗi việc: người làm việc trả lời trực tiếp về việc đã giao.
+app.post('/api/tasks/:id/ask', auth, wrap((req, res) => res.json({ qa: askTask(req.accountId, req.params.id, { question: req.body?.question, staffId: req.body?.staffId }) })));
 
 app.post('/api/tasks/:id/retry', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);

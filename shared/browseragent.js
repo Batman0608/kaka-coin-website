@@ -1,0 +1,123 @@
+// Nhân viên tự mở trình duyệt, điều khiển phần mềm (KiotViet, Fanpage…) để lấy dữ liệu.
+// Vòng lặp: mở trang → đọc → (tìm / bấm / nhập) → lưu dữ liệu hoặc dừng. Mỗi bước bộ não trả MỘT hành động JSON;
+// trình duyệt được truyền vào qua adapter nên dùng chung cho bản server (Playwright) và bản trải nghiệm
+// (trình duyệt của ứng dụng Claude). Chỉ đọc: không tự đăng nhập, không bấm nút làm thay đổi dữ liệu.
+import { pushLog } from './staffkit.js';
+
+export const MAX_STEPS = 8;
+const OBS_LIMIT = 9000;
+// Nút có chữ như thế này làm thay đổi dữ liệu → không bấm.
+export const RISKY = /x[oó]a|delete|remove|thanh to[aá]n|đặt h[aà]ng|mua ngay|g[uử]i|send|submit|l[uư]u|save|h[uủ]y|cancel|đăng xuất|log ?out|sign ?out|chuyển khoản|tạo đơn|xác nhận/i;
+
+export function browseQuestion({ link, goal, history, observation, step, maxSteps }) {
+  return `Bạn đang tự điều khiển trình duyệt để lấy dữ liệu từ phần mềm "${link.softwareName}" (${link.url}).
+Mục đích dùng phần mềm: ${link.purpose || '(chưa ghi)'}
+Việc cần lấy lần này: ${goal || link.purpose || 'Lấy dữ liệu chính của phần mềm (sản phẩm, giá, tồn kho; hoặc bài đăng, bình luận).'}
+Bước ${step}/${maxSteps}. Các bước đã làm: ${JSON.stringify(history.slice(-8))}
+
+Trang hiện tại (nguyên văn trình duyệt trả về, đã cắt bớt):
+<<<
+${String(observation || '').slice(0, OBS_LIMIT)}
+>>>
+
+Quy tắc: CHỈ ĐỌC. Không bấm nút xoá / lưu / gửi / đặt hàng / thanh toán / đăng xuất. Không tự nhập mật khẩu, không đăng nhập thay người dùng.
+Gặp trang đăng nhập hoặc phiên hết hạn thì dừng với "canDangNhap": true. Chỉ ghi dữ liệu có thật trên trang, không bịa.
+Chỉ trả về MỘT đối tượng JSON, chọn một hành động:
+{"hanhDong":"tim","tuKhoa":"chữ cần tìm trên trang"}
+{"hanhDong":"bam","ref":"mã phần tử (ví dụ r12 hoặc ref_5)","vi":"lý do"}
+{"hanhDong":"nhap","ref":"mã ô tìm kiếm","noiDung":"chữ cần gõ"}
+{"hanhDong":"di","url":"địa chỉ trang trong cùng phần mềm"}
+{"hanhDong":"doc"}
+{"hanhDong":"luu","loai":"products","muc":[{"ma":"","ten":"","gia":0,"ton":0,"nhom":""}],"ketLuan":"đã lấy gì"}
+{"hanhDong":"luu","loai":"notes","muc":[{"ghiChu":"một dòng dữ liệu"}],"ketLuan":"đã lấy gì"}
+{"hanhDong":"dung","lyDo":"vì sao dừng","canDangNhap":false}`;
+}
+
+export function parseAction(text) {
+  const s = String(text || '');
+  const a = s.indexOf('{');
+  const b = s.lastIndexOf('}');
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(s.slice(a, b + 1)); } catch { return null; }
+}
+
+const num = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+
+export function normalizeItems(kind, list) {
+  const items = Array.isArray(list) ? list.slice(0, 3000) : [];
+  if (kind === 'products') {
+    return items.map((x) => ({ ma: String(x.ma ?? '').slice(0, 80), ten: String(x.ten ?? '').slice(0, 300), gia: num(x.gia), ton: num(x.ton), nhom: String(x.nhom ?? '').slice(0, 120) }))
+      .filter((x) => x.ten || x.ma);
+  }
+  return items.map((x) => ({ ghiChu: String(typeof x === 'string' ? x : x.ghiChu ?? JSON.stringify(x)).slice(0, 500) })).filter((x) => x.ghiChu);
+}
+
+/**
+ * browser: { open(url), go(url), read(), find(q), click(ref), type(ref, text) } — mỗi hàm trả về chữ quan sát được.
+ * Lỗi của trình duyệt được đưa nguyên văn cho bộ não ở bước sau và ghi vào nhật ký.
+ * Trả về { status: 'saved' | 'need_login' | 'stopped' | 'error', message, data? , steps }.
+ */
+export async function runBrowserAgent({ staff, link, goal, think, browser, log = () => {}, maxSteps = MAX_STEPS, isCancelled = () => false }) {
+  const history = [];
+  let observation;
+  try {
+    observation = await browser.open(link.url);
+    log('Mở trình duyệt', true, link.url);
+  } catch (e) {
+    log('Mở trình duyệt', false, e.message);
+    return { status: 'error', message: `Không mở được trình duyệt: ${e.message}`, steps: history };
+  }
+  for (let step = 1; step <= maxSteps; step++) {
+    if (isCancelled()) return { status: 'stopped', message: 'Đã dừng theo yêu cầu.', steps: history };
+    let r;
+    try {
+      r = await think(staff, { question: browseQuestion({ link, goal, history, observation, step, maxSteps }) });
+    } catch (e) {
+      log('Bộ não', false, e.message);
+      return { status: 'error', message: `Bộ não lỗi: ${e.message}`, steps: history };
+    }
+    const act = parseAction(r.text);
+    if (!act?.hanhDong) {
+      history.push({ buoc: step, loi: 'Không đọc được hành động JSON' });
+      observation = `${observation}\n\n(LỖI: câu trả lời trước không phải JSON hành động hợp lệ — hãy trả đúng một đối tượng JSON.)`;
+      continue;
+    }
+    const h = { buoc: step, hanhDong: act.hanhDong, ...(act.ref ? { ref: act.ref } : {}), ...(act.tuKhoa ? { tuKhoa: act.tuKhoa } : {}), ...(act.url ? { url: act.url } : {}) };
+    history.push(h);
+    if (act.hanhDong === 'luu') {
+      const kind = act.loai === 'products' ? 'products' : 'notes';
+      const items = normalizeItems(kind, act.muc);
+      if (!items.length) {
+        observation = `${observation}\n\n(LỖI: "luu" không có mục nào hợp lệ. Nếu trang không có dữ liệu thì dùng "dung".)`;
+        continue;
+      }
+      log('Lấy dữ liệu qua trình duyệt', true, `${items.length} ${kind === 'products' ? 'sản phẩm' : 'dòng'}. ${act.ketLuan || ''}`.trim());
+      return { status: 'saved', message: act.ketLuan || `Đã lấy ${items.length} mục.`, data: { kind, items }, steps: history };
+    }
+    if (act.hanhDong === 'dung') {
+      const login = !!act.canDangNhap;
+      log(login ? 'Cần đăng nhập' : 'Dừng', false, act.lyDo || '');
+      return { status: login ? 'need_login' : 'stopped', message: act.lyDo || (login ? 'Phần mềm yêu cầu đăng nhập.' : 'Nhân viên dừng.'), steps: history };
+    }
+    try {
+      if (act.hanhDong === 'tim') observation = await browser.find(String(act.tuKhoa || ''));
+      else if (act.hanhDong === 'bam') observation = await browser.click(String(act.ref || ''), String(act.vi || ''));
+      else if (act.hanhDong === 'nhap') observation = await browser.type(String(act.ref || ''), String(act.noiDung || ''));
+      else if (act.hanhDong === 'di') observation = await browser.go(String(act.url || ''));
+      else observation = await browser.read();
+      log(`Trình duyệt: ${act.hanhDong}`, true, act.ref || act.tuKhoa || act.url || '');
+    } catch (e) {
+      log(`Trình duyệt: ${act.hanhDong}`, false, e.message);
+      observation = `${observation}\n\n(LỖI khi "${act.hanhDong}": ${e.message})`;
+    }
+  }
+  log('Dừng', false, `Hết ${maxSteps} bước mà chưa lấy được dữ liệu.`);
+  return { status: 'stopped', message: `Hết ${maxSteps} bước mà chưa lấy được dữ liệu.`, steps: history };
+}
+
+// Nhật ký dùng chung: thêm một dòng vào logs của liên kết.
+export const logInto = (link) => (action, ok, detail) => { link.logs = pushLog(link.logs, action, ok, detail); };

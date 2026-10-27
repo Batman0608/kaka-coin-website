@@ -12,6 +12,7 @@ Object.assign(process.env, {
   DATA_DIR: dir, VPA_ANTHROPIC_BASE_URL: fake.url, ANTHROPIC_API_KEY: 'sk-ant-default-PLACEHOLDER',
   APP_SECRET: 'test-secret', DEBATE_MINUTES: process.env.DEBATE_MINUTES || '10',
   VPA_KIOTVIET_ID_URL: fake.url, VPA_KIOTVIET_API_URL: fake.url, VPA_FACEBOOK_GRAPH_URL: fake.url, VPA_AUTOMATION_INTERVAL_MS: '1000',
+  VPA_ALLOW_PRIVATE_BROWSE: 'true', VPA_PLAYWRIGHT_PATH: process.env.VPA_PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright/index.js',
 });
 
 const results = [];
@@ -320,6 +321,40 @@ let zIds = [];
   const after = (await S('/api/staff')).data.find((x) => x.id === 'STAFF-002').routines[0];
   check('Lịch tự động: đến giờ tự giao việc, chạy xong, không chạy lại trong ngày', rt.status === 200 && auto && auto.createdBy === 'system' && after.lastRunDate,
     auto ? `việc "${auto.title}" do hệ thống tạo → ${auto.status}; đã chạy ngày ${after.lastRunDate}` : 'không thấy việc tự động');
+}
+
+// --- Nhân viên tự điều khiển trình duyệt; hỏi trực tiếp về việc đã giao ---
+{
+  const W = client(base);
+  await W('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const links = (await W('/api/staff/STAFF-004/links', { softwareName: 'KiotViet web (TEST)', url: `${fake.url}/kv-web/`, kind: 'other', purpose: 'Tra giá và tồn kho' })).data;
+  const web = links.find((l) => l.softwareName === 'KiotViet web (TEST)');
+  const started = await W(`/api/links/${web.id}/browse`, { goal: 'Lấy giá và tồn kho' });
+  const done = await waitFor(async () => { const l = (await W('/api/links')).data.find((x) => x.id === web.id); return !l.browsing && l.logs.some((g) => /Kết quả/.test(g.action)) && l; }, 60000);
+  const wd = (await W(`/api/links/${web.id}/data`)).data;
+  const logText = (done?.logs || []).map((g) => `${g.action}${g.ok ? '' : ' ✕'}: ${g.detail}`).reverse().join(' | ');
+  const before = fake.state.calls.length;
+  await W('/api/chat/staff/STAFF-004', { text: 'Lọc gió Vios WEB-001 giá bao nhiêu?' });
+  await waitFor(async () => fake.state.calls.length > before, 8000);
+  const sys = fake.state.calls.slice(before).map((c) => c.body.system).join('\n');
+  check('Nhân viên tự mở trình duyệt, bấm vào phần mềm, lấy dữ liệu (chỉ đọc, không bấm nút xoá)', started.status === 200 && done?.status === 'connected' && wd.total === 2 && wd.items[0].ma === 'WEB-001' && wd.items[0].gia === 185000
+    && /Không bấm "Xóa dữ liệu"/.test(logText) && /WEB-001/.test(sys) && /185000/.test(sys), started.status === 200 ? logText : JSON.stringify(started.data));
+  const lg = (await W('/api/staff/STAFF-004/links', { softwareName: 'KiotViet đăng nhập (TEST)', url: `${fake.url}/kv-login/`, kind: 'other' })).data.find((l) => l.softwareName === 'KiotViet đăng nhập (TEST)');
+  await W(`/api/links/${lg.id}/browse`, {});
+  const lgDone = await waitFor(async () => { const l = (await W('/api/links')).data.find((x) => x.id === lg.id); return !l.browsing && l.logs.some((g) => /Kết quả/.test(g.action)) && l; }, 30000);
+  check('Gặp trang đăng nhập: dừng, chuyển "Hết hạn", không tự đăng nhập', lgDone?.status === 'expired' && lgDone.logs.some((g) => g.action === 'Cần đăng nhập'), lgDone ? `${lgDone.status}; ${lgDone.logs[0].detail}` : 'không xong');
+
+  // Hỏi trực tiếp về việc đã giao
+  const t = (await W('/api/tasks', { title: 'Soạn báo giá phốt Fleetrite cho khách (TEST)', kind: 'individual', assigneeIds: ['STAFF-004'] })).data;
+  await waitFor(async () => (await W(`/api/tasks/${t.id}`)).data.task.status === 'done', 15000);
+  const b2 = fake.state.calls.length;
+  const ask = await W(`/api/tasks/${t.id}/ask`, { question: 'Báo giá đã gửi khách chưa, giá bao nhiêu?', staffId: 'STAFF-004' });
+  const qa = await waitFor(async () => { const q = (await W(`/api/tasks/${t.id}`)).data.qa; return q?.[0]?.answer && q; }, 10000);
+  const askSys = fake.state.calls.slice(b2).map((c) => c.body.system).find((x) => /NGƯỜI DÙNG ĐANG HỎI BẠN/.test(x)) || '';
+  const wrong = await W(`/api/tasks/${t.id}/ask`, { question: 'x', staffId: 'STAFF-009' });
+  check('Hỏi dưới mỗi việc: đúng người làm việc trả lời, dựa trên tiến độ và kết quả của việc', ask.status === 200 && qa?.[0].staffId === 'STAFF-004' && /Sơn/.test(qa[0].answer)
+    && /Soạn báo giá phốt Fleetrite/.test(askSys) && /ketQuaTungBuoc/.test(askSys) && wrong.status === 400,
+    qa ? `${qa[0].staffName}: "${qa[0].answer.slice(0, 90)}"; hỏi người ngoài việc → ${wrong.status} "${wrong.data.error}"` : JSON.stringify(ask.data));
 }
 
 // --- Báo cáo cuối ngày + hoạt động 3D ---
