@@ -220,6 +220,7 @@ document.addEventListener('keydown', (e) => {
 const VIEW_TITLES = {
   group: 'Chat nhóm công ty', tasks: 'Họp / Việc chung', slips: 'Phiếu bán hàng', zalo: 'Hàng chờ Zalo', reports: 'Báo cáo cuối ngày',
   settings: 'Cài đặt văn phòng', links: 'Liên kết phần mềm', overview: 'Chi tiết văn phòng', more: 'Thêm', requests: 'Nhân viên chờ bạn',
+  fanpage: 'Vận hành Fanpage',
 };
 const VIEWS = {};
 
@@ -259,8 +260,22 @@ function renderMessages(list, busy) {
     <div class="msg ${m.sender === 'user' ? 'user' : 'staff'} ${m.isError ? 'err' : ''}">
       <div class="who">${m.sender === 'user' ? 'Bạn' : esc(nameOf(m.sender))} <span class="t">${esc(fmtTime(m.createdAt))}</span></div>
       <div class="body">${esc(m.text)}</div>
+      ${m.postId ? `<img class="post-img" data-post-img="${esc(m.postId)}" alt="Ảnh thiết kế của bài đăng" width="1080" height="1080">` : ''}
       ${m.brainLabel ? `<div class="brain">Bộ não đã suy nghĩ câu này: ${esc(m.brainLabel)}</div>` : ''}
     </div>`).join('') + (busy ? '<div class="typing">Nhân viên đang suy nghĩ…</div>' : '');
+}
+
+// Ảnh thiết kế của bài đăng: tải một lần rồi giữ trong bộ nhớ trang.
+const postImgCache = new Map();
+function loadPostImages(root) {
+  for (const img of root.querySelectorAll('img[data-post-img]')) {
+    const id = img.dataset.postImg;
+    if (postImgCache.has(id)) { const v = postImgCache.get(id); if (typeof v === 'string') img.src = v; continue; }
+    postImgCache.set(id, api(`/api/fanpage/posts/${id}/image`).then((r) => {
+      postImgCache.set(id, r.dataUrl || '');
+      for (const x of document.querySelectorAll(`img[data-post-img="${id}"]`)) if (r.dataUrl) x.src = r.dataUrl; else x.remove();
+    }).catch(() => postImgCache.delete(id)));
+  }
 }
 
 function chatList(channel, container, autoScroll = true) {
@@ -270,6 +285,7 @@ function chatList(channel, container, autoScroll = true) {
     const sheet = $('#sheet');
     const atBottom = sheet.scrollTop + sheet.clientHeight >= sheet.scrollHeight - 60;
     container.innerHTML = renderMessages(d.messages, d.busy);
+    loadPostImages(container);
     if (autoScroll && d.messages.length !== lastCount && (atBottom || lastCount === -1)) sheet.scrollTop = sheet.scrollHeight;
     lastCount = d.messages.length;
   };
@@ -752,13 +768,14 @@ function apiConfigEditor(ownerId, body, title) {
 }
 
 const LINK_STATUS = { connected: 'Đã kết nối', expired: 'Hết hạn — cần tự đăng nhập lại', not_connected: 'Chưa kết nối' };
-const LINK_KINDS = { kiotviet: 'KiotViet — sản phẩm, giá, tồn kho', facebook_page: 'Fanpage Facebook — bài đăng, tương tác', other: 'Phần mềm khác' };
+const LINK_KINDS = { kiotviet: 'KiotViet — sản phẩm, giá, tồn kho', facebook_page: 'Fanpage Facebook — bài đăng, tương tác', facebook_ads: 'Quảng cáo Facebook — tài khoản quảng cáo', other: 'Phần mềm khác' };
 const LINK_DEFAULTS = {
+  facebook_ads: { softwareName: 'Quảng cáo Facebook', url: 'https://adsmanager.facebook.com/', purpose: 'Chạy quảng cáo đã được duyệt cho Fanpage.', permissionScope: 'Tạo chiến dịch trong ngân sách đã duyệt' },
   kiotviet: { softwareName: 'KiotViet', url: 'https://www.kiotviet.vn/', purpose: 'Tra giá, tồn kho, mã hàng để trả lời khách đúng số liệu thật.', permissionScope: 'Chỉ đọc sản phẩm và tồn kho' },
   facebook_page: { softwareName: 'Fanpage', url: 'https://www.facebook.com/', purpose: 'Đọc bài đăng, lượt thích, bình luận mới để chăm sóc khách và báo cáo.', permissionScope: 'Chỉ đọc bài đăng và bình luận' },
   other: { softwareName: '', url: 'https://', purpose: '', permissionScope: '' },
 };
-const SECRET_LABEL = { kiotviet: 'Client Secret', facebook_page: 'Page Access Token', other: 'Mã truy cập' };
+const SECRET_LABEL = { kiotviet: 'Client Secret', facebook_page: 'Page Access Token', facebook_ads: 'Access token quảng cáo (quyền ads_management)', other: 'Mã truy cập' };
 const linkTone = (st) => (st === 'connected' ? 'teal' : st === 'expired' ? 'red' : '');
 
 function linkFields(l) {
@@ -773,6 +790,7 @@ function linkFields(l) {
       ${k === 'kiotviet' ? `<label>Tên gian hàng (Retailer) <input name="retailer" value="${esc(l.retailer || '')}" autocomplete="off"></label>
       <label>Client ID <input name="clientId" value="${esc(l.clientId || '')}" autocomplete="off"></label>` : ''}
       ${k === 'facebook_page' ? `<label>Page ID <input name="pageId" value="${esc(l.pageId || '')}" autocomplete="off"></label>` : ''}
+      ${k === 'facebook_ads' ? `<label>Mã tài khoản quảng cáo (act_…) <input name="adAccountId" value="${esc(l.adAccountId || '')}" autocomplete="off"></label>` : ''}
       <label>Phạm vi quyền <input name="permissionScope" value="${esc(l.permissionScope || '')}" placeholder="Ví dụ: chỉ đọc"></label>
     </div>
     <label class="check"><input type="checkbox" name="accessGranted" ${l.accessGranted ? 'checked' : ''}> Cho phép ${esc(nameOf(l.staffId) || 'nhân viên')} tự mở phần mềm này khi làm việc (không chọn: nhân viên xin phép bạn lần đầu)</label>
@@ -1141,9 +1159,98 @@ function viewTaskDetail(id) {
   mount(wrap, refresh);
 }
 
+// ---------- Vận hành Fanpage ----------
+const CYCLE_UI = {
+  content: ['An làm bài + ảnh & đăng', 'STAFF-001'], analyst: ['Tuấn kiểm tra số liệu', 'STAFF-003'],
+  ads: ['Bình đề xuất quảng cáo', 'STAFF-002'], share: ['Bình chia sẻ vào nhóm', 'STAFF-002'],
+};
+const POST_STATUS = { posting: 'Đang đăng…', posted: 'Đã đăng', failed: 'Đăng lỗi' };
+const PLAN_STATUS = { pending: 'Chờ bạn duyệt', starting: 'Đang chạy…', running: 'Đang chạy', partial: 'Chạy một phần', failed: 'Lỗi', rejected: 'Không duyệt' };
+VIEWS.fanpage = () => {
+  const wrap = el(`
+    <p class="kv" style="margin:0">Ba người phụ trách Fanpage như người thật, tự lặp lại mỗi ngày: <b>An</b> làm bài + thiết kế ảnh (không bài nào giống bài nào), gửi lên nhóm rồi tự đăng; <b>Tuấn</b> kiểm tra số liệu Fanpage và khuyên An, Bình; <b>Bình</b> chịu trách nhiệm tăng trưởng — đề xuất quảng cáo + ngân sách, <b>chỉ chạy khi bạn duyệt</b>, và tự chia sẻ bài hay vào nhóm.</p>
+    <div id="fpRun" class="chips"></div>
+    <details class="card fold" id="fpCfg"><summary><h3>Cài đặt</h3><small id="fpState"></small></summary><form class="form tight" id="fpForm"></form></details>
+    <div id="fpBody" class="stack tight"></div>`);
+  let cfgDrawn = false;
+  const form = $('#fpForm', wrap);
+  async function drawCfg(d) {
+    const links = await api('/api/links');
+    const opt = (kinds, cur) => `<option value="">— chưa chọn —</option>${links.filter((l) => kinds.includes(l.kind)).map((l) => `<option value="${l.id}" ${l.id === cur ? 'selected' : ''}>${esc(l.softwareName)} · ${esc(nameOf(l.staffId))}</option>`).join('')}`;
+    const o = d.ops;
+    form.innerHTML = `
+      <label class="check"><input type="checkbox" name="enabled" ${o.enabled ? 'checked' : ''}> Bật tự vận hành (chạy theo giờ bên dưới${state.me.trial ? ', khi văn phòng đang mở trong ứng dụng Claude trên máy tính' : ''})</label>
+      <div class="field-row">
+        <label>Fanpage <select name="fanpageLinkId">${opt(['facebook_page', 'other'], o.fanpageLinkId)}</select></label>
+        <label>Tài khoản quảng cáo <select name="adsLinkId">${opt(['facebook_ads', 'facebook_page', 'other'], o.adsLinkId)}</select></label>
+      </div>
+      <p class="kv" style="margin:0">Chưa có? Thêm phần mềm loại "Fanpage Facebook" cho An và "Quảng cáo Facebook" cho Bình (trang nhân viên → Phần mềm).${state.me.trial ? '' : ' Có Page ID + Page Access Token thì đăng ảnh và đọc số liệu bằng API chính thức; có mã tài khoản quảng cáo + token thì chạy quảng cáo bằng Marketing API.'}</p>
+      <div class="field-row">
+        <label>Giờ An đăng bài <input name="contentTimes" value="${esc(o.contentTimes.join(', '))}" placeholder="09:00, 19:30"></label>
+        <label>Tuấn kiểm tra mỗi (giờ) <input name="analystEveryHours" type="number" min="1" max="24" value="${o.analystEveryHours}"></label>
+      </div>
+      <div class="field-row">
+        <label>Giờ Bình đề xuất quảng cáo <input name="adsTime" type="time" value="${esc(o.adsTime)}"></label>
+        <label>Trần ngân sách / ngày (đ) <input name="dailyBudgetCap" type="number" min="0" step="10000" value="${o.dailyBudgetCap}"></label>
+      </div>
+      <div class="field-row">
+        <label>Giờ chia sẻ vào nhóm <input name="shareTime" type="time" value="${esc(o.shareTime)}"></label>
+        <label>Tối đa lượt chia sẻ / ngày <input name="shareMaxPerDay" type="number" min="0" max="10" value="${o.shareMaxPerDay}"></label>
+      </div>
+      <label>Nhóm được phép chia sẻ (mỗi dòng một địa chỉ https://facebook.com/groups/…) <textarea name="groups" style="min-height:70px">${esc(o.groups.map((g) => g.url).join('\n'))}</textarea></label>
+      <label>Tên thương hiệu trên ảnh <input name="brand" value="${esc(o.brand || '')}" maxlength="40" placeholder="Long Phu Auto"></label>
+      <button class="btn gold" type="submit">Lưu cài đặt</button>`;
+    cfgDrawn = true;
+  }
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(form));
+    v.enabled = form.enabled.checked;
+    if (await act(() => api('/api/fanpage', { method: 'PUT', body: v }), 'Đã lưu cài đặt Fanpage.')) { cfgDrawn = false; state.refresh?.(); }
+  });
+  $('#fpRun', wrap).addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-cycle]');
+    if (b && await act(() => api(`/api/fanpage/run/${b.dataset.cycle}`, { body: {} }), `${CYCLE_UI[b.dataset.cycle][0]} — đang chạy, kết quả hiện ở đây và trong chat nhóm.`)) state.refresh?.();
+  });
+  mount(wrap, async () => {
+    const d = await api('/api/fanpage');
+    if (!cfgDrawn) await drawCfg(d);
+    $('#fpCfg', wrap).open ||= !d.ops.fanpageLinkId;
+    $('#fpState', wrap).textContent = d.ops.enabled ? 'Đang bật' : 'Đang tắt';
+    $('#fpRun', wrap).innerHTML = Object.entries(CYCLE_UI).map(([k, [n]]) => `<button type="button" class="chip sm ${d.running.includes(k) ? 'active' : ''}" data-cycle="${k}" ${d.running.includes(k) ? 'disabled' : ''}>${d.running.includes(k) ? '⏳ ' : '▶ '}${n}</button>`).join('');
+    if (wrap.querySelector('#fpBody :focus')) return;
+    const snap = d.snapshots[0];
+    $('#fpBody', wrap).innerHTML = `
+      <section class="card stack tight"><div class="row between"><h3>Số liệu Fanpage (Tuấn)</h3><span class="kv">${snap ? esc(fmtTime(snap.at)) : 'chưa kiểm tra'}</span></div>
+        ${snap ? `<div class="stat-row"><div><span>Người theo dõi</span><b>${snap.followers ?? '—'}</b></div><div><span>Thích trang</span><b>${snap.likes ?? '—'}</b></div><div><span>Tiếp cận / tương tác</span><b>${snap.reach ?? '—'} / ${snap.engagement ?? '—'}</b></div></div>
+          <p style="margin:0">${esc(snap.summary)}</p>${snap.change ? `<p class="kv" style="margin:0">So với lần trước: ${esc(snap.change)}</p>` : ''}
+          ${d.snapshots.length > 1 ? `<div class="table-wrap"><table class="score"><thead><tr><th>Lúc</th><th>Theo dõi</th><th>Thích</th><th>Tiếp cận</th><th>Tương tác</th></tr></thead><tbody>${d.snapshots.slice(0, 8).map((x) => `<tr><td>${esc(fmtTime(x.at))}</td><td>${x.followers ?? '—'}</td><td>${x.likes ?? '—'}</td><td>${x.reach ?? '—'}</td><td>${x.engagement ?? '—'}</td></tr>`).join('')}</tbody></table></div>` : ''}`
+          : '<p class="muted" style="margin:0">Chưa có số liệu. Bấm "Tuấn kiểm tra số liệu".</p>'}
+      </section>
+      ${d.advice.length ? `<details class="card fold"><summary><h3>Lời khuyên của Tuấn</h3><small>${d.advice.length}</small></summary><div class="stack tight">${d.advice.slice(0, 8).map((a) => `<div><b>Cho ${esc(nameOf(a.to))}</b> <span class="kv">${esc(fmtTime(a.at))}</span><div style="white-space:pre-wrap">${esc(a.text)}</div></div>`).join('')}</div></details>` : ''}
+      <section class="card stack tight"><h3>Kế hoạch quảng cáo (Bình)</h3>
+        ${d.plans.length ? d.plans.slice(0, 5).map((pl) => `<div class="api-item stack tight"><div class="row between"><b>${esc(fmtTime(pl.createdAt))} · ${esc(vndUi(pl.perDay))}/ngày</b><span class="pill ${pl.status === 'pending' ? 'gold' : pl.status === 'running' ? 'teal' : ['failed', 'rejected'].includes(pl.status) ? 'red' : ''}">${esc(PLAN_STATUS[pl.status] || pl.status)}</span></div>
+          <div class="detail-box open">${esc(pl.text || '')}</div>${pl.result ? `<div class="kv" style="white-space:pre-wrap">Kết quả: ${esc(pl.result)}</div>` : ''}
+          ${pl.status === 'pending' ? '<button class="btn gold sm" type="button" data-open="requests">Mở để duyệt</button>' : ''}</div>`).join('') : '<p class="muted" style="margin:0">Chưa có kế hoạch. Bình đề xuất mỗi ngày lúc giờ đã đặt, hoặc bấm "Bình đề xuất quảng cáo".</p>'}
+      </section>
+      <section class="stack tight"><div class="eyebrow">Bài An đã làm</div>
+        ${d.posts.length ? `<div class="post-grid">${d.posts.map((p) => `<article class="card post stack tight">
+          ${p.hasImage ? `<img class="post-img" data-post-img="${p.id}" alt="Ảnh thiết kế: ${esc(p.design?.tieuDe || '')}" width="1080" height="1080">` : ''}
+          <div class="row between"><b>${esc(p.topic || '')}</b><span class="pill ${p.status === 'posted' ? 'teal' : p.status === 'failed' ? 'red' : 'orange'}">${esc(POST_STATUS[p.status] || p.status)}</span></div>
+          <div class="kv">${esc(fmtTime(p.createdAt))} · bố cục ${esc(p.design?.boCuc || '')} · màu ${esc(p.design?.bangMau || '')}${p.stats ? ` · ${p.stats.reactions} thích, ${p.stats.comments} bình luận, ${p.stats.shares} chia sẻ` : ''}</div>
+          <details><summary class="kv">Nội dung bài</summary><div style="white-space:pre-wrap">${esc(p.text)}</div></details>
+          ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">Xem trên Facebook</a>` : ''}${p.result && p.status !== 'posted' ? `<div class="error" style="font-size:13px">${esc(p.result)}</div>` : ''}
+          ${(p.shares || []).length ? `<div class="kv">Đã chia sẻ: ${p.shares.map((x) => `${x.ok ? '✓' : '✕'} ${esc(x.url)}`).join(' · ')}</div>` : ''}
+        </article>`).join('')}</div>` : '<p class="muted" style="margin:0">Chưa có bài. Bấm "An làm bài + ảnh & đăng".</p>'}
+      </section>`;
+    loadPostImages(wrap);
+  });
+};
+const vndUi = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
+
 // ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
-const REQ_TYPE = { info: 'Cần bạn trả lời', access: 'Xin phép truy cập phần mềm', publish: 'Xin duyệt trước khi đăng' };
-const REQ_STATUS = { pending: 'Chờ bạn', answered: 'Đã trả lời', approved: 'Đã cho phép', rejected: 'Đã từ chối', publishing: 'Đang đăng…', published: 'Đã đăng', failed: 'Đăng lỗi' };
+const REQ_TYPE = { info: 'Cần bạn trả lời', access: 'Xin phép truy cập phần mềm', publish: 'Xin duyệt trước khi đăng', ads: 'Kế hoạch quảng cáo chờ duyệt' };
+const REQ_STATUS = { pending: 'Chờ bạn', answered: 'Đã trả lời', approved: 'Đã cho phép', rejected: 'Đã từ chối', publishing: 'Đang chạy…', published: 'Đã xong', failed: 'Lỗi' };
 function requestCard(r, showTask = true) {
   const tone = r.status === 'pending' ? 'gold' : ['published', 'answered', 'approved'].includes(r.status) ? 'teal' : r.status === 'publishing' ? 'orange' : 'red';
   const head = `<div class="row between"><b>${esc(r.staffName)} · ${esc(REQ_TYPE[r.type])}</b><span class="pill ${tone}">${esc(REQ_STATUS[r.status] || r.status)}</span></div>
@@ -1157,6 +1264,11 @@ function requestCard(r, showTask = true) {
   const body = r.type === 'info'
     ? `<textarea name="answer" placeholder="Câu trả lời của bạn" style="min-height:70px"></textarea>
        <div class="row"><button class="btn gold sm" type="submit" data-a="answer">Trả lời</button><button class="btn sm" type="button" data-a="reject">Bỏ qua câu này</button></div>`
+    : r.type === 'ads'
+      ? `<div class="detail-box open">${esc(r.content || '')}</div>
+         <p class="kv" style="margin:0">Duyệt thì Bình tự mở trình quản lý quảng cáo và chạy ĐÚNG kế hoạch này (không vượt ngân sách đã ghi). Không duyệt thì không chạy.</p>
+         <input name="answer" placeholder="Góp ý / lý do nếu không duyệt (Bình sẽ đọc ở lần đề xuất sau)">
+         <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Duyệt &amp; chạy quảng cáo</button><button class="btn sm danger" type="button" data-a="reject">Không duyệt</button></div>`
     : r.type === 'access'
       ? `<p class="kv" style="margin:0">Cho phép thì ${esc(r.staffName)} được tự mở ${esc(r.linkName || 'phần mềm')} để đọc dữ liệu (chỉ đọc, không tự đăng nhập; thu hồi được trong thẻ phần mềm).</p>
          <div class="row"><button class="btn gold sm" type="submit" data-a="approve">Cho phép</button><button class="btn sm danger" type="button" data-a="reject">Không cho phép</button></div>`

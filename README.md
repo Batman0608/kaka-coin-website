@@ -12,6 +12,25 @@
   - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
   - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
 - **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
+- **Fanpage tự vận hành** (nút "Vận hành Fanpage"): ba người phụ trách tự lặp lại mỗi ngày như người thật.
+  - **An (nội dung)**, đến giờ đăng (mặc định 09:00 và 19:30):
+    - Tự làm bài hoàn chỉnh, dùng sản phẩm và giá thật nếu có, kèm ảnh thiết kế 1080×1080.
+    - Có 6 bố cục và 7 bảng màu. Hệ thống không cho bài mới giống bài cũ: chặn khi trùng nhiều cụm từ, trùng tiêu đề, hoặc lặp tổ hợp bố cục + màu của 3 bài gần nhất.
+    - Gửi bài và ảnh lên chat nhóm rồi **tự đăng lên Fanpage, không cần duyệt**.
+  - **Tuấn (phân tích)**, mặc định mỗi 4 giờ:
+    - Đọc số liệu thật của Fanpage: người theo dõi, lượt thích, tiếp cận, tương tác từng bài.
+    - So với lần trước, rồi gửi lời khuyên cụ thể cho An (chủ đề, giờ đăng, kiểu ảnh) và cho Bình (bài nên đẩy, đối tượng, ngân sách).
+    - Lời khuyên được đưa vào lần làm việc sau của An và Bình.
+  - **Bình (quảng cáo)** chịu trách nhiệm trang tăng trưởng:
+    - Mỗi ngày phân tích số liệu thật và lời khuyên của Tuấn, đề xuất kế hoạch: đẩy bài nào, tăng thích/theo dõi cả trang, quảng cáo nhận tin nhắn, kèm đối tượng, ngân sách/ngày, số ngày, chỉ số đo.
+    - Tổng ngân sách/ngày không được vượt trần bạn đặt. **Kế hoạch chỉ chạy khi bạn bấm "Duyệt & chạy quảng cáo"**, và chạy đúng kế hoạch đã duyệt. Khi chạy qua trình duyệt, ô ngân sách không nhận số lớn hơn mức đã duyệt, và nút thêm phương thức thanh toán luôn bị chặn.
+    - Bình cũng tự chia sẻ bài hay vào các nhóm bạn liệt kê, có giới hạn lượt mỗi ngày.
+  - **Bản server:**
+    - Fanpage có Page ID + Page Access Token: An đăng ảnh kèm bài, Tuấn đọc số liệu bằng Graph API.
+    - Tài khoản quảng cáo có mã act_… + access token (quyền ads_management): Bình chạy quảng cáo bằng Marketing API (chiến dịch → nhóm quảng cáo → mẫu → quảng cáo).
+    - Không có mã thì nhân viên làm bằng trình duyệt.
+    - Ảnh được vẽ trong Chromium (cần Playwright).
+  - **Bản trải nghiệm:** mọi thao tác chạy qua trình duyệt của ứng dụng Claude trên máy tính, và chỉ khi trang đang mở. Trình duyệt này chưa có công cụ tải ảnh lên, nên bài đăng gồm phần chữ; ảnh nằm trong nhóm chat và trang "Vận hành Fanpage" để tải xuống.
 - **Làm việc thật, không chỉ nhắn tin:** mỗi bước của việc (bản nháp, bản cuối, từng bước theo bản chốt của Phúc) là một vòng làm việc tối đa 6 lượt. Mỗi lượt nhân viên chọn một hành động:
   - *Xem phần mềm* được giao để lấy số liệu thật (API nếu có mã, không thì tự điều khiển trình duyệt). Lần đầu nhân viên **xin phép bạn**; bạn cho phép thì lần sau tự mở. Thu hồi quyền trong thẻ phần mềm.
   - *Hỏi bạn* khi cần thông tin chỉ bạn biết. Việc dừng ở "Chờ người dùng" cho tới khi bạn trả lời, rồi tự chạy tiếp; câu đã trả lời không bị hỏi lại.
@@ -103,8 +122,9 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
           deliberation.js (phản biện chéo) · staffkit.js (đào tạo nhiều mục, lịch tự động, dữ liệu phần mềm, tự học)
           browseragent.js (nhân viên điều khiển trình duyệt) · taskqa.js (hỏi về việc đã giao) · worker.js (làm việc thật từng lượt)
+          fanpage.js (Fanpage tự vận hành) · design.js (vẽ ảnh thiết kế)
 server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
-          reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · browser.js + browse.js (trình duyệt Playwright) · requests.js (yêu cầu chờ duyệt) · taskqa.js · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
+          reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · browser.js + browse.js (trình duyệt Playwright) · requests.js (yêu cầu chờ duyệt) · fanpage.js (Fanpage tự vận hành) · taskqa.js · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js
 trial/    main.js · backend.js — bản trải nghiệm chạy trong Claude (trang được sinh từ public/index.html khi đóng gói)
 public/   index.html · app.js (giao diện: ngăn kéo nhân viên, văn phòng 3D, bảng chi tiết) · office3d.js (Three.js, sàn 30x20) · music.js (nhạc nền tự tạo) · style.css
 bridge/   zalo-bridge.js (chạy trên máy người dùng)

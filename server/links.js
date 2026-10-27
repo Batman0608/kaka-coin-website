@@ -23,7 +23,7 @@ export function rowToLink(r) {
   const data = db.prepare('SELECT kind, source, at, items FROM link_data WHERE link_id = ?').get(r.id);
   return {
     id: r.id, staffId: r.staff_id, softwareName: r.software_name, url: r.url, status: r.status, permissionScope: r.permission_scope,
-    kind: r.kind || 'other', purpose: r.purpose || '', retailer: extra.retailer || '', clientId: extra.clientId || '', pageId: extra.pageId || '',
+    kind: r.kind || 'other', purpose: r.purpose || '', retailer: extra.retailer || '', clientId: extra.clientId || '', pageId: extra.pageId || '', adAccountId: extra.adAccountId || '',
     lastSyncAt: r.last_sync_at, lastCheckAt: r.last_check_at, lastOpenedAt: r.last_opened_at, accessCodeLast4: r.access_code_last4,
     accessGranted: !!r.access_granted, logs: r.logs ? JSON.parse(r.logs) : [], browsing: browsing.get(r.id) || null,
     data: data ? { kind: data.kind, source: data.source, at: data.at, count: JSON.parse(data.items).length } : null,
@@ -56,7 +56,7 @@ function validate(b, partial = false) {
   if (b.kind !== undefined) { if (!LINK_KINDS[b.kind]) throw new Error('Loại phần mềm không hợp lệ.'); out.kind = b.kind; }
   if (b.status !== undefined) { if (!STATUSES.includes(b.status)) throw new Error('Trạng thái không hợp lệ.'); out.status = b.status; }
   for (const k of ['purpose', 'permissionScope']) if (b[k] !== undefined) out[k] = String(b[k]).trim().slice(0, 2000);
-  for (const k of ['retailer', 'clientId', 'pageId']) if (b[k] !== undefined) out[k] = String(b[k]).trim().slice(0, 200);
+  for (const k of ['retailer', 'clientId', 'pageId', 'adAccountId']) if (b[k] !== undefined) out[k] = String(b[k]).trim().slice(0, 200);
   return out;
 }
 
@@ -72,7 +72,7 @@ export function createLink(accountId, staffId, b) {
   db.prepare(`INSERT INTO software_links (id, account_id, staff_id, software_name, url, status, permission_scope, access_code_ref, access_code_last4,
     last_check_at, kind, purpose, extra, logs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')`)
     .run(id, accountId, staffId, v.softwareName, v.url, v.status || 'not_connected', v.permissionScope || '', ref, b.accessCode ? last4(b.accessCode) : null,
-      now(), v.kind || 'other', v.purpose || '', JSON.stringify({ retailer: v.retailer || '', clientId: v.clientId || '', pageId: v.pageId || '' }));
+      now(), v.kind || 'other', v.purpose || '', JSON.stringify({ retailer: v.retailer || '', clientId: v.clientId || '', pageId: v.pageId || '', adAccountId: v.adAccountId || '' }));
   addLog(id, 'Tạo liên kết', true, v.purpose || '');
   return rowToLink(getRow(accountId, id));
 }
@@ -81,7 +81,7 @@ export function updateLink(accountId, id, b) {
   const r = getRow(accountId, id);
   const v = validate(b, true);
   const extra = { ...(r.extra ? JSON.parse(r.extra) : {}) };
-  for (const k of ['retailer', 'clientId', 'pageId']) if (v[k] !== undefined) extra[k] = v[k];
+  for (const k of ['retailer', 'clientId', 'pageId', 'adAccountId']) if (v[k] !== undefined) extra[k] = v[k];
   if (b.accessCode) { deleteSecret(accountId, r.access_code_ref); r.access_code_ref = putSecret(accountId, String(b.accessCode)); r.access_code_last4 = last4(b.accessCode); }
   db.prepare(`UPDATE software_links SET software_name = ?, url = ?, status = ?, permission_scope = ?, kind = ?, purpose = ?, extra = ?,
     access_code_ref = ?, access_code_last4 = ?, last_check_at = ?, last_opened_at = ? WHERE id = ?`)
@@ -105,7 +105,7 @@ export function deleteLink(accountId, id) {
   return r.staff_id;
 }
 
-function credentials(accountId, r) {
+export function credentials(accountId, r) {
   const extra = r.extra ? JSON.parse(r.extra) : {};
   return { ...extra, secret: r.access_code_ref ? getSecret(accountId, r.access_code_ref) : null };
 }

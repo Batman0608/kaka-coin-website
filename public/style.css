@@ -311,3 +311,8 @@ table.score tr.lead td { color: var(--gold-2); font-weight: 700; }
 ol.trace { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
 ol.trace .kv { overflow-wrap: anywhere; }
 .btn.pulse { animation: pulse 1.6s ease-in-out infinite; }
+
+/* Vận hành Fanpage: ảnh thiết kế */
+.post-img { display: block; width: 100%; max-width: 420px; height: auto; aspect-ratio: 1; border-radius: 12px; margin-top: 8px; background: var(--surface-3); }
+.post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.post .post-img { margin-top: 0; max-width: none; }

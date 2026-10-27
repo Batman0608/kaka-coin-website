@@ -37,9 +37,31 @@ export function startFakeProvider() {
     // Facebook Graph giả lập
     if (url.pathname === '/fbpage-test') {
       if (url.searchParams.get('access_token') !== 'fb-token-PLACEHOLDER') return send(400, { error: { message: 'Invalid OAuth access token (TEST)', code: 190 } });
-      return send(200, { id: 'fbpage-test', name: 'Fanpage Phụ Tùng (TEST)', fan_count: 1234 });
+      return send(200, { id: 'fbpage-test', name: 'Fanpage Phụ Tùng (TEST)', fan_count: 1234, followers_count: 1300 + (state.fbPosts || []).length * 7 });
     }
+    // Graph API cho Fanpage tự vận hành: đăng ảnh / bài, số liệu, quảng cáo (Marketing API)
+    if (/^\/fbpage-test\/(photos|feed)$/.test(url.pathname) && req.method === 'POST') {
+      const tokOk = raw.includes('fb-token-PLACEHOLDER');
+      if (!tokOk) return send(400, { error: { message: 'Invalid OAuth access token (TEST)', code: 190 } });
+      state.fbPosts = state.fbPosts || [];
+      const n = state.fbPosts.length + 1;
+      const caption = /name="(?:caption|message)"\r\n\r\n([\s\S]*?)\r\n--/.exec(raw)?.[1] || '';
+      state.fbPosts.push({ id: `fbpage-test_${100 + n}`, message: caption, hasImage: /name="source"/.test(raw) && /image\/jpeg/.test(raw) });
+      return send(200, { id: `photo${n}`, post_id: `fbpage-test_${100 + n}` });
+    }
+    if (url.pathname === '/fbpage-test/insights') return send(200, { data: [{ name: 'page_impressions_unique', values: [{ value: 870 }] }, { name: 'page_post_engagements', values: [{ value: 64 }] }] });
+    if (/^\/act_123\/(campaigns|adsets|adcreatives|ads)$/.test(url.pathname) && req.method === 'POST') {
+      state.ads = state.ads || [];
+      const kind = url.pathname.split('/')[2];
+      state.ads.push({ kind, raw: raw.slice(0, 2000) });
+      return send(200, { id: `${kind}-${state.ads.length}` });
+    }
+    if (url.pathname === '/fb-group/') return html('<h1>Nhóm Hội xe tải Mỹ (TEST)</h1><textarea placeholder="Viết gì đó..."></textarea><button onclick="fetch(\'/fb-group/post\',{method:\'POST\',body:document.querySelector(\'textarea\').value}).then(()=>document.body.insertAdjacentHTML(\'beforeend\',\'<p>Đã đăng bài</p>\'))">Đăng</button>');
+    if (url.pathname === '/fb-group/post' && req.method === 'POST') { state.groupPosts = [...(state.groupPosts || []), raw]; return send(200, { ok: true }); }
     if (url.pathname === '/fbpage-test/posts') {
+      if (url.searchParams.get('fields')?.includes('shares')) {
+        return send(200, { data: (state.fbPosts || []).map((p, i) => ({ id: p.id, message: p.message, created_time: '2026-10-27T01:00:00+0000', reactions: { summary: { total_count: 10 * (i + 1) } }, comments: { summary: { total_count: i } }, shares: { count: i } })) });
+      }
       return send(200, { data: [{ message: 'Phốt bánh Fleetrite chính hãng (TEST)', created_time: '2026-10-26T01:00:00+0000', reactions: { summary: { total_count: 41 } }, comments: { summary: { total_count: 3 }, data: [{ from: { name: 'Khách A' }, message: 'Giá sao shop? (TEST)' }] } }] });
     }
     if (url.pathname === '/v1/models') {

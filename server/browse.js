@@ -8,7 +8,7 @@ import { openStaffBrowser } from './browser.js';
 import { runBrowserAgent } from '../shared/browseragent.js';
 import { pickRelevant } from '../shared/staffkit.js';
 
-export async function browseOnce(accountId, id, { goal = '', mode = 'read', content = '' } = {}) {
+export async function browseOnce(accountId, id, { goal = '', mode = 'read', content = '', image = null, budgetCap = 0, url = null } = {}) {
   const r = getRow(accountId, id);
   if (browsing.has(id)) throw new Error('Nhân viên đang dùng trình duyệt cho phần mềm này, thử lại sau.');
   const link = rowToLink(r);
@@ -18,7 +18,7 @@ export async function browseOnce(accountId, id, { goal = '', mode = 'read', cont
   try {
     browser = await openStaffBrowser(accountId, id);
     const res = await runBrowserAgent({
-      staff, link, goal: String(goal || '').slice(0, 1000), browser, mode, content,
+      staff, link, goal: String(goal || '').slice(0, 1000), browser, mode, content, image, budgetCap, url,
       think: (s, ctx) => thinkWithBrain(accountId, s, selectBrain(accountId, s, 'deep_analysis'), ctx),
       log: (action, ok, detail) => { addLog(id, action, ok, detail); browsing.set(id, { step: `${action}${detail ? `: ${String(detail).slice(0, 80)}` : ''}`, at: now() }); },
     });
@@ -31,7 +31,7 @@ export async function browseOnce(accountId, id, { goal = '', mode = 'read', cont
     } else {
       db.prepare('UPDATE software_links SET last_opened_at = ? WHERE id = ?').run(now(), id);
     }
-    addLog(id, mode === 'publish' ? 'Kết quả đăng nội dung' : 'Kết quả lấy dữ liệu qua trình duyệt', res.status === 'saved' || res.status === 'published', res.message);
+    addLog(id, mode === 'ads' ? 'Kết quả chạy quảng cáo' : mode === 'publish' ? 'Kết quả đăng nội dung' : 'Kết quả lấy dữ liệu qua trình duyệt', res.status === 'saved' || res.status === 'published', res.message);
     return res;
   } catch (e) {
     addLog(id, mode === 'publish' ? 'Đăng nội dung' : 'Lấy dữ liệu qua trình duyệt', false, e.message);

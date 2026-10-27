@@ -5,6 +5,7 @@ import { listStaff } from './roster.js';
 import { createTask, executeTask } from './tasks.js';
 import { markRoutineRun } from './staffops.js';
 import { dueRoutines, hcmToday } from '../shared/staffkit.js';
+import { runDueFanpage } from './fanpage.js';
 
 export async function runDueRoutines(now = new Date()) {
   const started = [];
@@ -26,4 +27,7 @@ export async function runDueRoutines(now = new Date()) {
 export function startAutomation() {
   const every = Number(process.env.VPA_AUTOMATION_INTERVAL_MS || 60 * 1000);
   setInterval(() => runDueRoutines().catch((e) => console.error('automation', e)), every);
+  // Fanpage tự vận hành: An đăng bài, Tuấn kiểm tra, Bình đề xuất quảng cáo / chia sẻ nhóm khi đến giờ.
+  let busy = false;
+  setInterval(() => { if (busy) return; busy = true; runDueFanpage().catch((e) => console.error('fanpage', e)).finally(() => { busy = false; }); }, every);
 }

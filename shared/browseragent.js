@@ -13,11 +13,36 @@ export const RISKY = new RegExp(`${BLOCK_ALWAYS.source}|${WRITE.source}`, 'i');
 export function clickBlocked(label, mode = 'read') {
   const l = String(label || '');
   if (BLOCK_ALWAYS.test(l)) return `Không bấm "${l.slice(0, 80)}": nút này có thể xoá dữ liệu, tạo đơn hoặc liên quan tiền (luôn bị chặn).`;
-  if (mode !== 'publish' && WRITE.test(l)) return `Không bấm "${l.slice(0, 80)}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`;
+  if (mode === 'ads' && /đẩy mạnh|boost|quảng cáo|xuất bản|tiếp|next|continue/i.test(l)) return null;
+  if (mode === 'read' && WRITE.test(l)) return `Không bấm "${l.slice(0, 80)}": nút này có thể làm thay đổi dữ liệu (nhân viên chỉ đọc).`;
   return null;
 }
 
-export function browseQuestion({ link, goal, history, observation, step, maxSteps, mode = 'read', content = '' }) {
+export function browseQuestion({ link, goal, history, observation, step, maxSteps, mode = 'read', content = '', hasImage = false, budgetCap = 0 }) {
+  if (mode === 'ads') {
+    return `Bạn đang tự điều khiển trình duyệt để CHẠY QUẢNG CÁO đúng như kế hoạch NGƯỜI DÙNG ĐÃ DUYỆT trên "${link.softwareName}" (${link.url}).
+Mục đã duyệt (làm ĐÚNG, không thêm, không đổi):
+<<<NOIDUNG
+${content}
+NOIDUNG>>>
+Ngân sách mỗi ngày tối đa: ${budgetCap} đồng — không nhập số lớn hơn (hệ thống sẽ chặn).
+Bước ${step}/${maxSteps}. Các bước đã làm: ${JSON.stringify(history.slice(-8))}
+
+Trang hiện tại (nguyên văn trình duyệt trả về, đã cắt bớt):
+<<<
+${String(observation || '').slice(0, OBS_LIMIT)}
+>>>
+
+Quy tắc: không thêm / đổi phương thức thanh toán, không xoá gì, không đăng xuất, không tự đăng nhập (gặp trang đăng nhập thì dừng với "canDangNhap": true).
+Chỉ trả về MỘT đối tượng JSON:
+{"hanhDong":"bam","ref":"mã phần tử","vi":"lý do"}
+{"hanhDong":"nhap","ref":"mã ô","noiDung":"giá trị"}
+{"hanhDong":"di","url":"địa chỉ trong cùng trang quảng cáo"}
+{"hanhDong":"tim","tuKhoa":"chữ cần tìm"}
+{"hanhDong":"doc"}
+{"hanhDong":"xong","ketQua":"quảng cáo đã bật chưa, mã / trạng thái thấy trên trang"}
+{"hanhDong":"dung","lyDo":"vì sao dừng","canDangNhap":false}`;
+  }
   if (mode === 'publish') {
     return `Bạn đang tự điều khiển trình duyệt để ĐĂNG nội dung NGƯỜI DÙNG ĐÃ DUYỆT lên "${link.softwareName}" (${link.url}).
 Nội dung đã duyệt (đăng ĐÚNG NGUYÊN VĂN, không sửa):
@@ -34,7 +59,7 @@ ${String(observation || '').slice(0, OBS_LIMIT)}
 Quy tắc: chỉ đăng đúng một lần nội dung trên. Không xoá, không mua bán, không đổi cài đặt. Không tự đăng nhập: gặp trang đăng nhập thì dừng với "canDangNhap": true.
 Chỉ trả về MỘT đối tượng JSON:
 {"hanhDong":"bam","ref":"mã phần tử","vi":"lý do"}
-{"hanhDong":"nhap","ref":"mã ô soạn bài","noiDung":"nội dung đã duyệt"}
+{"hanhDong":"nhap","ref":"mã ô soạn bài","noiDung":"nội dung đã duyệt"}${hasImage ? '\n{"hanhDong":"anh","ref":"mã nút / ô chọn ảnh"}  (tải ảnh thiết kế kèm bài)' : ''}
 {"hanhDong":"tim","tuKhoa":"chữ cần tìm"}
 {"hanhDong":"doc"}
 {"hanhDong":"xong","ketQua":"đã đăng ở đâu, thấy bài trên trang chưa"}
@@ -91,12 +116,12 @@ export function normalizeItems(kind, list) {
  * Lỗi của trình duyệt được đưa nguyên văn cho bộ não ở bước sau và ghi vào nhật ký.
  * Trả về { status: 'saved' | 'need_login' | 'stopped' | 'error', message, data? , steps }.
  */
-export async function runBrowserAgent({ staff, link, goal, think, browser, log = () => {}, maxSteps = MAX_STEPS, isCancelled = () => false, mode = 'read', content = '' }) {
+export async function runBrowserAgent({ staff, link, goal, think, browser, log = () => {}, maxSteps = MAX_STEPS, isCancelled = () => false, mode = 'read', content = '', image = null, budgetCap = 0, url = null }) {
   const history = [];
   let observation;
   try {
-    observation = await browser.open(link.url);
-    log('Mở trình duyệt', true, link.url);
+    observation = await browser.open(url || link.url);
+    log('Mở trình duyệt', true, url || link.url);
   } catch (e) {
     log('Mở trình duyệt', false, e.message);
     return { status: 'error', message: `Không mở được trình duyệt: ${e.message}`, steps: history };
@@ -105,7 +130,7 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
     if (isCancelled()) return { status: 'stopped', message: 'Đã dừng theo yêu cầu.', steps: history };
     let r;
     try {
-      r = await think(staff, { question: browseQuestion({ link, goal, history, observation, step, maxSteps, mode, content }) });
+      r = await think(staff, { question: browseQuestion({ link, goal, history, observation, step, maxSteps, mode, content, hasImage: !!image, budgetCap }) });
     } catch (e) {
       log('Bộ não', false, e.message);
       return { status: 'error', message: `Bộ não lỗi: ${e.message}`, steps: history };
@@ -128,8 +153,8 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
       log('Lấy dữ liệu qua trình duyệt', true, `${items.length} ${kind === 'products' ? 'sản phẩm' : 'dòng'}. ${act.ketLuan || ''}`.trim());
       return { status: 'saved', message: act.ketLuan || `Đã lấy ${items.length} mục.`, data: { kind, items }, steps: history };
     }
-    if (act.hanhDong === 'xong' && mode === 'publish') {
-      log('Đăng nội dung đã duyệt', true, act.ketQua || '');
+    if (act.hanhDong === 'xong' && mode !== 'read') {
+      log(mode === 'ads' ? 'Chạy quảng cáo đã duyệt' : 'Đăng nội dung', true, act.ketQua || '');
       return { status: 'published', message: act.ketQua || 'Đã đăng.', steps: history };
     }
     if (act.hanhDong === 'dung') {
@@ -140,7 +165,16 @@ export async function runBrowserAgent({ staff, link, goal, think, browser, log =
     try {
       if (act.hanhDong === 'tim') observation = await browser.find(String(act.tuKhoa || ''));
       else if (act.hanhDong === 'bam') observation = await browser.click(String(act.ref || ''), mode);
-      else if (act.hanhDong === 'nhap') observation = await browser.type(String(act.ref || ''), String(act.noiDung || ''));
+      else if (act.hanhDong === 'nhap') {
+        const v = String(act.noiDung || '');
+        // Chạy quảng cáo: không cho nhập ngân sách lớn hơn mức đã duyệt.
+        const big = mode === 'ads' && (v.replace(/[.,\s]/g, '').match(/\d{4,}/g) || []).map(Number).find((n) => n > budgetCap);
+        if (big) throw new Error(`Không nhập ${big}: vượt ngân sách đã duyệt ${budgetCap} đồng/ngày.`);
+        observation = await browser.type(String(act.ref || ''), v);
+      } else if (act.hanhDong === 'anh') {
+        if (!image || !browser.upload) throw new Error('Trình duyệt này chưa tải ảnh lên được — đăng phần chữ, ảnh đã gửi trong nhóm chat.');
+        observation = await browser.upload(String(act.ref || ''), image);
+      }
       else if (act.hanhDong === 'di') observation = await browser.go(String(act.url || ''));
       else observation = await browser.read();
       log(`Trình duyệt: ${act.hanhDong}`, true, act.ref || act.tuKhoa || act.url || '');

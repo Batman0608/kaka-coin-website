@@ -82,6 +82,68 @@ export async function facebookSync({ pageId, secret }) {
   return { kind: 'posts', items };
 }
 
+// ---------- Fanpage tự vận hành: đăng bài, đọc số liệu, chạy quảng cáo (Graph API / Marketing API) ----------
+const form = (fields) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) f.append(k, v); return f; };
+
+export async function facebookPublish({ pageId, secret }, { text, image }) {
+  if (!pageId || !secret) throw new Error('Thiếu Page ID hoặc Page Access Token.');
+  let body;
+  if (image) {
+    const m = /^data:(image\/\w+);base64,(.+)$/.exec(image);
+    const blob = new Blob([Buffer.from(m[2], 'base64')], { type: m[1] });
+    const f = form({ caption: text, access_token: secret });
+    f.append('source', blob, 'thiet-ke.jpg');
+    ({ body } = await call(`${FB}/${encodeURIComponent(pageId)}/photos`, { method: 'POST', body: f }));
+  } else {
+    ({ body } = await call(`${FB}/${encodeURIComponent(pageId)}/feed`, { method: 'POST', body: form({ message: text, access_token: secret }) }));
+  }
+  const postId = body?.post_id || body?.id;
+  return { ok: true, fbPostId: postId, url: postId ? `https://www.facebook.com/${postId}` : null, message: `Facebook nhận bài (mã ${postId}).` };
+}
+
+export async function facebookMetrics({ pageId, secret }) {
+  if (!pageId || !secret) throw new Error('Thiếu Page ID hoặc Page Access Token.');
+  const tok = `access_token=${encodeURIComponent(secret)}`;
+  const { body: page } = await call(`${FB}/${encodeURIComponent(pageId)}?fields=name,followers_count,fan_count&${tok}`);
+  const fields = 'message,created_time,permalink_url,reactions.summary(true).limit(0),comments.summary(true).limit(0),shares';
+  const { body: posts } = await call(`${FB}/${encodeURIComponent(pageId)}/posts?limit=15&fields=${encodeURIComponent(fields)}&${tok}`);
+  let reach = null; let engagement = null;
+  try {
+    const { body: ins } = await call(`${FB}/${encodeURIComponent(pageId)}/insights?metric=page_impressions_unique,page_post_engagements&period=day&${tok}`);
+    const last = (name) => { const m = (ins?.data || []).find((x) => x.name === name); return m?.values?.at(-1)?.value ?? null; };
+    reach = last('page_impressions_unique'); engagement = last('page_post_engagements');
+  } catch { /* trang nhỏ / thiếu quyền read_insights: để trống, không bịa */ }
+  return {
+    source: 'Facebook Graph API', name: page?.name, followers: page?.followers_count ?? null, likes: page?.fan_count ?? null, reach, engagement,
+    posts: (posts?.data || []).map((p) => ({ fbPostId: p.id, text: String(p.message || '').slice(0, 200), at: p.created_time, url: p.permalink_url, reactions: p.reactions?.summary?.total_count ?? 0, comments: p.comments?.summary?.total_count ?? 0, shares: p.shares?.count ?? 0 })),
+  };
+}
+
+// Chạy MỘT mục kế hoạch quảng cáo người dùng đã duyệt: chiến dịch → nhóm quảng cáo (ngân sách/ngày, đối tượng) → mẫu → quảng cáo.
+export async function facebookRunAd({ adAccountId, secret, pageId }, item, post) {
+  if (!adAccountId || !secret) throw new Error('Thiếu mã tài khoản quảng cáo (act_…) hoặc access token quảng cáo.');
+  if (!pageId) throw new Error('Thiếu Page ID của Fanpage.');
+  const act = String(adAccountId).startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+  const base = `${FB}/${encodeURIComponent(act)}`;
+  const tok = { access_token: secret };
+  const name = `VPA ${item.loai} ${new Date().toISOString().slice(0, 10)}`;
+  const { body: c } = await call(`${base}/campaigns`, { method: 'POST', body: form({ ...tok, name, objective: 'OUTCOME_ENGAGEMENT', status: 'ACTIVE', special_ad_categories: '[]' }) });
+  const end = new Date(Date.now() + item.soNgay * 86400000).toISOString();
+  const targeting = { geo_locations: { countries: ['VN'] }, age_min: item.doiTuong.tuoiTu, age_max: item.doiTuong.tuoiDen };
+  const goal = item.loai === 'tang_like_trang' ? 'PAGE_LIKES' : item.loai === 'tin_nhan' ? 'CONVERSATIONS' : 'POST_ENGAGEMENT';
+  const { body: as } = await call(`${base}/adsets`, {
+    method: 'POST',
+    body: form({ ...tok, name, campaign_id: c.id, daily_budget: String(item.nganSachNgay), billing_event: 'IMPRESSIONS', optimization_goal: goal, bid_strategy: 'LOWEST_COST_WITHOUT_CAP', targeting: JSON.stringify(targeting), promoted_object: JSON.stringify({ page_id: pageId }), end_time: end, status: 'ACTIVE' }),
+  });
+  const spec = item.loai === 'day_bai'
+    ? { object_story_id: post?.fbPostId?.includes('_') ? post.fbPostId : `${pageId}_${post?.fbPostId}` }
+    : { object_story_spec: JSON.stringify({ page_id: pageId, link_data: { link: `https://www.facebook.com/${pageId}`, message: item.mucTieu, call_to_action: { type: item.loai === 'tin_nhan' ? 'MESSAGE_PAGE' : 'LIKE_PAGE' } } }) };
+  if (item.loai === 'day_bai' && !post?.fbPostId) throw new Error('Bài này chưa có mã bài trên Facebook (đăng qua trình duyệt) — không đẩy bằng API được.');
+  const { body: cr } = await call(`${base}/adcreatives`, { method: 'POST', body: form({ ...tok, name, ...spec }) });
+  const { body: ad } = await call(`${base}/ads`, { method: 'POST', body: form({ ...tok, name, adset_id: as.id, creative: JSON.stringify({ creative_id: cr.id }), status: 'ACTIVE' }) });
+  return { ok: true, message: `Chiến dịch ${c.id}, nhóm ${as.id}, quảng cáo ${ad.id} — ${item.nganSachNgay.toLocaleString('vi-VN')} đ/ngày × ${item.soNgay} ngày.` };
+}
+
 export const CONNECTORS = {
   kiotviet: { check: kiotvietCheck, sync: kiotvietSync },
   facebook_page: { check: facebookCheck, sync: facebookSync },

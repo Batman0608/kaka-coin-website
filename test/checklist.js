@@ -411,6 +411,54 @@ let zIds = [];
     `đăng: ${JSON.stringify(posted)}; yêu cầu → ${pubAfter?.status} (${pubAfter?.result})`);
 }
 
+// --- Fanpage tự vận hành: An làm bài + ảnh và tự đăng, Tuấn kiểm tra, Bình đề xuất quảng cáo (chờ duyệt) và chia sẻ nhóm ---
+{
+  const F = client(base);
+  await F('/api/login', { username: 'test-a', password: 'matkhau-test-1' });
+  const fbl = (await F('/api/staff/STAFF-001/links', { softwareName: 'Fanpage vận hành (TEST)', url: `${fake.url}/fb-web/`, kind: 'facebook_page', pageId: 'fbpage-test', accessCode: 'fb-token-PLACEHOLDER' })).data.find((l) => l.softwareName === 'Fanpage vận hành (TEST)');
+  const adl = (await F('/api/staff/STAFF-002/links', { softwareName: 'Quảng cáo (TEST)', url: 'https://adsmanager.facebook.com/', kind: 'facebook_ads', adAccountId: '123', accessCode: 'ads-token-PLACEHOLDER' })).data.find((l) => l.softwareName === 'Quảng cáo (TEST)');
+  const cfg = await F('/api/fanpage', { enabled: false, fanpageLinkId: fbl.id, adsLinkId: adl.id, groups: `${fake.url}/fb-group/`, dailyBudgetCap: 300000, shareMaxPerDay: 1, brand: 'Long Phu Auto' }, 'PUT');
+  const idle = () => waitFor(async () => { const o = (await F('/api/fanpage')).data; return !o.running.length && o; }, 90000);
+  const before = (fake.state.fbPosts || []).length;
+  for (const c of ['content', 'content']) { await F(`/api/fanpage/run/${c}`, {}); await sleep(200); await idle(); }
+  let o = (await F('/api/fanpage')).data;
+  const [p2, p1] = o.posts;
+  const imgs = await Promise.all([p1, p2].map(async (p) => (await F(`/api/fanpage/posts/${p.id}/image`)).data.dataUrl || ''));
+  const fbNew = (fake.state.fbPosts || []).slice(before);
+  const chat = (await F('/api/messages/group')).data.messages;
+  check('An tự làm bài + thiết kế ảnh, gửi lên nhóm rồi tự đăng lên Fanpage (không cần duyệt); hai bài khác nhau',
+    cfg.status === 200 && p1?.status === 'posted' && p2?.status === 'posted' && p1.topic !== p2.topic && `${p1.design.boCuc}|${p1.design.bangMau}` !== `${p2.design.boCuc}|${p2.design.bangMau}`
+      && imgs.every((x) => /^data:image\/jpeg;base64,/.test(x) && x.length > 20000) && fbNew.length === 2 && fbNew.every((x) => x.hasImage) && chat.some((m) => m.sender === 'STAFF-001' && m.postId === p1.id),
+    `${[p1, p2].map((p) => `"${p?.topic}" (${p?.design.boCuc}/${p?.design.bangMau}, ${p?.status})`).join(' · ')}; ảnh ${imgs.map((x) => Math.round(x.length / 1024) + 'KB').join(', ')}; Facebook nhận ${fbNew.length} bài có ảnh`);
+
+  await F('/api/fanpage/run/analyst', {}); await sleep(200); await idle();
+  o = (await F('/api/fanpage')).data;
+  const sn = o.snapshots[0];
+  check('Tuấn đọc số liệu Fanpage thật, so sánh, khuyên An và Bình (trong nhóm chat)', sn?.followers > 0 && sn.reach === 870 && o.advice.some((a) => a.to === 'STAFF-001') && o.advice.some((a) => a.to === 'STAFF-002')
+    && o.posts.some((p) => p.stats?.reactions > 0),
+    sn ? `theo dõi ${sn.followers}, thích ${sn.likes}, tiếp cận ${sn.reach}; lời khuyên cho An: "${o.advice.find((a) => a.to === 'STAFF-001')?.text}"` : 'không có số liệu');
+
+  const adsBefore = (fake.state.ads || []).length;
+  await F('/api/fanpage/run/ads', {}); await sleep(200); await idle();
+  o = (await F('/api/fanpage')).data;
+  const plan = o.plans[0];
+  const rq = (await F('/api/requests')).data.find((r) => r.type === 'ads' && r.status === 'pending');
+  const noRunYet = (fake.state.ads || []).length === adsBefore;
+  await F(`/api/requests/${rq?.id}`, { action: 'approve' });
+  const ran = await waitFor(async () => { const p = (await F('/api/fanpage')).data.plans[0]; return ['running', 'partial', 'failed'].includes(p.status) && p; }, 20000);
+  const budgets = (fake.state.ads || []).slice(adsBefore).filter((x) => x.kind === 'adsets').map((x) => Number(/name="daily_budget"\r\n\r\n(\d+)/.exec(x.raw)?.[1]));
+  check('Bình phân tích → kế hoạch + ngân sách trong trần → CHỜ DUYỆT (chưa chạy) → bạn duyệt thì mới chạy đúng ngân sách',
+    plan?.status === 'pending' && plan.perDay <= 300000 && rq && noRunYet && ran?.status === 'running' && budgets.length === plan.items.length && budgets.every((b, i) => b === plan.items[i].nganSachNgay),
+    `${plan?.items.map((x) => `${x.loai} ${x.nganSachNgay}/ngày × ${x.soNgay}`).join(', ')}; trước duyệt: ${noRunYet ? 'chưa chạy' : 'ĐÃ CHẠY'}; sau duyệt: ${ran?.status} — ngân sách gửi Facebook ${budgets.join(', ')}`);
+
+  const gBefore = (fake.state.groupPosts || []).length;
+  await F('/api/fanpage/run/share', {}); await sleep(200); await idle();
+  const gNew = (fake.state.groupPosts || []).slice(gBefore);
+  o = (await F('/api/fanpage')).data;
+  check('Bình tự chia sẻ bài hay vào nhóm được phép (giới hạn lượt mỗi ngày)', gNew.length === 1 && /facebook\.com\/fbpage-test_/.test(gNew[0]) && o.posts.some((p) => p.shares?.some((x) => x.ok)),
+    `nhóm nhận: ${JSON.stringify(gNew.map((x) => x.slice(0, 80)))}`);
+}
+
 // --- Báo cáo cuối ngày + hoạt động 3D ---
 {
   const R = client(base); // server vừa khởi động lại ở ca trên

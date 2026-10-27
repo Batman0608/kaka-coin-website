@@ -19,6 +19,11 @@ import {
 import { runBrowserAgent, logInto, clickBlocked } from '../shared/browseragent.js';
 import { runWorkStep, settledExchanges } from '../shared/worker.js';
 import { pickRelevant } from '../shared/staffkit.js';
+import {
+  DEFAULT_OPS, validateOps, dueCycles, markRun, runContentCycle, runAnalystCycle, runAdsCycle, executeAdsPlan, runShareCycle,
+  CONTENT_ID, ADS_ID, ANALYST_ID, AD_KINDS, vnd,
+} from '../shared/fanpage.js';
+import { drawDesign } from '../shared/design.js';
 import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
@@ -305,9 +310,9 @@ async function think(staff, ctx) {
 }
 
 // ---------- Tin nhắn ----------
-function addMessage(channel, sender, text, brainLabel = null, isError = false) {
+function addMessage(channel, sender, text, brainLabel = null, isError = false, postId = null) {
   const doc = store.get(`msg-${channel}`, { list: [] });
-  doc.list.push({ id: rid('M-'), sender, text, brainLabel, isError, createdAt: now() });
+  doc.list.push({ id: rid('M-'), sender, text, brainLabel, isError, createdAt: now(), ...(postId ? { postId } : {}) });
   doc.list = doc.list.slice(-MSG_KEEP);
   while (JSON.stringify(doc).length > 200000 && doc.list.length > 1) doc.list.shift();
   store.save(`msg-${channel}`);
@@ -518,6 +523,7 @@ async function runAutomation() {
   if (autoBusy) return;
   autoBusy = true;
   try {
+    for (const due of dueCycles(fp().ops)) if (!fpRunning.has(due.cycle)) bg(runFpCycle(due.cycle, due.slot));
     for (const s of office().staff) {
       for (const r of dueRoutines(s.routines || [])) {
         r.lastRunDate = hcmToday(); saveOffice(); // đánh dấu trước để không chạy hai lần
@@ -748,7 +754,7 @@ function applyLinkFields(l, b) {
   if (b.kind !== undefined) { if (!LINK_KINDS[b.kind]) throw fail('Loại phần mềm không hợp lệ.'); l.kind = b.kind; }
   if (b.status !== undefined) { if (!LINK_STATUSES.includes(b.status)) throw fail('Trạng thái không hợp lệ.'); l.status = b.status; l.lastCheckAt = now(); }
   for (const k of ['purpose', 'permissionScope']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 2000);
-  for (const k of ['retailer', 'clientId', 'pageId']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 200);
+  for (const k of ['retailer', 'clientId', 'pageId', 'adAccountId']) if (b[k] !== undefined) l[k] = String(b[k]).trim().slice(0, 200);
   if (b.accessCode) l.accessCodeLast4 = String(b.accessCode).slice(-4);
   if (b.accessGranted !== undefined) {
     l.accessGranted = !!b.accessGranted;
@@ -830,7 +836,7 @@ function claudeBrowser(mcp) {
     async type(ref, text) { await call('form_input', { ref, value: text }); return read(); },
   };
 }
-async function browseOnce(id, { goal = '', mode = 'read', content = '' } = {}) {
+async function browseOnce(id, { goal = '', mode = 'read', content = '', image = null, budgetCap = 0, url = null } = {}) {
   const l = needLink(id);
   if (browsing.has(id)) return { status: 'error', message: 'Nhân viên đang dùng trình duyệt cho phần mềm này, thử lại sau.' };
   const mcp = await getMcp();
@@ -844,7 +850,7 @@ async function browseOnce(id, { goal = '', mode = 'read', content = '' } = {}) {
   browsing.set(id, { step: 'Đang mở trình duyệt…', at: now() });
   try {
     const res = await runBrowserAgent({
-      staff, link: l, goal: String(goal || '').slice(0, 1000), browser: claudeBrowser(mcp), mode, content,
+      staff, link: l, goal: String(goal || '').slice(0, 1000), browser: claudeBrowser(mcp), mode, content, image, budgetCap, url,
       think: (st, ctx) => think(st, { ...ctx, kind: 'deep_analysis' }),
       log: (action, ok, detail) => { log(action, ok, detail); browsing.set(id, { step: `${action}${detail ? `: ${String(detail).slice(0, 80)}` : ''}`, at: now() }); store.save('links'); },
     });
@@ -884,6 +890,120 @@ async function readSoftware(id, want = '') {
   return `${note}Dữ liệu ${l.softwareName} (${d.source}, lúc ${d.at}, tổng ${d.items.length} mục). Các mục liên quan: ${JSON.stringify(pickRelevant(d.items, want, 30))}`;
 }
 
+// ---------- Fanpage tự vận hành (shared/fanpage.js) ----------
+// An làm bài + thiết kế và tự đăng, Tuấn kiểm tra số liệu và khuyên, Bình đề xuất quảng cáo (chỉ chạy khi bạn duyệt)
+// và chia sẻ bài hay vào nhóm. Bản trải nghiệm thao tác qua trình duyệt của ứng dụng Claude; ảnh lưu từng tài liệu riêng.
+const fp = () => store.get('fanpage', { ops: { ...DEFAULT_OPS }, posts: [], snapshots: [], advice: [], plans: [] });
+const saveFp = () => {
+  const d = fp();
+  d.posts = d.posts.slice(0, 40); d.snapshots = d.snapshots.slice(0, 30); d.advice = d.advice.slice(0, 30); d.plans = d.plans.slice(0, 20);
+  while (JSON.stringify(d).length > 230000 && d.posts.length > 5) d.posts.pop();
+  store.save('fanpage');
+};
+const fpRunning = new Set();
+function renderDesign(spec) {
+  try {
+    const c = drawDesign(document.createElement('canvas'), spec);
+    return c.toDataURL('image/jpeg', 0.8);
+  } catch (e) {
+    console.error('render', e);
+    return null;
+  }
+}
+const fpLink = (ops) => { if (!ops.fanpageLinkId) throw new Error('Chưa chọn Fanpage trong "Vận hành Fanpage".'); return needLink(ops.fanpageLinkId); };
+function fpIo(staffId) {
+  const d = fp();
+  const ops = d.ops;
+  return {
+    ops, staff: getStaff(staffId),
+    think: (st, ctx) => think(st, { ...ctx, kind: st.id === CONTENT_ID ? 'writing' : 'deep_analysis' }),
+    posts: () => fp().posts,
+    advice: (to) => fp().advice.filter((a) => a.to === to).slice(0, 5),
+    history: () => fp().snapshots.slice(0, 10),
+    latestSnapshot: () => fp().snapshots[0] || null,
+    plans: () => fp().plans.slice(0, 5),
+    render: renderDesign,
+    publish: async ({ text, image }) => {
+      const res = await browseOnce(fpLink(ops).id, { mode: 'publish', content: text, image, goal: 'Đăng bài mới lên Fanpage' });
+      return { ok: res.status === 'published', message: res.message };
+    },
+    readMetrics: async () => {
+      const l = fpLink(ops);
+      const res = await browseOnce(l.id, { goal: 'Đọc số người theo dõi, lượt thích trang, và lượt thích / bình luận / chia sẻ của các bài mới nhất' });
+      const data = store.docs.get(`linkdata-${l.id}`);
+      if (res.status !== 'saved' && !data) return { ok: false, message: res.message };
+      return { ok: true, snapshot: { source: res.status === 'saved' ? 'Tuấn đọc qua trình duyệt' : `dữ liệu lưu lúc ${data.at} (trình duyệt lần này lỗi: ${res.message})`, raw: data.items.slice(0, 40) } };
+    },
+    shareToGroup: async (post, g) => {
+      const res = await browseOnce(fpLink(ops).id, { mode: 'publish', content: `${post.url ? `${post.url}\n\n` : ''}${String(post.text).slice(0, 600)}`, url: g.url, goal: 'Chia sẻ bài viết của Fanpage vào nhóm' });
+      return { ok: res.status === 'published', message: res.message };
+    },
+    savePost: (p) => {
+      const { image, ...rest } = p;
+      const post = { id: rid('FP-'), ...rest, shares: [], stats: null, createdAt: now() };
+      if (image) { store.docs.set(`fpimg-${post.id}`, { dataUrl: image }); store.save(`fpimg-${post.id}`); }
+      fp().posts.unshift(post); saveFp();
+      return post;
+    },
+    updatePost: (id, f) => { const p = fp().posts.find((x) => x.id === id); if (p) Object.assign(p, f); saveFp(); },
+    markShared: (id, url, ok, message) => { const p = fp().posts.find((x) => x.id === id); if (p) p.shares = [...(p.shares || []), { url, ok, message: String(message).slice(0, 300), at: now() }]; saveFp(); },
+    saveSnapshot: (snap) => { fp().snapshots.unshift(snap); saveFp(); },
+    saveAdvice: (a) => { fp().advice.unshift({ ...a, text: a.text.slice(0, 3000), at: now() }); saveFp(); },
+    savePlan: (p) => { const plan = { id: rid('AP-'), ...p, createdAt: now() }; fp().plans.unshift(plan); saveFp(); return plan; },
+    updatePlan: (id, f) => { const p = fp().plans.find((x) => x.id === id); if (p) Object.assign(p, f); saveFp(); },
+    createRequest: (q) => createRequest({ type: 'ads', staffId: ADS_ID, question: q.question, content: q.content, planId: q.planId }),
+    groupMessage: (sid, text, postId = null) => addMessage('group', sid, text, null, false, postId),
+  };
+}
+async function runFpCycle(cycle, slot = 'tay') {
+  if (fpRunning.has(cycle)) throw fail('Chu kỳ này đang chạy.');
+  fpRunning.add(cycle);
+  const d = fp();
+  markRun(d.ops, cycle, slot); saveFp(); // đánh dấu trước để không chạy hai lần
+  try {
+    if (cycle === 'content') return await runContentCycle(fpIo(CONTENT_ID));
+    if (cycle === 'analyst') return await runAnalystCycle(fpIo(ANALYST_ID));
+    if (cycle === 'ads') return await runAdsCycle(fpIo(ADS_ID));
+    if (cycle === 'share') return await runShareCycle(fpIo(ADS_ID));
+    throw fail('Chu kỳ không hợp lệ.');
+  } catch (e) {
+    addMessage('group', { content: CONTENT_ID, analyst: ANALYST_ID }[cycle] || ADS_ID, `Lỗi khi chạy "${cycle}": ${e.message}`, null, true);
+    return { status: 'error', message: e.message };
+  } finally {
+    fpRunning.delete(cycle);
+  }
+}
+async function approveAdsPlan(planId) {
+  const plan = fp().plans.find((x) => x.id === planId);
+  if (!plan) throw new Error('Không tìm thấy kế hoạch quảng cáo.');
+  plan.status = 'starting'; saveFp();
+  const x = fpIo(ADS_ID);
+  return executeAdsPlan({
+    ...x, plan,
+    runAd: async (item, post) => {
+      const link = x.ops.adsLinkId || fpLink(x.ops).id;
+      const desc = `${AD_KINDS[item.loai]}${post ? ` cho bài: ${post.url || post.topic}` : ' cho cả trang'}; ngân sách ${vnd(item.nganSachNgay)}/ngày trong ${item.soNgay} ngày; đối tượng ${item.doiTuong.tuoiTu}-${item.doiTuong.tuoiDen} tuổi, ${item.doiTuong.khuVuc}; mục tiêu: ${item.mucTieu}`;
+      const res = await browseOnce(link, { mode: 'ads', content: desc, budgetCap: item.nganSachNgay, goal: 'Chạy quảng cáo đã duyệt', url: post?.url || null });
+      return { ok: res.status === 'published', message: res.message };
+    },
+  });
+}
+on('GET', '/api/fanpage', () => ({ ...fp(), posts: fp().posts.slice(0, 20), running: [...fpRunning] }));
+on('PUT', '/api/fanpage', (b) => {
+  const d = fp();
+  let ops;
+  try { ops = validateOps(b, d.ops); } catch (e) { throw fail(e.message); }
+  for (const k of ['fanpageLinkId', 'adsLinkId']) if (ops[k]) needLink(ops[k]);
+  d.ops = ops; saveFp();
+  return { ...fp(), posts: fp().posts.slice(0, 20), running: [...fpRunning] };
+});
+on('POST', '/api/fanpage/run/(content|analyst|ads|share)', (b, [cycle]) => {
+  if (fpRunning.has(cycle)) throw fail('Chu kỳ này đang chạy.');
+  bg(runFpCycle(cycle));
+  return { ok: true };
+});
+on('GET', '/api/fanpage/posts/([\\w-]+)/image', (b, [id]) => ({ dataUrl: store.docs.get(`fpimg-${id}`)?.dataUrl || null }));
+
 // ---------- Yêu cầu của nhân viên trong lúc làm việc thật ----------
 // Cần thông tin / xin phép truy cập / xin duyệt đăng. Việc dừng "Chờ người dùng"; trả lời xong thì tự chạy tiếp.
 const reqDoc = () => listDoc('requests');
@@ -907,7 +1027,17 @@ on('POST', '/api/requests/([\\w-]+)', (b, [id]) => {
   if (r.status !== 'pending') throw fail('Yêu cầu này đã được xử lý.');
   const text = String(b.answer || '').trim().slice(0, 4000);
   r.answeredAt = now();
-  if (b.action === 'reject') Object.assign(r, { status: 'rejected', answer: text || null });
+  if (b.action === 'reject') {
+    Object.assign(r, { status: 'rejected', answer: text || null });
+    if (r.type === 'ads') { const pl = fp().plans.find((x) => x.id === r.planId); if (pl) Object.assign(pl, { status: 'rejected', result: text || 'Người dùng không duyệt' }); saveFp(); }
+  } else if (r.type === 'ads') {
+    // Kế hoạch quảng cáo: chỉ chạy khi người dùng bấm duyệt; chạy đúng kế hoạch đã duyệt.
+    Object.assign(r, { status: 'publishing' });
+    store.save('requests');
+    bg(approveAdsPlan(r.planId).then((res) => Object.assign(r, { status: res.status === 'failed' ? 'failed' : 'published', result: res.message }))
+      .catch((e) => Object.assign(r, { status: 'failed', result: e.message })).finally(() => store.save('requests')));
+    return requestView(r);
+  }
   else if (r.type === 'info') { if (!text) throw fail('Nhập câu trả lời.'); Object.assign(r, { status: 'answered', answer: text }); }
   else if (r.type === 'access') {
     const l = needLink(r.linkId);

@@ -6,6 +6,7 @@ import { getRow as getLinkRow } from './links.js';
 import { browseOnce } from './browse.js';
 import { executeTask, getTaskRow } from './tasks.js';
 import { settledExchanges } from '../shared/worker.js';
+import { approveAdsPlan, rejectAdsPlan } from './fanpage.js';
 
 db.exec(`CREATE TABLE IF NOT EXISTS staff_requests (
   id TEXT PRIMARY KEY,
@@ -19,7 +20,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS staff_requests (
 
 function rowToRequest(r) {
   if (!r) return null;
-  const link = r.link_id ? db.prepare('SELECT software_name FROM software_links WHERE id = ?').get(r.link_id) : null;
+  const link = r.link_id && r.type !== 'ads' ? db.prepare('SELECT software_name FROM software_links WHERE id = ?').get(r.link_id) : null;
   const task = r.task_id ? db.prepare('SELECT title FROM tasks WHERE id = ?').get(r.task_id) : null;
   return {
     id: r.id, taskId: r.task_id, taskTitle: task?.title || null, stepKey: r.step_key, staffId: r.staff_id, staffName: getStaff(r.account_id, r.staff_id)?.name || r.staff_id,
@@ -67,6 +68,14 @@ export function respond(accountId, id, { action, answer = '', content, always = 
   const text = String(answer || '').trim().slice(0, 4000);
   if (action === 'reject') {
     set(id, { status: 'rejected', answer: text || null, answered_at: now() });
+    if (r.type === 'ads') rejectAdsPlan(accountId, r.linkId, text);
+  } else if (r.type === 'ads') {
+    // Kế hoạch quảng cáo: chỉ chạy khi người dùng bấm duyệt; chạy đúng kế hoạch đã duyệt.
+    set(id, { status: 'publishing', answered_at: now() });
+    approveAdsPlan(accountId, r.linkId)
+      .then((res) => set(id, { status: res.status === 'failed' ? 'failed' : 'published', result: res.message }))
+      .catch((e) => set(id, { status: 'failed', result: e.message }));
+    return getRequest(accountId, id);
   } else if (r.type === 'info') {
     if (!text) throw new Error('Nhập câu trả lời.');
     set(id, { status: 'answered', answer: text, answered_at: now() });

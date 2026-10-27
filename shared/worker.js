@@ -10,6 +10,7 @@ export const REQUEST_TYPES = {
   info: 'Cần bạn cung cấp thông tin',
   access: 'Xin phép truy cập phần mềm',
   publish: 'Xin duyệt nội dung trước khi đăng',
+  ads: 'Xin duyệt kế hoạch quảng cáo',
 };
 
 export function workQuestion({ ask, links, trace, round, maxRounds, answers = [] }) {

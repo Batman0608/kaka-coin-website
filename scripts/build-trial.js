@@ -15,6 +15,8 @@ const files = {
   'shared/browseragent.js': 'shared/browseragent.js',
   'shared/taskqa.js': 'shared/taskqa.js',
   'shared/worker.js': 'shared/worker.js',
+  'shared/fanpage.js': 'shared/fanpage.js',
+  'shared/design.js': 'shared/design.js',
   'app.js': 'public/app.js',
   'office3d.js': 'public/office3d.js',
   'music.js': 'public/music.js',

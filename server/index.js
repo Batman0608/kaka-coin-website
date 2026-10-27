@@ -22,6 +22,7 @@ import { startAutomation } from './automation.js';
 import { startBrowse } from './browse.js';
 import { askTask, listQa } from './taskqa.js';
 import { listRequests, respond, pendingCount } from './requests.js';
+import { overview as fanpageOverview, updateOps as updateFanpageOps, runCycle as runFanpageCycle, postImage } from './fanpage.js';
 import { planSteps } from '../shared/deliberation.js';
 import { createSlip, listSlips, advanceWarehouse, accountingSignOff, archiveSlip } from './sales.js';
 import * as zalo from './zalo.js';
@@ -490,6 +491,15 @@ app.post('/api/reports', auth, wrap((req, res) => {
 app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId), pendingRequests: pendingCount(req.accountId) })));
 
 // Yêu cầu của nhân viên trong lúc làm việc (cần thông tin, xin phép truy cập, xin duyệt đăng).
+// Fanpage tự vận hành
+app.get('/api/fanpage', auth, wrap((req, res) => res.json(fanpageOverview(req.accountId))));
+app.put('/api/fanpage', auth, wrap((req, res) => { updateFanpageOps(req.accountId, req.body || {}); res.json(fanpageOverview(req.accountId)); }));
+app.post('/api/fanpage/run/:cycle', auth, wrap((req, res) => {
+  if (!['content', 'analyst', 'ads', 'share'].includes(req.params.cycle)) throw new Error('Chu kỳ không hợp lệ.');
+  runFanpageCycle(req.accountId, req.params.cycle, 'tay').catch((e) => console.error('fanpage', e));
+  res.json({ ok: true });
+}));
+app.get('/api/fanpage/posts/:id/image', auth, wrap((req, res) => res.json({ dataUrl: postImage(req.accountId, req.params.id) })));
 app.get('/api/requests', auth, wrap((req, res) => res.json(listRequests(req.accountId))));
 app.post('/api/requests/:id', auth, wrap((req, res) => res.json(respond(req.accountId, req.params.id, req.body || {}))));
 

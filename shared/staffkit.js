@@ -96,6 +96,7 @@ export function dueRoutines(routines, now = new Date()) {
 export const LINK_KINDS = {
   kiotviet: 'KiotViet (sản phẩm, giá, tồn kho)',
   facebook_page: 'Fanpage Facebook (bài đăng, tương tác)',
+  facebook_ads: 'Quảng cáo Facebook (tài khoản quảng cáo)',
   other: 'Phần mềm khác',
 };
 

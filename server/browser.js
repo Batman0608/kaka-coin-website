@@ -8,7 +8,7 @@ import { clickBlocked } from '../shared/browseragent.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 
-async function loadChromium() {
+export async function loadChromium() {
   try {
     const mod = await import(process.env.VPA_PLAYWRIGHT_PATH || 'playwright');
     return (mod.default || mod).chromium;
@@ -38,7 +38,8 @@ function snapshot() {
   let i = 0;
   for (const el of document.querySelectorAll('a,button,input,select,textarea,[role=button],[role=link],[role=tab],[role=menuitem]')) {
     const r = el.getBoundingClientRect();
-    if (!r.width || !r.height || i >= 120) continue;
+    if ((!r.width || !r.height) && el.type !== 'file') continue;
+    if (i >= 120) continue;
     const ref = `r${++i}`;
     el.setAttribute('data-vpa-ref', ref);
     const label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '').trim().replace(/\s+/g, ' ').slice(0, 60);
@@ -95,6 +96,21 @@ export async function openStaffBrowser(accountId, linkId) {
       await e.press('Enter').catch(() => {});
       await settle();
       await page.waitForTimeout(500);
+      return read();
+    },
+    async upload(ref, dataUrl) {
+      const m = /^data:(image\/\w+);base64,(.+)$/.exec(String(dataUrl));
+      if (!m) throw new Error('Ảnh không hợp lệ.');
+      const buffer = Buffer.from(m[2], 'base64');
+      const e = el(ref);
+      const isFile = (await e.getAttribute('type')) === 'file';
+      if (isFile) await e.setInputFiles({ name: 'thiet-ke.jpg', mimeType: m[1], buffer });
+      else {
+        // Nút "Ảnh/video": bấm rồi nhận hộp chọn tệp.
+        const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 8000 }), e.click()]);
+        await chooser.setFiles({ name: 'thiet-ke.jpg', mimeType: m[1], buffer });
+      }
+      await page.waitForTimeout(800);
       return read();
     },
     close: () => ctx.close().catch(() => {}),

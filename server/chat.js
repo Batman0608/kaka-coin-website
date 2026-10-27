@@ -15,7 +15,7 @@ export function addMessage(accountId, channel, sender, text, brainLabel = null, 
 export function listMessages(accountId, channel, limit = 200) {
   return db.prepare('SELECT * FROM messages WHERE account_id = ? AND channel = ? ORDER BY created_at DESC, rowid DESC LIMIT ?')
     .all(accountId, channel, limit).reverse()
-    .map((m) => ({ id: m.id, sender: m.sender, text: m.text, brainLabel: m.brain_label, isError: !!m.is_error, createdAt: m.created_at }));
+    .map((m) => ({ id: m.id, sender: m.sender, text: m.text, brainLabel: m.brain_label, isError: !!m.is_error, createdAt: m.created_at, postId: m.post_id || null }));
 }
 
 function recentTurns(accountId, channel, staffById) {
