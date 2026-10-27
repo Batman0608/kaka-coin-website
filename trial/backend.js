@@ -269,7 +269,7 @@ async function listModels(c, key) {
 
 async function think(staff, ctx) {
   const sample = await getSample();
-  const tier = staff.id === MANAGER_ID ? 'complex' : ctx.quick ? 'quick' : 'default'; // Quản lý dùng bộ não tốt nhất; xét việc nhanh dùng mức nhanh
+  const tier = ctx.quick ? 'quick' : 'complex'; // mọi nhân viên dùng bộ não mạnh nhất của Claude; chỉ lượt xét việc nhanh mới dùng mức nhanh
   const kind = ctx.kind || (staff.id === MANAGER_ID ? 'deep_analysis' : 'general');
   const picked = pickConfig(staff, kind);
   const o = office();

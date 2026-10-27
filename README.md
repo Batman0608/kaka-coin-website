@@ -12,24 +12,13 @@
   - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
   - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
 - **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
-- **Giao việc = việc làm thực tế** (nút "+ Giao việc", `shared/realwork.js`). Không có quy trình dựng sẵn, không tự họp tranh luận.
-  - Giao xong, việc ở trạng thái "Mới giao". Nhóm chat chỉ có một tin giao việc. Chưa gọi bộ não, máy chủ không tự chạy gì thêm.
-  - Mở việc ra chỉ thấy **một việc cần làm ngay của một người**. Bấm thì người đó làm đúng việc đó. Phần đã xong gom ở mục "Đã làm".
-  - Việc Fanpage / theo dõi / quảng cáo đi lần lượt:
-    1. Tuấn mở Fanpage bằng link thật (nút "Mở Fanpage" / "Mở KiotViet") và ghi số đang thấy.
-    2. Tuấn nhận xét, chỉ dựa trên đúng các số đó.
-    3. An viết **1 bài hoàn chỉnh**: không giá, không website, đúng 2 hotline, ghi "(Chưa đăng)". Bài sai quy cách thì An tự sửa.
-    4. An mở Fanpage đăng bài rồi dán link bài.
-    5. Bình đề xuất ngân sách bằng số cụ thể, không vượt ngân sách ghi trong mô tả.
-    6. **Bạn duyệt** ngay trong thẻ việc.
-    7. Bình mở Ads Manager chạy, ghi mã + link chiến dịch. Việc xong.
-  - Chặn đúng chỗ, kể cả khi gọi thẳng API:
-    - An chưa viết được khi Tuấn chưa ghi số liệu.
-    - Bình chưa đề xuất được khi chưa có link bài.
-    - Chưa chạy quảng cáo được khi bạn chưa duyệt.
-  - Việc khác (vd. "tra giá" → Sơn): một thẻ, một hành động của đúng một người.
-  - Link Fanpage / KiotViet lấy từ phần mềm đã kết nối, hoặc nhập ngay trong thẻ. Lần đầu An viết bài thì nhập 2 hotline, lưu cho các lần sau. API: `POST /api/tasks/:id/real {action, input}`, `GET/PUT /api/office-settings`, `DELETE /api/tasks/:id`.
-  - Nút "Gọi toàn nhân viên họp" vẫn mở cuộc họp phản biện. API `workflow: "team"` (cả văn phòng tự xét việc) và `workflow: "fanpage"` vẫn dùng được.
+- **Giao việc = một ô chat** (nút "+ Giao việc"). Bạn nhắn việc (kèm ảnh nếu có), không phải chọn người làm.
+  - Cả 10 nhân viên tự xét việc có phải của mình không, ai nhận thì nhắn "Em nhận: …" vào ô chat. Nhiều người thì Phúc sắp thứ tự.
+  - Từng người làm rồi nhắn vào ô chat theo từng bước: xem phần mềm, tìm web, thiết kế ảnh, xin duyệt (thẻ duyệt hiện ngay trong chat), nộp kết quả. Nhiều người thì Phúc tổng kết.
+  - Ô nhắn ở dưới cùng, bạn nhắn thêm bất cứ lúc nào, tự gửi cho người đang làm. Ảnh đính kèm được gửi tới bộ não.
+  - Mọi nhân viên dùng bộ não mạnh nhất (Claude Opus mặc định ở máy chủ, mức "complex" ở bản trải nghiệm). Mỗi người vẫn đổi được bộ não riêng. Chỉ lượt xét việc dùng mức nhanh.
+  - Việc ra ngoài (đăng bài, nhắn khách, chạy quảng cáo) luôn cần bạn duyệt.
+  - Vẫn còn API `workflow: "real"` (`shared/realwork.js`): chuỗi một-việc-một-người có cổng chặn (Tuấn ghi số liệu → An viết bài → link → Bình đề xuất → duyệt → mã chiến dịch), nhưng form không dùng nữa.
 - **Vai trò chuẩn của 10 nhân viên** (`shared/roles.js`; Cài đặt → "Thiết lập lại toàn bộ nhân viên"):
   - **Marketing** (tăng độ nhận diện, thu thập dữ liệu khách để chuyển Sale):
     - Tuấn (Phân tích): thị trường, xu hướng trên web, đo số liệu.

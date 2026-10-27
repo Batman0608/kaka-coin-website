@@ -1067,15 +1067,10 @@ VIEWS.tasks = (arg) => {
       r.readAsDataURL(f);
     })));
     const assigneeIds = $$('input[name=a]:checked', form).map((i) => i.value);
-    const workflow = meeting ? 'debate' : 'real';
+    const workflow = meeting ? 'debate' : 'team';
     const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds: meeting ? assigneeIds : [], attachments, workflow } }));
     if (!t) return;
-    if (meeting) toast('Đã bắt đầu họp.');
-    else {
-      const d = await api(`/api/tasks/${t.id}`).catch(() => null);
-      const c = d?.real?.current;
-      toast(`Đã giao việc — chưa có quy trình nào chạy sẵn. ${c ? `${nameOf(c.staffId)} làm trước: ${REAL_TITLE[c.key] || ''}.` : ''}`, 6000);
-    }
+    toast(meeting ? 'Đã bắt đầu họp.' : 'Đã giao việc — nhân viên đang đọc việc và nhắn vào ô chat.', 5000);
     await loadTasks(); openView('tasks', t.id);
   });
   mount(wrap, async () => {
@@ -1128,47 +1123,48 @@ function renderFlow(box, t, c, requests) {
   $('#checkNow', box)?.addEventListener('click', async () => { if (await act(() => api(`/api/tasks/${t.id}/check-now`, { body: {} }), 'Tuấn đang đo kết quả.')) state.refresh?.(); });
 }
 
-// Giao việc cho cả văn phòng: ai nhận việc, thứ tự làm, và bảng tin nhắn của từng người (bảng người đang làm tự mở).
-const FLOW_STAGE = { triage: 'Cả văn phòng đang xét việc này có liên quan đến mình không…', order: 'Phúc đang sắp thứ tự ai làm trước, ai làm sau…', work: '', summary: 'Phúc đang tổng kết cho bạn…', done: 'Đã xong.' };
-const ITEM_STATUS = { todo: ['Chờ tới lượt', ''], doing: ['Đang làm', 'orange'], waiting: ['Chờ bạn', 'gold'], done: ['Xong', 'teal'] };
-function renderTeam(box, t, f, requests) {
+// Giao việc cho cả văn phòng thành MỘT ô chat như khi bạn nhắn với Claude: nhân viên tự xét việc, ai nhận thì làm
+// và nhắn vào ô chat theo từng bước (xem phần mềm, tìm web, thiết kế ảnh, xin duyệt…). Bạn nhắn lại ở ô dưới cùng.
+function renderChat(box, t, f, requests, qa) {
   if (!f) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
   if (typingReq(box)) return;
   const outs = Object.fromEntries((t.outputs || []).map((o) => [o.key, o]));
-  const active = f.plan.find((p) => p.status === 'doing' || p.status === 'waiting') || null;
-  const open = new Set([...box.querySelectorAll('details.person[open]')].map((d) => d.dataset.k));
-  if (active && box.dataset.active !== active.key) { open.add(active.key); }
+  const staffMsg = (sid, name, body, extra = '') => `<div class="msg staff"><div class="who">${avatar(staffById(sid), 'sm')} ${esc(name)}</div><div class="body">${body}</div>${extra}</div>`;
+  const parts = [];
+  parts.push(`<div class="msg user"><div class="who">Bạn</div><div class="body">${esc(t.title)}${t.description ? `\n${esc(t.description)}` : ''}${t.attachments.length ? `\n📎 ${t.attachments.map((a) => esc(a.fileName)).join(', ')}` : ''}</div></div>`);
+  if (f.stage === 'triage') parts.push('<div class="typing">Cả văn phòng đang đọc việc, ai thấy là việc của mình sẽ nhận…</div>');
   const claimed = f.triage.filter((x) => x.lienQuan);
-  const html = `
-    <section class="card stack tight">
-      <div class="row between"><h3>Phân việc</h3><span class="kv">${f.stage === 'work' && active ? `Đến lượt <b>${esc(active.name)}</b>` : esc(FLOW_STAGE[f.stage] || '')}</span></div>
-      ${f.triage.length ? `<div class="triage">${f.triage.map((x) => `<span class="tchip ${x.lienQuan ? 'on' : ''}" title="${esc(x.lyDo || '')}">${avatar(staffById(x.staffId), 'sm')}<span><b>${esc(x.name)}</b><small>${x.lienQuan ? esc(x.viec || 'nhận việc') : x.error ? 'lỗi bộ não' : 'không liên quan'}</small></span></span>`).join('')}</div>`
-        : '<p class="typing" style="margin:0">Mọi người đang đọc việc…</p>'}
-      ${f.plan.length ? `<p class="kv" style="margin:0">${claimed.length > 1 ? 'Thứ tự (Phúc sắp)' : claimed.length ? 'Người làm' : 'Không ai nhận — Phúc xử lý'}: ${f.plan.map((p) => `${esc(p.name)}${p.from ? ` (do ${esc(p.from)} nhờ)` : ''}`).join(' → ')}${f.summaryPlan ? ` · ${esc(f.summaryPlan)}` : ''}</p>` : ''}
-    </section>
-    ${f.plan.map((p) => {
-      const o = outs[p.key];
-      const reqs = requests.filter((r) => r.stepKey === p.key || (o?.requestId && r.id === o.requestId));
-      const pending = reqs.filter((r) => ['pending', 'publishing'].includes(r.status));
-      const [label, tone] = ITEM_STATUS[p.status] || ['', ''];
-      return `<details class="card person ${p === active ? 'active' : ''}" data-k="${p.key}" ${open.has(p.key) || pending.length ? 'open' : ''}>
-        <summary>${avatar(staffById(p.staffId), 'sm')}<span class="grow"><b>${esc(p.name)}</b> <span class="kv">${esc(p.role || '')}</span><br><span class="kv">${esc(p.viec)}</span></span><span class="pill ${tone}">${label}</span></summary>
-        <div class="chat">
-          ${(o?.trace || []).filter((x) => x.hanhDong !== 'nop').map((x) => `<div class="msg staff"><div class="who">${esc(p.name)} · ${esc(TRACE_LABEL[x.hanhDong] || x.hanhDong)}</div><div class="body">${esc(x.chiTiet || '')}${x.ketQua != null && x.hanhDong !== 'nop' ? `\n→ ${esc(String(x.ketQua).slice(0, 600))}` : ''}</div>${x.imageId ? `<img class="post-img" data-image-id="${esc(x.imageId)}" alt="Ảnh ${esc(p.name)} thiết kế" width="1080" height="1080">` : ''}</div>`).join('')}
-          ${o?.text ? `<div class="msg staff"><div class="who">${esc(p.name)} · Kết quả</div><div class="body">${esc(o.text)}</div>${o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''}</div>` : ''}
-          ${o?.error ? `<div class="msg err"><div class="who">${esc(p.name)}</div><div class="body">Bộ não lỗi: ${esc(o.error)}</div></div>` : ''}
-          ${p.status === 'doing' && !o?.trace?.length ? `<div class="typing">${esc(p.name)} đang làm…</div>` : ''}
-          ${p.status === 'todo' ? `<p class="kv" style="margin:0">Chờ tới lượt.</p>` : ''}
-        </div>
-        ${pending.map((r) => requestCard(r, false)).join('')}
-      </details>`;
-    }).join('')}`;
-  // Chỉ vẽ lại khi có thay đổi: không làm nhấp nháy, không làm mất nút bạn sắp bấm.
-  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
-  if (active && box.dataset.active !== active.key) {
-    box.dataset.active = active.key;
-    box.querySelector(`details.person[data-k="${active.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  for (const x of claimed) parts.push(staffMsg(x.staffId, x.name, esc(`Em nhận: ${x.viec || 'phần việc của em'}`)));
+  const skip = f.triage.filter((x) => !x.lienQuan);
+  if (skip.length) parts.push(`<p class="kv" style="margin:0">Không liên quan: ${skip.map((x) => esc(x.name)).join(', ')}</p>`);
+  if (f.stage === 'order') parts.push('<div class="typing">Phúc đang sắp thứ tự ai làm trước…</div>');
+  if (f.summaryPlan) parts.push(staffMsg('STAFF-007', 'Phúc', esc(f.summaryPlan)));
+  for (const p of f.plan) {
+    const o = outs[p.key];
+    const reqs = requests.filter((r) => r.stepKey === p.key || (o?.requestId && r.id === o.requestId));
+    for (const x of (o?.trace || []).filter((x) => x.hanhDong !== 'nop')) {
+      parts.push(staffMsg(p.staffId, p.name, `<b>${esc(TRACE_LABEL[x.hanhDong] || x.hanhDong)}</b>${x.chiTiet ? ` — ${esc(x.chiTiet)}` : ''}${x.ketQua != null ? `\n→ ${esc(String(x.ketQua).slice(0, 600))}` : ''}`,
+        x.imageId ? `<img class="post-img" data-image-id="${esc(x.imageId)}" alt="Ảnh ${esc(p.name)} thiết kế" width="1080" height="1080">` : ''));
+    }
+    if (o?.text) parts.push(staffMsg(p.staffId, p.name, esc(o.text), o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''));
+    if (o?.error) parts.push(`<div class="msg err"><div class="who">${esc(p.name)}</div><div class="body">Bộ não lỗi: ${esc(o.error)}</div></div>`);
+    for (const r of reqs.filter((r) => ['pending', 'publishing'].includes(r.status))) parts.push(requestCard(r, false));
+    if (p.status === 'doing' && !o?.text) parts.push(`<div class="typing">${esc(p.name)} đang làm…</div>`);
+  }
+  const sum = outs.tongket;
+  if (sum?.text) parts.push(staffMsg('STAFF-007', 'Phúc tổng kết', esc(sum.text), sum.brainLabel ? `<div class="brain">Bộ não: ${esc(sum.brainLabel)}</div>` : ''));
+  for (const q of qa) {
+    parts.push(`<div class="msg user"><div class="who">Bạn hỏi ${esc(q.staffName)}</div><div class="body">${esc(q.question)}</div></div>`);
+    parts.push(q.answer ? `<div class="msg staff ${q.isError ? 'err' : ''}"><div class="who">${esc(q.staffName)}</div><div class="body">${esc(q.answer)}</div></div>` : `<div class="typing">${esc(q.staffName)} đang trả lời…</div>`);
+  }
+  if (f.stage === 'done' && !f.plan.some((p) => p.status !== 'done')) parts.push('<p class="kv" style="margin:0">Đã xong. Bạn vẫn có thể nhắn thêm bên dưới.</p>');
+  const html = `<section class="card stack tight chat-task"><div class="chat">${parts.join('')}</div></section>`;
+  // Chỉ vẽ lại khi có thay đổi: không nhấp nháy, không mất nút bạn sắp bấm.
+  if (box.dataset.html !== html) {
+    const nearEnd = window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+    box.innerHTML = html; box.dataset.html = html;
+    if (nearEnd) box.lastElementChild?.scrollIntoView({ block: 'end' });
   }
   loadPostImages(box);
 }
@@ -1290,9 +1286,10 @@ function viewTaskDetail(id) {
   async function refresh() {
     const { task: t, session: s, qa = [], requests = [], campaign = null, flow = null, real = null } = await api(`/api/tasks/${id}`);
     renderReal($('#realBox', wrap), t, real, refresh);
-    for (const k of ['#qaBox', '#mgrBox', '#reqBox']) $(k, wrap).classList.toggle('hidden', !!real);
+    for (const k of ['#mgrBox', '#reqBox']) $(k, wrap).classList.toggle('hidden', !!real);
+    $('#qaBox', wrap).classList.toggle('chat-input', !!flow);
     renderFlow($('#flowBox', wrap), t, campaign, requests);
-    renderTeam($('#teamBox', wrap), t, flow, requests);
+    renderChat($('#teamBox', wrap), t, flow, requests, qa);
     $('#outputs', wrap).classList.toggle('hidden', !!flow || !!real);
     if (flow) $('#reqBox', wrap).innerHTML = ''; // việc giao cả văn phòng: thẻ duyệt nằm trong bảng của người đang làm
     else if (!typingReq($('#reqBox', wrap))) {
@@ -1302,7 +1299,18 @@ function viewTaskDetail(id) {
       loadPostImages($('#reqBox', wrap));
     }
     $('#sheetTitle').textContent = t.title;
-    if (!$('#qaForm form', wrap)) $('#qaForm', wrap).innerHTML = askBar({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }, false);
+    const peopleKey = taskPeople({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }).join();
+    const qf = $('#qaForm form', wrap);
+    if (!qf || (qf.dataset.people !== peopleKey && !qf.question.value)) {
+      $('#qaForm', wrap).innerHTML = askBar({ ...t, planSteps: state.tasks.find((x) => x.id === t.id)?.planSteps || [] }, false);
+      $('#qaForm form', wrap).dataset.people = peopleKey;
+    }
+    if (flow) { // ô nhắn dưới ô chat: tự gửi cho người đang làm (hoặc người làm gần nhất), không bắt chọn
+      const form = $('#qaForm form', wrap);
+      const pick = flow.plan.find((p) => ['doing', 'waiting'].includes(p.status)) || [...flow.plan].reverse().find((p) => p.status === 'done') || flow.plan[0];
+      if (form && pick && [...form.staffId.options].some((o) => o.value === pick.staffId) && document.activeElement !== form.question) form.staffId.value = pick.staffId;
+      if (form) form.question.placeholder = `Nhắn vào nhóm (gửi cho ${nameOf(form.staffId.value)})…`;
+    }
     $('#qaList', wrap).innerHTML = qa.map((q) => `
       <div class="msg user"><div class="who">Bạn hỏi ${esc(q.staffName)} <span class="t">${esc(fmtClock(q.createdAt))}</span></div><div class="body">${esc(q.question)}</div></div>
       ${q.answer ? `<div class="msg staff ${q.isError ? 'err' : ''}"><div class="who">${esc(q.staffName)} <span class="t">${esc(fmtClock(q.answeredAt))}</span></div><div class="body">${esc(q.answer)}</div>${q.brainLabel ? `<div class="brain">Bộ não: ${esc(q.brainLabel)}</div>` : ''}</div>`

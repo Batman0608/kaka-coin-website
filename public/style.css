@@ -339,3 +339,9 @@ details.person[open] > summary { margin-bottom: 10px; }
 details.person.active { border: 1.5px solid var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 details.person .chat { gap: 8px; }
 details.person .msg { padding: 10px 12px; }
+
+/* Việc giao cả văn phòng = một ô chat; ô nhắn nằm ngay dưới */
+#qaBox.chat-input { position: sticky; bottom: 8px; z-index: 2; }
+#qaBox.chat-input > .row, #qaBox.chat-input #qaList { display: none; }
+#qaBox.chat-input select { display: none; }
+.chat-task .msg .who { display: flex; align-items: center; gap: 6px; }
