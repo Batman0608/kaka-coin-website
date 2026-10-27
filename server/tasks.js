@@ -15,6 +15,7 @@ import { runTeamFlow, addDelegation } from '../shared/teamflow.js';
 import { webSearch } from './browser.js';
 import { renderDesign } from './fanpage.js';
 import { saveImage, getImage } from './images.js';
+import { currentAction } from '../shared/realwork.js';
 
 try { db.exec('ALTER TABLE tasks ADD COLUMN flow TEXT'); } catch { /* đã có */ }
 export function startTeamFlow(accountId, taskId) {
@@ -32,6 +33,7 @@ export function rowToTask(r) {
     debateSessionId: r.debate_session_id, returnReason: r.return_reason, passCriteria: r.pass_criteria,
     stopReason: r.stop_reason, legalCleared: !!r.legal_cleared, lastError: r.last_error,
     outputs: JSON.parse(r.outputs), createdAt: r.created_at, updatedAt: r.updated_at,
+    ...(r.real ? { isReal: true, nowStaffId: currentAction(JSON.parse(r.real))?.staffId || null } : {}),
   };
 }
 

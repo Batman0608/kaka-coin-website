@@ -20,6 +20,7 @@ const files = {
   'shared/campaign.js': 'shared/campaign.js',
   'shared/teamflow.js': 'shared/teamflow.js',
   'shared/roles.js': 'shared/roles.js',
+  'shared/realwork.js': 'shared/realwork.js',
   'app.js': 'public/app.js',
   'office3d.js': 'public/office3d.js',
   'music.js': 'public/music.js',

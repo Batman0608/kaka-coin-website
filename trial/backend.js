@@ -27,6 +27,8 @@ import { drawDesign } from '../shared/design.js';
 import { advanceCampaign, initCampaign, MANAGER as CAMPAIGN_MANAGER } from '../shared/campaign.js';
 import { runTeamFlow, addDelegation, initFlow } from '../shared/teamflow.js';
 import { ROSTER_VERSION, DEFAULT_ROUTINES } from '../shared/roles.js';
+import { initReal, applyAction, currentAction, realTeam } from '../shared/realwork.js';
+import { parseGoal } from '../shared/campaign.js';
 import { taskPeople, taskQaContext } from '../shared/taskqa.js';
 
 const DEBATE_MINUTES = 10;
@@ -363,7 +365,7 @@ const finishing = new Set();
 const executing = new Set();
 
 function publicTask(t) {
-  return { ...t, session: undefined, attachments: t.attachments.map((a) => ({ ...a, hasImage: imageCache.has(a.id) })) };
+  return { ...t, session: undefined, real: undefined, ...(t.real ? { isReal: true, nowStaffId: currentAction(t.real)?.staffId || null } : {}), attachments: t.attachments.map((a) => ({ ...a, hasImage: imageCache.has(a.id) })) };
 }
 function createTaskRecord(b) {
   const t = {
@@ -1312,6 +1314,15 @@ on('POST', '/api/tasks', (b) => {
   const fanpageFlow = b.kind === 'general' && b.workflow === 'fanpage';
   // Giao việc cho cả văn phòng: từng người tự xét liên quan, ai liên quan thì làm (shared/teamflow.js).
   const teamFlow = b.kind === 'general' && b.workflow === 'team';
+  // Việc làm thực tế: giao xong chỉ "Mới giao", mỗi lúc một việc của một người, làm khi bạn bấm (shared/realwork.js).
+  if (b.workflow === 'real') {
+    const t = createTaskRecord({ ...b, kind: 'general', title: b.title.trim(), assigneeIds: [MANAGER_ID], attachments, taskKind: b.taskKind || kindOfText(text) });
+    t.real = initReal(t.title, t.description);
+    t.assigneeIds = realTeam(t.real);
+    saveTask(t);
+    addMessage('group', MANAGER_ID, `Giao việc "${t.title}" — ${getStaff(t.real.owner).name} làm trước.`);
+    return publicTask(t);
+  }
   const t = createTaskRecord({ ...b, title: b.title.trim(), assigneeIds: fanpageFlow ? [ANALYST_ID, ADS_ID, CONTENT_ID, CAMPAIGN_MANAGER] : teamFlow ? [MANAGER_ID] : ids, attachments, taskKind: b.taskKind || kindOfText(text) });
   if (teamFlow) {
     t.flow = initFlow();
@@ -1329,7 +1340,7 @@ const needTask = (id) => { const t = getTask(id); if (!t) throw fail('Không tì
 on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
   const t = needTask(id);
   const requests = reqDoc().list.filter((r) => r.taskId === id).map(requestView);
-  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests, campaign: t.campaign || null, flow: t.flow || null };
+  if (!t.session) return { task: publicTask(t), session: null, qa: t.qa || [], requests, campaign: t.campaign || null, flow: t.flow || null, real: realView(t) };
   const participants = t.assigneeIds.map(getStaff).filter(Boolean);
   return {
     task: publicTask(t),
@@ -1342,6 +1353,70 @@ on('GET', '/api/tasks/([\\w-]+)', (b, [id]) => {
     qa: t.qa || [], requests,
   };
 });
+// ---------- Việc làm thực tế ----------
+const settingsDoc = () => store.get('officeSettings', { hotlines: [], fanpageUrl: '', kiotvietUrl: '', adsManagerUrl: 'https://adsmanager.facebook.com/' });
+function realLinks() {
+  const s = settingsDoc();
+  const links = listDoc('links').list;
+  const pick = (kind) => links.find((l) => l.kind === kind)?.url || '';
+  return { fanpageUrl: s.fanpageUrl || pick('facebook_page'), kiotvietUrl: s.kiotvietUrl || pick('kiotviet'), adsManagerUrl: s.adsManagerUrl || pick('facebook_ads') || 'https://adsmanager.facebook.com/', hotlines: s.hotlines };
+}
+const realView = (t) => (t.real ? { ...t.real, current: currentAction(t.real), team: realTeam(t.real), links: realLinks() } : null);
+function saveSettings(b = {}) {
+  const s = settingsDoc();
+  for (const k of ['fanpageUrl', 'kiotvietUrl', 'adsManagerUrl']) {
+    if (b[k] === undefined) continue;
+    const v = String(b[k] || '').trim();
+    if (v && !/^https:\/\//i.test(v)) throw fail('Link phải bắt đầu bằng https://');
+    s[k] = v;
+  }
+  if (b.hotlines !== undefined) {
+    const list = (Array.isArray(b.hotlines) ? b.hotlines : String(b.hotlines).split(/[,;]+/)).map((x) => String(x).trim()).filter(Boolean);
+    if (list.length && list.length !== 2) throw fail('Nhập đúng 2 số hotline.');
+    s.hotlines = list;
+  }
+  store.save('officeSettings');
+  return s;
+}
+on('GET', '/api/office-settings', () => settingsDoc());
+on('PUT', '/api/office-settings', (b) => saveSettings(b));
+const REAL_SENDER = { record_metrics: ANALYST_ID, analyze: ANALYST_ID, write_post: CONTENT_ID, publish: CONTENT_ID, propose_budget: ADS_ID, approve_budget: 'user', run_ads: ADS_ID };
+const realBusy = new Set();
+on('POST', '/api/tasks/([\\w-]+)/real', async (b, [id]) => {
+  const t = needTask(id);
+  if (!t.real) throw fail('Việc này không phải việc làm thực tế.');
+  if (realBusy.has(id)) throw fail('Đang làm hành động trước, chờ chút.');
+  realBusy.add(id);
+  try {
+    const r = t.real;
+    const action = String(b.action || '');
+    let res;
+    try {
+      res = await applyAction(r, action, b.input || {}, {
+        task: t, staff: getStaff,
+        think: (s, ctx) => think(s, { ...ctx, kind: action === 'write_post' ? 'writing' : 'deep_analysis' }),
+        hotlines: () => settingsDoc().hotlines,
+        saveHotlines: (list) => saveSettings({ hotlines: list }),
+        budgetCap: parseGoal(t.title, t.description).budget || 0,
+      });
+    } catch (e) { throw e.status ? e : fail(e.message); }
+    t.real = r;
+    t.status = r.done ? 'done' : 'in_progress';
+    t.lastError = null;
+    saveTask(t);
+    addMessage('group', REAL_SENDER[action] || r.owner, res.message);
+    return { real: realView(t) };
+  } finally { realBusy.delete(id); }
+});
+on('DELETE', '/api/tasks/([\\w-]+)', (b, [id]) => {
+  needTask(id);
+  store.remove(`task-${id}`);
+  const rd = reqDoc();
+  rd.list = rd.list.filter((r) => r.taskId !== id);
+  store.save('requests');
+  return { ok: true };
+});
+
 on('POST', '/api/tasks/([\\w-]+)/check-now', (b, [id]) => {
   const t = needTask(id);
   const st = t.campaign?.steps.find((x) => !['done', 'skipped'].includes(x.status));
@@ -1504,7 +1579,7 @@ on('POST', '/api/reports', () => { if (reportRunning) throw fail('Báo cáo đan
 on('GET', '/api/activity', () => {
   bg(runAutomation());
   const recent = Object.fromEntries([...said].filter(([, v]) => Date.now() - Date.parse(v.at) < 90000));
-  return { working: [...working.keys()], said: recent, storageWarning: store.writeError, pendingRequests: reqDoc().list.filter((r) => r.status === 'pending').length };
+  return { working: [...working.keys()], said: recent, storageWarning: store.writeError, pendingRequests: reqDoc().list.filter((r) => r.status === 'pending').length + tasksAll().filter((t) => t.real && currentAction(t.real)?.key === 'approve_budget').length };
 });
 on('GET', '/api/overview', () => {
   const z = zaloDoc();

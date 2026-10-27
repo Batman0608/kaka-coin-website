@@ -12,18 +12,24 @@
   - *Phần mềm làm việc* (KiotViet, Fanpage, phần mềm khác): ghi mục đích dùng, phạm vi quyền, mã truy cập (chỉ hiện 4 ký tự cuối). Có các nút Mở trình duyệt, Kiểm tra kết nối, Đồng bộ, Nhập dữ liệu (dán hoặc tải CSV), Xem dữ liệu, Đánh dấu hết hạn, cùng nhật ký từng lần thao tác. Khi trả lời, nhân viên nhận các mục liên quan câu hỏi (giá, tồn kho, bài đăng…) từ phần mềm của chính mình; chưa có dữ liệu thì nói "chưa cập nhật".
   - *Lịch tự động*: việc lặp lại hằng ngày theo giờ Việt Nam. Đến giờ, hệ thống tự giao việc, chạy nháp, phản biện và bản cuối.
 - **Tự đào tạo:** sau mỗi việc xong hoặc bị trả làm lại, Trang (Nhân sự) đọc kết quả và lời phản biện, rồi viết bài học cụ thể cho từng người vào mục "Bài học tự rút ra" và tạo phiên bản đào tạo mới. Mục này giữ 20 bài học gần nhất; bạn sửa hoặc xoá được.
-- **Giao việc cho văn phòng** (nút "+ Giao việc"): một cách giao việc duy nhất.
-  1. Cả 10 nhân viên đọc việc, mỗi người tự xét theo vai trò xem có phần nào của mình không. Trang việc hiện ai nhận, ai không liên quan.
-  2. Chỉ một người nhận thì người đó làm luôn. Ví dụ "tra giá sản phẩm" → chỉ Sơn (Sale) nhận.
-  3. Nhiều người nhận thì Phúc sắp thứ tự: ai làm gì, ai chờ ai. Ví dụ "tăng 1000 người theo dõi Fanpage" → Tuấn tìm xu hướng → An viết bài + thiết kế ảnh → Bình đề xuất quảng cáo. Không họp tranh luận.
-  4. Mỗi người làm phần của mình bằng hành động thật:
-     - xem phần mềm được giao, tìm trên web, thiết kế ảnh;
-     - hỏi bạn khi cần thông tin;
-     - xin duyệt trước khi đăng bài, nhắn khách hay chạy quảng cáo;
-     - nhờ đồng nghiệp làm phần đúng chuyên môn của họ.
-  5. Nhiều người thì cuối cùng Phúc tổng kết.
-  - Trang việc có bảng riêng cho từng người. Đến lượt ai thì bảng người đó tự mở và được làm nổi bật, kèm từng việc họ đang làm, kết quả, và thẻ duyệt nếu cần bạn.
-  - Nút "Gọi toàn nhân viên họp" vẫn mở cuộc họp phản biện kiểu cũ.
+- **Giao việc = việc làm thực tế** (nút "+ Giao việc", `shared/realwork.js`). Không có quy trình dựng sẵn, không tự họp tranh luận.
+  - Giao xong, việc ở trạng thái "Mới giao". Nhóm chat chỉ có một tin giao việc. Chưa gọi bộ não, máy chủ không tự chạy gì thêm.
+  - Mở việc ra chỉ thấy **một việc cần làm ngay của một người**. Bấm thì người đó làm đúng việc đó. Phần đã xong gom ở mục "Đã làm".
+  - Việc Fanpage / theo dõi / quảng cáo đi lần lượt:
+    1. Tuấn mở Fanpage bằng link thật (nút "Mở Fanpage" / "Mở KiotViet") và ghi số đang thấy.
+    2. Tuấn nhận xét, chỉ dựa trên đúng các số đó.
+    3. An viết **1 bài hoàn chỉnh**: không giá, không website, đúng 2 hotline, ghi "(Chưa đăng)". Bài sai quy cách thì An tự sửa.
+    4. An mở Fanpage đăng bài rồi dán link bài.
+    5. Bình đề xuất ngân sách bằng số cụ thể, không vượt ngân sách ghi trong mô tả.
+    6. **Bạn duyệt** ngay trong thẻ việc.
+    7. Bình mở Ads Manager chạy, ghi mã + link chiến dịch. Việc xong.
+  - Chặn đúng chỗ, kể cả khi gọi thẳng API:
+    - An chưa viết được khi Tuấn chưa ghi số liệu.
+    - Bình chưa đề xuất được khi chưa có link bài.
+    - Chưa chạy quảng cáo được khi bạn chưa duyệt.
+  - Việc khác (vd. "tra giá" → Sơn): một thẻ, một hành động của đúng một người.
+  - Link Fanpage / KiotViet lấy từ phần mềm đã kết nối, hoặc nhập ngay trong thẻ. Lần đầu An viết bài thì nhập 2 hotline, lưu cho các lần sau. API: `POST /api/tasks/:id/real {action, input}`, `GET/PUT /api/office-settings`, `DELETE /api/tasks/:id`.
+  - Nút "Gọi toàn nhân viên họp" vẫn mở cuộc họp phản biện. API `workflow: "team"` (cả văn phòng tự xét việc) và `workflow: "fanpage"` vẫn dùng được.
 - **Vai trò chuẩn của 10 nhân viên** (`shared/roles.js`; Cài đặt → "Thiết lập lại toàn bộ nhân viên"):
   - **Marketing** (tăng độ nhận diện, thu thập dữ liệu khách để chuyển Sale):
     - Tuấn (Phân tích): thị trường, xu hướng trên web, đo số liệu.
@@ -158,7 +164,7 @@ Lệnh này chạy checklist kiểm thử bắt buộc của đặc tả (ca Fan
 ```
 shared/   core.js — logic thuần dùng chung: 10 nhân sự, chọn người, giao thức suy nghĩ, Marketing 5 bước, cổng phiếu, báo cáo
           deliberation.js (phản biện chéo) · staffkit.js (đào tạo nhiều mục, lịch tự động, dữ liệu phần mềm, tự học)
-          browseragent.js (nhân viên điều khiển trình duyệt) · taskqa.js (hỏi về việc đã giao) · worker.js (làm việc thật từng lượt) · teamflow.js (giao việc cho cả văn phòng) · roles.js (vai trò chuẩn)
+          browseragent.js (nhân viên điều khiển trình duyệt) · taskqa.js (hỏi về việc đã giao) · worker.js (làm việc thật từng lượt) · teamflow.js (giao việc cho cả văn phòng) · realwork.js (việc làm thực tế: mỗi lúc một việc của một người) · roles.js (vai trò chuẩn)
           fanpage.js (Fanpage tự vận hành) · design.js (vẽ ảnh thiết kế)
 server/   index.js (API, đăng nhập) · brain.js (chọn bộ não, gọi nhà cung cấp) · tasks.js (việc, tranh luận 10 phút, quyền dừng)
           reports.js (báo cáo 21:00) · automation.js (lịch tự động) · links.js · connectors.js (KiotViet, Facebook) · browser.js + browse.js (trình duyệt Playwright) · requests.js (yêu cầu chờ duyệt) · fanpage.js (Fanpage tự vận hành) · taskqa.js · staffops.js · realdata.js · chat.js · sales.js · zalo.js · roster.js · db.js · secrets.js

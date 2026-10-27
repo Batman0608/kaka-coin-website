@@ -14,7 +14,7 @@ const GROUP_NAME = { Marketing: 'Nhóm Marketing', VanHanhKiemSoat: 'Vận hành
 const STATUS = { sleeping: 'Đang ngủ', thinking: 'Đang suy nghĩ', working: 'Đang làm việc', resting: 'Đang nghỉ', error: 'Báo lỗi' };
 const ROLE_NAME = { general: 'Chung', image_design: 'Thiết kế hình ảnh', writing: 'Viết bài', deep_analysis: 'Phân tích chuyên sâu', zalo_channel: 'Kênh Zalo' };
 const TASK_STATUS = {
-  open: 'Mới', in_progress: 'Đang làm', debating: 'Đang phản biện', stopped_by_manager: 'Quản lý đã dừng',
+  open: 'Mới giao', in_progress: 'Đang làm', debating: 'Đang phản biện', stopped_by_manager: 'Quản lý đã dừng',
   waiting_user: 'Chờ người dùng', done: 'Đã xong', returned_for_redo: 'Trả làm lại',
 };
 const TASK_TONE = { done: 'teal', stopped_by_manager: 'red', returned_for_redo: 'red', debating: 'orange', in_progress: 'orange', open: 'gold', waiting_user: 'gold' };
@@ -155,7 +155,8 @@ const avatar = (s, size = '') => `<span class="avatar ${size}" style="background
 function involves(t, id) {
   return t.assigneeIds.includes(id) || (t.planSteps || []).some((p) => p.staffId === id) || (t.outputs || []).some((o) => o.staffId === id);
 }
-const activeTasksOf = (id) => state.tasks.filter((t) => ACTIVE_TASK.has(t.status) && involves(t, id));
+// Việc làm thực tế: chỉ người đang tới lượt mới tính là đang có việc.
+const activeTasksOf = (id) => state.tasks.filter((t) => ACTIVE_TASK.has(t.status) && (t.isReal ? t.nowStaffId === id : involves(t, id)));
 
 // Ưu tiên: đang suy nghĩ thật > ngủ / báo lỗi do người dùng đặt > đang có việc > trạng thái người dùng đặt.
 function statusOf(s) {
@@ -370,8 +371,12 @@ function liveCard(id, box) {
     if (task.kind === 'general' && !(task.planSteps || []).length) {
       detail = await api(`/api/tasks/${task.id}`).catch(() => null);
       const turns = detail?.session?.turns || [];
+      const real = detail?.real;
       const phases = id === 'STAFF-007' && !task.assigneeIds.includes(id) ? ['judge'] : ['propose', 'critique', 'revise', 'score', ...(id === 'STAFF-007' ? ['judge'] : [])];
-      steps = phases.map((p) => {
+      steps = real ? [
+        ...real.log.filter((x) => x.staffId === id).map((x) => ({ title: x.what, sub: '', done: true, label: 'Đã làm' })),
+        ...(real.current?.staffId === id ? [{ title: `Bây giờ: ${REAL_TITLE[real.current.key]}`, sub: 'Mở việc để làm', done: false }] : []),
+      ] : phases.map((p) => {
         const turn = turns.find((x) => x.phase === p && x.staffId === id);
         return { title: PHASE_TITLES[p], sub: p === 'judge' ? 'Xét từng đề xuất, chọn ý tốt nhất bất kể ai đề xuất' : '', done: !!turn, text: turn?.text, label: 'Đã nói' };
       });
@@ -1035,7 +1040,7 @@ VIEWS.tasks = (arg) => {
       <h3>${meeting ? 'Họp toàn văn phòng' : 'Giao việc cho văn phòng'}</h3>
       <p class="kv" style="margin:0">${meeting
     ? 'Mỗi người đề xuất, phản biện chéo, Phúc chọn ý tốt nhất (tối đa 10 phút).'
-    : 'Cả 10 nhân viên đọc việc, mỗi người tự xét có phần nào của mình không. Ai liên quan thì làm ngay (vd. "tra giá" → chỉ Sơn; "tăng theo dõi Fanpage" → cả nhóm Marketing). Nhiều người thì Phúc sắp thứ tự. Đến ai làm thì bảng của người đó mở ra; bước nào cần bạn duyệt sẽ báo.'}</p>
+    : 'Giao xong việc chỉ ở trạng thái "Mới giao". Mở việc ra sẽ thấy đúng một việc cần làm ngay của một người, bấm là người đó làm.'}</p>
       <label>Việc cần làm <input id="gTitle" name="title" required placeholder="Ví dụ: Tra giá phốt FLTWS47691 / Tăng 1000 theo dõi cho Fanpage"></label>
       <label>Mô tả thêm (ngân sách, thời gian, yêu cầu…) <textarea name="description"></textarea></label>
       <div class="stack ${meeting ? '' : 'hidden'}" style="gap:8px"><span class="kv">Người tham gia (cả văn phòng; bỏ chọn bớt để tiết kiệm lượt gọi bộ não)</span>
@@ -1062,10 +1067,16 @@ VIEWS.tasks = (arg) => {
       r.readAsDataURL(f);
     })));
     const assigneeIds = $$('input[name=a]:checked', form).map((i) => i.value);
-    const workflow = meeting ? 'debate' : 'team';
-    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds: meeting ? assigneeIds : [], attachments, workflow } }),
-      meeting ? 'Đã bắt đầu họp.' : 'Đã giao việc — cả văn phòng đang xét việc.');
-    if (t) { await loadTasks(); openView('tasks', t.id); }
+    const workflow = meeting ? 'debate' : 'real';
+    const t = await act(() => api('/api/tasks', { body: { title: form.title.value, description: form.description.value, kind: 'general', assigneeIds: meeting ? assigneeIds : [], attachments, workflow } }));
+    if (!t) return;
+    if (meeting) toast('Đã bắt đầu họp.');
+    else {
+      const d = await api(`/api/tasks/${t.id}`).catch(() => null);
+      const c = d?.real?.current;
+      toast(`Đã giao việc — chưa có quy trình nào chạy sẵn. ${c ? `${nameOf(c.staffId)} làm trước: ${REAL_TITLE[c.key] || ''}.` : ''}`, 6000);
+    }
+    await loadTasks(); openView('tasks', t.id);
   });
   mount(wrap, async () => {
     if (typingAsk($('#tList', wrap))) return;
@@ -1162,8 +1173,86 @@ function renderTeam(box, t, f, requests) {
   loadPostImages(box);
 }
 
+// Việc làm thực tế (shared/realwork.js): đúng MỘT việc cần làm ngay của MỘT người, làm trên link và số liệu thật.
+const REAL_TITLE = {
+  record_metrics: 'xem Fanpage và ghi lại số liệu nhìn thấy', analyze: 'nhận xét đúng trên số liệu vừa ghi', write_post: 'viết 1 bài hoàn chỉnh',
+  publish: 'mở Fanpage đăng bài rồi dán link bài', propose_budget: 'đề xuất ngân sách quảng cáo bằng số cụ thể', approve_budget: 'duyệt ngân sách Bình đề xuất',
+  run_ads: 'mở Ads Manager chạy quảng cáo, ghi mã chiến dịch', answer: 'làm việc này',
+};
+const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
+const openBtn = (url, label) => (url ? `<a class="btn sm outline" href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : `<span class="btn sm outline" aria-disabled="true" title="Chưa có link — nhập ở ô bên dưới">${esc(label)} (chưa có link)</span>`);
+function realActionHtml(r) {
+  const c = r.current;
+  const L = r.links;
+  if (!c) return '';
+  const who = c.staffId === 'user' ? 'bạn' : nameOf(c.staffId);
+  const head = `<h3 style="margin:0">Việc của ${esc(who)} bây giờ là ${esc(REAL_TITLE[c.key])}</h3>`;
+  const lastPost = r.post ? `<div class="detail-box open" id="rPost">${esc(r.post.text)}</div>` : '';
+  const body = {
+    record_metrics: () => `<div class="row">${openBtn(L.fanpageUrl, 'Mở Fanpage')}${openBtn(L.kiotvietUrl, 'Mở KiotViet')}</div>
+      ${L.fanpageUrl ? '' : `<div class="field-row"><input name="fanpageUrl" aria-label="Link Fanpage" placeholder="Link Fanpage https://facebook.com/…"><button class="btn sm" type="button" data-save-link>Lưu link</button></div>`}
+      <p class="kv" style="margin:0">Mở Fanpage, nhìn rồi ghi đúng số đang hiện trên trang.</p>
+      <div class="field-row"><label>Người theo dõi <input name="followers" inputmode="numeric" placeholder="vd. 1.234"></label><label>Lượt thích trang <input name="likes" inputmode="numeric"></label></div>
+      <label>Bài gần nhất (lượt thích / bình luận) <input name="recent" placeholder="không bắt buộc"></label>
+      <button class="btn gold" type="submit">Ghi số liệu</button>`,
+    analyze: () => `<p class="kv" style="margin:0">Số đã ghi: ${r.metrics.followers ?? '—'} người theo dõi · ${r.metrics.likes ?? '—'} lượt thích${r.metrics.recent ? ` · ${esc(r.metrics.recent)}` : ''}</p>
+      <button class="btn gold" type="submit">Tuấn nhận xét</button>`,
+    write_post: () => `${L.hotlines.length === 2 ? `<p class="kv" style="margin:0">Hotline ghi vào bài: ${esc(L.hotlines.join(' – '))}</p>` : `<div class="field-row"><input name="hotline1" required aria-label="Hotline 1" placeholder="Hotline 1"><input name="hotline2" required aria-label="Hotline 2" placeholder="Hotline 2"></div>`}
+      <button class="btn gold" type="submit">Viết bài</button>`,
+    publish: () => `${lastPost}<div class="row">${openBtn(L.fanpageUrl, 'Mở Fanpage')}<button class="btn sm" type="button" data-copy>Chép bài</button></div>
+      <label>Link bài đã đăng <input name="postLink" required placeholder="https://facebook.com/…/posts/…"></label>
+      <div class="row"><button class="btn gold" type="submit">Lưu link bài</button><input class="grow" name="feedback" aria-label="Góp ý để viết lại" placeholder="Góp ý nếu muốn viết lại"><button class="btn sm" type="button" data-redo="write_post">Viết lại</button></div>`,
+    propose_budget: () => `<p class="kv" style="margin:0">Bài: <a href="${esc(r.postLink)}" target="_blank" rel="noopener">${esc(r.postLink)}</a></p>
+      <button class="btn gold" type="submit">Bình đề xuất ngân sách</button>`,
+    approve_budget: () => `<div class="notice"><b>${vnd(r.budget.perDay)}/ngày × ${r.budget.days} ngày = ${vnd(r.budget.total)}</b>${r.budget.target ? `<br>Đối tượng: ${esc(r.budget.target)}` : ''}${r.budget.reason ? `<br>${esc(r.budget.reason)}` : ''}</div>
+      <div class="row"><button class="btn gold" type="submit">Duyệt ngân sách</button><input class="grow" name="feedback" aria-label="Góp ý để đề xuất lại" placeholder="Góp ý nếu muốn đề xuất lại"><button class="btn sm" type="button" data-redo="propose_budget">Đề xuất lại</button></div>`,
+    run_ads: () => `<div class="row">${openBtn(L.adsManagerUrl, 'Mở Ads Manager')}</div>
+      <p class="kv" style="margin:0">Đã duyệt ${vnd(r.budget.perDay)}/ngày × ${r.budget.days} ngày. Đẩy bài ${esc(r.postLink)}, xuất bản rồi ghi lại mã chiến dịch.</p>
+      <div class="field-row"><label>Mã chiến dịch <input name="campaignId" required></label><label>Link chiến dịch <input name="campaignLink" placeholder="https://adsmanager.facebook.com/…"></label></div>
+      <button class="btn gold" type="submit">Lưu mã chiến dịch</button>`,
+    answer: () => `<button class="btn gold" type="submit">${esc(nameOf(c.staffId))} làm ngay</button>`,
+  }[c.key]();
+  return `<form class="card gold stack tight" id="realForm" data-action="${c.key}"><div class="row">${c.staffId === 'user' ? '' : avatar(staffById(c.staffId), 'sm')}${head}</div>${body}</form>`;
+}
+function realDoneHtml(r) {
+  const items = [];
+  if (r.metrics) items.push(['STAFF-003', `Số liệu Fanpage: ${r.metrics.followers ?? '—'} người theo dõi · ${r.metrics.likes ?? '—'} lượt thích`]);
+  if (r.analysis) items.push(['STAFF-003', r.analysis]);
+  if (r.post && r.postLink) items.push(['STAFF-001', `Đã đăng: ${r.postLink}\n\n${r.post.text}`]);
+  if (r.budget && r.budgetApproved) items.push(['STAFF-002', `Ngân sách đã duyệt: ${vnd(r.budget.perDay)}/ngày × ${r.budget.days} ngày`]);
+  if (r.campaign) items.push(['STAFF-002', `Mã chiến dịch: ${r.campaign.id}${r.campaign.link ? `\n${r.campaign.link}` : ''}`]);
+  if (r.answer) items.push([r.owner, r.answer.text]);
+  if (!items.length) return '';
+  return `<section class="card stack tight"><h3>Đã làm</h3><div class="chat">${items.map(([sid, text]) => `<div class="msg staff"><div class="who">${esc(nameOf(sid))}</div><div class="body">${esc(text)}</div></div>`).join('')}</div></section>`;
+}
+function renderReal(box, t, r, refresh) {
+  if (!r) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  if (box.contains(document.activeElement) && document.activeElement.matches('input, textarea')) return;
+  const html = `${r.done ? '<div class="notice">Việc đã xong.</div>' : realActionHtml(r)}${realDoneHtml(r)}`;
+  if (box.dataset.html === html) return;
+  box.innerHTML = html; box.dataset.html = html;
+  const form = $('#realForm', box);
+  if (!form) return;
+  const send = async (action, input, btn) => {
+    $$('button', form).forEach((b) => { b.disabled = true; });
+    if (btn) btn.textContent = 'Đang làm…';
+    const ok = await act(() => api(`/api/tasks/${t.id}/real`, { body: { action, input } }));
+    if (!ok) $$('button', form).forEach((b) => { b.disabled = false; });
+    box.dataset.html = '';
+    refresh();
+  };
+  form.addEventListener('submit', (e) => { e.preventDefault(); send(form.dataset.action, Object.fromEntries(new FormData(form)), e.submitter); });
+  form.querySelectorAll('[data-redo]').forEach((b) => b.addEventListener('click', () => send(b.dataset.redo, { feedback: form.feedback?.value || '' }, b)));
+  form.querySelector('[data-copy]')?.addEventListener('click', () => navigator.clipboard?.writeText(r.post.text).then(() => toast('Đã chép bài.')));
+  form.querySelector('[data-save-link]')?.addEventListener('click', async () => {
+    if (await act(() => api('/api/office-settings', { method: 'PUT', body: { fanpageUrl: form.fanpageUrl.value } }), 'Đã lưu link Fanpage.')) { box.dataset.html = ''; refresh(); }
+  });
+}
+
 function viewTaskDetail(id) {
   const wrap = el(`<button class="btn sm" type="button" id="back">← Tất cả việc</button><div id="tHead" class="stack"></div>
+    <section class="stack tight hidden" id="realBox"></section>
     <section class="stack tight hidden" id="teamBox"></section>
     <section class="card stack tight hidden" id="flowBox"></section>
     <div id="reqBox" class="stack tight"></div>
@@ -1177,7 +1266,7 @@ function viewTaskDetail(id) {
       <label for="sayText">Góp ý vào phiên (các vòng sau phải tính đến)</label>
       <div class="row"><input id="sayText" name="text" placeholder='Gõ "chốt công việc" hoặc "dừng" để chốt' autocomplete="off"><button class="btn gold" type="submit">Gửi</button><button type="button" id="closeBtn" class="btn danger">Dừng phiên</button></div>
     </form>
-    <details class="card"><summary><b>Quyền Quản lý (Phúc)</b></summary>
+    <details class="card" id="mgrBox"><summary><b>Quyền Quản lý (Phúc)</b></summary>
       <div class="form" style="margin-top:12px">
         <div class="row"><input class="grow" id="stopReason" aria-label="Lý do dừng" placeholder="Lý do dừng"><button class="btn danger" type="button" id="stopBtn">Dừng ngay</button></div>
         <div class="field-row"><input id="retReason" aria-label="Lý do trả làm lại" placeholder="Lý do trả làm lại"><input id="retCrit" aria-label="Tiêu chí đạt" placeholder="Tiêu chí đạt"><button class="btn" type="button" id="retBtn">Trả việc</button></div>
@@ -1199,10 +1288,12 @@ function viewTaskDetail(id) {
     await post('say', { text });
   });
   async function refresh() {
-    const { task: t, session: s, qa = [], requests = [], campaign = null, flow = null } = await api(`/api/tasks/${id}`);
+    const { task: t, session: s, qa = [], requests = [], campaign = null, flow = null, real = null } = await api(`/api/tasks/${id}`);
+    renderReal($('#realBox', wrap), t, real, refresh);
+    for (const k of ['#qaBox', '#mgrBox', '#reqBox']) $(k, wrap).classList.toggle('hidden', !!real);
     renderFlow($('#flowBox', wrap), t, campaign, requests);
     renderTeam($('#teamBox', wrap), t, flow, requests);
-    $('#outputs', wrap).classList.toggle('hidden', !!flow);
+    $('#outputs', wrap).classList.toggle('hidden', !!flow || !!real);
     if (flow) $('#reqBox', wrap).innerHTML = ''; // việc giao cả văn phòng: thẻ duyệt nằm trong bảng của người đang làm
     else if (!typingReq($('#reqBox', wrap))) {
       const open = requests.filter((r) => ['pending', 'publishing'].includes(r.status));

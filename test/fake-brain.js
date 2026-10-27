@@ -40,6 +40,20 @@ export function fakeAnswer(prompt, flags = {}) {
     const names = [...question.matchAll(/^- ([^:\n]+): /gm)].map((m) => m[1]);
     return JSON.stringify({ baiHoc: names.map((n) => ({ nhanVien: n, baiHoc: [`[TEST] ${n}: kiểm tra số liệu nền trước khi đề xuất`] })) });
   }
+  if (/^Bạn là người phân tích\. Người dùng giao:/.test(question)) {
+    // Chỉ nhắc đúng số đã ghi.
+    const m = JSON.parse(/không thêm số nào khác\): (\{.*\})$/m.exec(question)?.[1] || '{}');
+    return `[TEST] Trang đang có ${m.nguoiTheoDoi ?? 'chưa có số'} người theo dõi và ${m.luotThichTrang ?? 'chưa có số'} lượt thích. Nên đăng bài mẹo bảo dưỡng xe tải có hình thật để kéo người theo dõi.`;
+  }
+  if (/^Bạn là người viết nội dung Fanpage\./.test(question)) {
+    const hot = /ghi đúng 2 hotline (\S+) và (\S+)/.exec(question) || [];
+    // Bản đầu cố tình sót giá và website để kiểm tra vòng tự soát quy cách.
+    if (!/Bản trước bị trả lại/.test(question)) return `[TEST] Lọc gió chính hãng cho xe tải, chỉ 350.000đ!\nXem thêm tại www.longphu.vn\nGọi ${hot[1]}`;
+    return `[TEST] 3 dấu hiệu lọc gió xe tải cần thay ngay\n1. Xe hụt ga khi lên dốc.\n2. Khói đen nhiều hơn bình thường.\n3. Tốn dầu hơn mọi khi.\nLong Phu có sẵn lọc gió chính hãng cho đầu kéo và xe tải, kiểm tra miễn phí khi ghé cửa hàng.\nHotline: ${hot[1]} – ${hot[2]}\n(Chưa đăng)`;
+  }
+  if (/^Bạn là người chạy quảng cáo\. Bài đã đăng thật:/.test(question)) {
+    return JSON.stringify({ nganSachNgay: 90000, soNgay: 3, doiTuong: '[TEST] 25–55 tuổi, chủ xe tải, toàn quốc', mucTieu: 'tăng người theo dõi', lyDo: '[TEST] Bài mới có số liệu nền thấp, chạy thử 3 ngày rồi đo.' });
+  }
   if (/^XÉT VIỆC MỚI/.test(question)) {
     // Mỗi người tự xét theo vai trò: tra giá → Sale; theo dõi / follow → nhóm Marketing; còn lại → Quản lý.
     const viec = /vừa giao cho cả văn phòng: "([^"]+)"/.exec(question)?.[1] || '';

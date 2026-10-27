@@ -22,6 +22,7 @@ import { startAutomation } from './automation.js';
 import { startBrowse } from './browse.js';
 import { askTask, listQa } from './taskqa.js';
 import { listRequests, respond, pendingCount } from './requests.js';
+import { startReal, doRealAction, realView, getSettings, saveSettings, pendingBudgetCount } from './realwork.js';
 import { getImage } from './images.js';
 import { startCampaign, getCampaign, CAMPAIGN_TEAM, checkNow } from './campaign.js';
 import { overview as fanpageOverview, updateOps as updateFanpageOps, runCycle as runFanpageCycle, postImage } from './fanpage.js';
@@ -392,8 +393,12 @@ app.post('/api/tasks', auth, wrap((req, res) => {
   const fanpageFlow = kind === 'general' && req.body.workflow === 'fanpage';
   // Giao việc cho cả văn phòng: từng người tự xét liên quan, ai liên quan thì làm (shared/teamflow.js).
   const teamFlow = kind === 'general' && req.body.workflow === 'team';
+  // Việc làm thực tế: giao xong chỉ "Mới giao", mỗi lúc một việc của một người, làm khi bạn bấm (shared/realwork.js).
+  const realFlow = req.body.workflow === 'real';
   const id = createTask(req.accountId, { title, description, kind, assigneeIds: fanpageFlow ? CAMPAIGN_TEAM : teamFlow ? ['STAFF-007'] : assigneeIds, attachments: atts, taskKind });
-  if (teamFlow) {
+  if (realFlow) {
+    startReal(req.accountId, id);
+  } else if (teamFlow) {
     startTeamFlow(req.accountId, id);
     executeTask(req.accountId, id).catch((e) => console.error(e));
   } else if (fanpageFlow) {
@@ -408,8 +413,27 @@ app.get('/api/tasks/:id', auth, wrap((req, res) => {
   const row = getTaskRow(req.accountId, req.params.id);
   if (!row) throw new Error('Không tìm thấy việc.');
   const task = rowToTask(row);
-  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }), campaign: getCampaign(req.accountId, task.id), flow: getFlow(req.accountId, task.id) });
+  res.json({ task, session: task.debateSessionId ? getSession(req.accountId, task.debateSessionId) : null, qa: listQa(req.accountId, task.id), requests: listRequests(req.accountId, { taskId: task.id }), campaign: getCampaign(req.accountId, task.id), flow: getFlow(req.accountId, task.id), real: realView(req.accountId, task.id) });
 }));
+
+app.post('/api/tasks/:id/real', auth, wrap(async (req, res) => {
+  if (!getTaskRow(req.accountId, req.params.id)) throw new Error('Không tìm thấy việc.');
+  res.json({ real: await doRealAction(req.accountId, req.params.id, String(req.body.action || ''), req.body.input || {}) });
+}));
+app.delete('/api/tasks/:id', auth, wrap((req, res) => {
+  const row = getTaskRow(req.accountId, req.params.id);
+  if (!row) throw new Error('Không tìm thấy việc.');
+  tx(() => {
+    for (const s of db.prepare('SELECT id FROM debate_sessions WHERE account_id = ? AND task_id = ?').all(req.accountId, row.id)) {
+      db.prepare('DELETE FROM debate_turns WHERE session_id = ?').run(s.id);
+    }
+    for (const t of ['debate_sessions', 'task_qa', 'staff_requests']) db.prepare(`DELETE FROM ${t} WHERE account_id = ? AND task_id = ?`).run(req.accountId, row.id);
+    db.prepare('DELETE FROM tasks WHERE account_id = ? AND id = ?').run(req.accountId, row.id);
+  });
+  res.json({ ok: true });
+}));
+app.get('/api/office-settings', auth, wrap((req, res) => res.json(getSettings(req.accountId))));
+app.put('/api/office-settings', auth, wrap((req, res) => res.json(saveSettings(req.accountId, req.body || {}))));
 
 app.post('/api/tasks/:id/check-now', auth, wrap((req, res) => {
   checkNow(req.accountId, req.params.id);
@@ -508,7 +532,7 @@ app.post('/api/reports', auth, wrap((req, res) => {
 }));
 
 // Nhân viên đang suy nghĩ — cho văn phòng 3D
-app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId), pendingRequests: pendingCount(req.accountId) })));
+app.get('/api/activity', auth, wrap((req, res) => res.json({ working: workingStaff(req.accountId), said: recentSaid(req.accountId), pendingRequests: pendingCount(req.accountId) + pendingBudgetCount(req.accountId) })));
 
 // Yêu cầu của nhân viên trong lúc làm việc (cần thông tin, xin phép truy cập, xin duyệt đăng).
 // Fanpage tự vận hành

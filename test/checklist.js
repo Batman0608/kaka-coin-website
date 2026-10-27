@@ -534,6 +534,54 @@ let zIds = [];
     `Chi: "${rep?.cskhText?.slice(0, 70)}…"; Phúc: "${rep?.summary?.slice(0, 70)}…"; /api/activity → ${JSON.stringify(act)}`);
 }
 
+// --- Việc làm thực tế: mỗi lúc MỘT việc của MỘT người, chặn đúng chỗ, chuỗi thật tới mã chiến dịch ---
+{
+  const V = client(base);
+  await V('/api/register', { username: 'test-real', password: 'matkhau-test-9', officeName: 'VP Thực tế' });
+  await V('/api/office-settings', { fanpageUrl: 'https://www.facebook.com/longphuauto', kiotvietUrl: 'https://longphu.kiotviet.vn', hotlines: ['0912 345 678', '0987 654 321'] }, 'PUT');
+  const tk = (await V('/api/tasks', { title: 'Tăng 1000 người theo dõi Fanpage', description: 'Ngân sách quảng cáo tối đa 300.000 đ', kind: 'general', workflow: 'real' })).data;
+  await sleep(600);
+  const g0 = (await V(`/api/tasks/${tk.id}`)).data;
+  const msgs0 = (await V('/api/messages/group')).data.messages;
+  const fresh = g0.task.status === 'open' && !g0.session && !(g0.task.outputs || []).length && msgs0.length === 1 && g0.real.current.key === 'record_metrics' && g0.real.current.staffId === 'STAFF-003' && g0.real.links.fanpageUrl.includes('facebook.com');
+  const act = (action, input = {}) => V(`/api/tasks/${tk.id}/real`, { action, input });
+  const gateWrite = await act('write_post');
+  const r1 = await act('record_metrics', { followers: '1.234', likes: '1.100', recent: 'Bài gần nhất 12 lượt thích' });
+  const r2 = (await act('analyze')).data.real;
+  const gateBudget = await act('propose_budget');
+  const r3 = (await act('write_post')).data.real;
+  const post = r3.post.text;
+  const postOk = !/\d[\d.]*\s*(đ|k\b|đồng)/i.test(post) && !/www\.|https?:/i.test(post) && post.includes('0912 345 678') && post.includes('0987 654 321') && (post.match(/0\d{2,3}[\s.]?\d{3}[\s.]?\d{3}/g) || []).length === 2 && post.includes('(Chưa đăng)');
+  const badLink = await act('publish', { postLink: 'https://www.longphu.vn/bai-1' });
+  const r4 = (await act('publish', { postLink: 'https://www.facebook.com/longphuauto/posts/123456' })).data.real;
+  const gateRun = await V(`/api/tasks/${tk.id}/real`, { action: 'run_ads', input: { campaignId: '120200000001' } });
+  const r5 = (await act('propose_budget')).data.real;
+  const pend = (await V('/api/activity')).data.pendingRequests;
+  const gateRun2 = await act('run_ads', { campaignId: '120200000001' });
+  const r6 = (await act('approve_budget')).data.real;
+  const r7 = (await act('run_ads', { campaignId: '120200000001', campaignLink: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=120200000001' })).data.real;
+  const g1 = (await V(`/api/tasks/${tk.id}`)).data;
+  check('Việc làm thực tế: giao xong chỉ "Mới giao", Tuấn làm trước, không quy trình dựng sẵn',
+    fresh, `trạng thái ${g0.task.status}, ${msgs0.length} tin nhóm ("${msgs0[0]?.text}"), việc bây giờ: ${g0.real.current.key} của ${g0.real.current.staffId}, link Fanpage ${g0.real.links.fanpageUrl}`);
+  check('Chặn đúng chỗ: An viết khi chưa có số liệu, Bình đề xuất khi chưa có link bài, chạy quảng cáo khi chưa duyệt',
+    gateWrite.status === 400 && gateBudget.status === 400 && gateRun.status === 400 && gateRun2.status === 400 && badLink.status === 400,
+    `viết bài → ${gateWrite.status} "${gateWrite.data.error}"; đề xuất → ${gateBudget.status} "${gateBudget.data.error}"; chạy → ${gateRun2.status} "${gateRun2.data.error}"; link không phải Facebook → ${badLink.status}`);
+  check('Chuỗi thật: số liệu → nhận xét đúng số → 1 bài đúng quy cách → link → 90.000 đ × 3 ngày → duyệt → mã chiến dịch → xong',
+    r1.status === 200 && /1234/.test(r2.analysis) && /1100/.test(r2.analysis) && postOk && r4.postLink && !r4.post.text.includes('(Chưa đăng)')
+    && r5.budget.perDay === 90000 && r5.budget.days === 3 && r5.current.key === 'approve_budget' && pend >= 1
+    && r6.current.key === 'run_ads' && r7.campaign.id === '120200000001' && r7.done && !r7.current && g1.task.status === 'done',
+    `nhận xét: "${r2.analysis.slice(0, 90)}…"; bài: "${post.replace(/\n/g, ' / ').slice(0, 160)}…"; ngân sách ${r5.budget.perDay}×${r5.budget.days}; chờ duyệt ${pend}; mã ${r7.campaign?.id}; trạng thái ${g1.task.status}`);
+  const single = (await V('/api/tasks', { title: 'Tra giá lọc gió Hino', kind: 'general', workflow: 'real' })).data;
+  const s0 = (await V(`/api/tasks/${single.id}`)).data.real;
+  const s1 = (await V(`/api/tasks/${single.id}/real`, { action: 'answer' })).data.real;
+  check('Việc không phải Marketing: 1 thẻ, 1 hành động của đúng 1 người', s0.kind === 'single' && s0.team.length === 1 && s0.current.staffId === 'STAFF-004' && s1.done && s1.answer.text,
+    `"Tra giá lọc gió Hino" → ${s0.current.staffId}, xong: ${s1.done}, trả lời "${s1.answer?.text.slice(0, 60)}…"`);
+  const del1 = await V(`/api/tasks/${tk.id}`, null, 'DELETE');
+  const del2 = await V(`/api/tasks/${single.id}`, null, 'DELETE');
+  const gone = (await V(`/api/tasks/${tk.id}`)).status;
+  check('Xoá việc kiểm thử sau khi kiểm tra', del1.status === 200 && del2.status === 200 && gone === 400, `xoá → ${del1.status}, ${del2.status}; mở lại → ${gone}`);
+}
+
 // --- Bảo mật (theo skill security-and-hardening) ---
 {
   const r = await fetch(base + '/');
