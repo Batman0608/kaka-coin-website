@@ -62,11 +62,14 @@
         <h1 id="officeName">Văn phòng ảo</h1>
         <p id="officeMeta" class="meta"></p>
         <div class="info-pill"><b id="clock">--:--:--</b><span aria-hidden="true">·</span><span>TP. Hồ Chí Minh</span><span aria-hidden="true">·</span><span id="weather" class="muted">đang tải thời tiết…</span></div>
+        <button class="approval-banner hidden" type="button" id="reqBtn" data-open="requests" aria-live="polite">
+          <span class="ab-icon" aria-hidden="true">!</span>
+          <span class="ab-text"><b><span id="reqCount">0</span> việc cần bạn duyệt</b><small id="reqWho">Bấm để xem tất cả</small></span>
+          <span class="ab-go" aria-hidden="true">›</span>
+        </button>
         <div class="hero-actions">
           <button class="btn gold" type="button" data-open="tasks:new">+ Giao việc</button>
-          <button class="btn outline" type="button" data-open="group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Chat nhóm công ty (<span id="groupCount">0</span>)</span></button>
-          <button class="btn" type="button" data-open="overview">Chi tiết</button>
-          <button class="btn gold pulse hidden" type="button" id="reqBtn" data-open="requests"><span>Chờ bạn duyệt (<span id="reqCount">0</span>)</span></button>
+          <button class="btn outline" type="button" data-open="group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Chat nhóm (<span id="groupCount">0</span>)</span></button>
         </div>
         <div id="notice" class="notice hidden" role="status"></div>
       </header>
@@ -92,14 +95,14 @@
       </section>
 
       <nav class="quick" aria-label="Lối tắt">
-        <button class="btn gold" type="button" data-open="fanpage">Vận hành Fanpage</button>
-        <button class="btn" type="button" data-open="tasks">Họp / Việc chung</button>
-        <button class="btn" type="button" data-open="group">Chat nhóm công ty</button>
-        <button class="btn" type="button" data-open="links">Liên kết phần mềm</button>
-        <button class="btn" type="button" data-open="zalo">Hàng chờ Zalo</button>
-        <button class="btn" type="button" data-open="slips">Phiếu bán hàng</button>
-        <button class="btn" type="button" data-open="reports">Báo cáo 21:00</button>
-        <button class="btn" type="button" data-open="settings">Cài đặt</button>
+        <button class="btn" type="button" data-open="tasks"><b>Việc &amp; họp</b><small>Tất cả việc đã giao</small></button>
+        <button class="btn" type="button" data-open="fanpage"><b>Vận hành Fanpage</b><small>Đăng bài, quảng cáo</small></button>
+        <button class="btn" type="button" data-open="links"><b>Phần mềm</b><small>KiotViet, Fanpage…</small></button>
+        <button class="btn" type="button" data-open="slips"><b>Phiếu bán hàng</b><small>Đơn khách chốt</small></button>
+        <button class="btn" type="button" data-open="zalo"><b>Hàng chờ Zalo</b><small>Tin chờ gửi khách</small></button>
+        <button class="btn" type="button" data-open="reports"><b>Báo cáo 21:00</b><small>Cuối ngày</small></button>
+        <button class="btn" type="button" data-open="overview"><b>Chi tiết</b><small>Số liệu văn phòng</small></button>
+        <button class="btn" type="button" data-open="settings"><b>Cài đặt</b><small>Tài khoản, nhân viên</small></button>
       </nav>
     </main>
 
@@ -109,13 +112,7 @@
       <div id="panel" class="sheet-body"></div>
     </aside>
 
-    <nav class="bottom-nav" aria-label="Điều hướng">
-      <button type="button" data-open="group" aria-label="Chat nhóm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4c4.97 0 9 3.13 9 7s-4.03 7-9 7c-1.2 0-2.35-.18-3.4-.52L4 20l1.3-3.6C3.86 15.07 3 13.12 3 11c0-3.87 4.03-7 9-7z"/></svg></button>
-      <button type="button" data-open="slips" aria-label="Phiếu bán hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 4v16M11 9h6M11 13h6"/></svg></button>
-      <button type="button" data-open="reports" aria-label="Báo cáo cuối ngày"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></button>
-      <button type="button" data-open="tasks" aria-label="Việc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></button>
-      <button type="button" data-open="more" aria-label="Thêm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><path d="M17 3.5l3.5 6h-7z"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><circle cx="17" cy="17" r="3"/></svg></button>
-    </nav>
+
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

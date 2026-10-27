@@ -520,6 +520,18 @@ let zIds = [];
     d2 && order === 'Tuấn → An → Bình' && tr['Tuấn']?.includes('tim_tren_web') && tr['An']?.includes('tao_anh') && tr['An']?.includes('xin_duyet_dang')
       && posted.length === 1 && posted[0].hasImage && /chủ sửa TEST/.test(posted[0].message) && adsReq?.budgetCap === 100000 && d2.task.outputs.some((o) => o.key === 'tongket' && o.staffId === 'STAFF-007'),
     d2 ? `${order}; Tuấn: ${tr['Tuấn']?.join('→')}; An: ${tr['An']?.join('→')}; Bình: ${tr['Bình']?.join('→')}; Facebook nhận ${posted.length} bài có ảnh; quảng cáo ${adsReq?.status}` : 'chưa xong');
+
+  // Nhắn thêm trong ô chat của việc: người được nhắn làm luôn (lên lịch đăng hằng ngày) và tới giờ hệ thống tự đăng.
+  const q = await T(`/api/tasks/${t2.id}/ask`, { question: 'Lên lịch hằng ngày 8:30 đăng bài theo mẫu như vậy', staffId: 'STAFF-001' });
+  const qa = await waitFor(async () => { const x = (await T(`/api/tasks/${t2.id}`)).data.qa; return x.length && x[x.length - 1].answer && x; }, 60000);
+  const fpAfter = (await T('/api/fanpage')).data;
+  const { dueCycles } = await import('../shared/fanpage.js');
+  const at = (hm) => new Date(Date.parse(`2026-03-02T${hm}:00+07:00`));
+  const due = dueCycles({ ...fpAfter.ops, enabled: false }, at('08:45')).map((x) => `${x.cycle}@${x.slot}`);
+  const notYet = dueCycles({ ...fpAfter.ops, enabled: false }, at('08:00')).length;
+  check('Nhắn thêm trong ô chat: An lên lịch đăng hằng ngày 8:30, tới giờ tự đăng (không bật các chu kỳ khác)',
+    q.status === 200 && qa && qa[qa.length - 1].trace.some((x) => x.hanhDong === 'len_lich') && fpAfter.ops.postSchedule.times.includes('08:30') && /TEST/.test(fpAfter.ops.postSchedule.brief) && due.join() === 'content@08:30' && notYet === 0,
+    `lịch: ${JSON.stringify(fpAfter.ops.postSchedule)}; 8:45 → ${due.join()}; 8:00 → ${notYet} chu kỳ`);
 }
 
 // --- Báo cáo cuối ngày + hoạt động 3D ---

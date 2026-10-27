@@ -23,6 +23,8 @@ export const DEFAULT_OPS = {
   enabled: false, fanpageLinkId: null, adsLinkId: null,
   contentTimes: ['09:00', '19:30'], analystEveryHours: 4, adsTime: '10:00', shareTime: '20:30',
   shareMaxPerDay: 3, groups: [], dailyBudgetCap: 300000, brand: '',
+  // Lịch đăng bài do người dùng nhắn trong ô chat của việc: tới giờ tự đăng bài mới theo mẫu, không cần duyệt lại từng bài.
+  postSchedule: { times: [], brief: '' },
   lastRun: { content: {}, analyst: null, ads: null, share: null },
 };
 
@@ -40,6 +42,11 @@ export function validateOps(b = {}, cur = DEFAULT_OPS) {
   if (b.shareMaxPerDay !== undefined) { const n = Number(b.shareMaxPerDay); if (!(n >= 0 && n <= 10)) throw new Error('Chia sẻ nhóm tối đa 10 lượt mỗi ngày.'); o.shareMaxPerDay = n; }
   if (b.dailyBudgetCap !== undefined) { const n = Math.round(Number(b.dailyBudgetCap)); if (!(n >= 0)) throw new Error('Trần ngân sách không hợp lệ.'); o.dailyBudgetCap = n; }
   if (b.brand !== undefined) o.brand = String(b.brand).trim().slice(0, 40);
+  if (b.postSchedule !== undefined) {
+    const t = (Array.isArray(b.postSchedule?.times) ? b.postSchedule.times : []).map((x) => String(x).trim()).filter(Boolean);
+    if (t.length > 6 || t.some((x) => !TIME.test(x))) throw new Error('Giờ đăng theo lịch phải dạng HH:MM, tối đa 6 giờ mỗi ngày.');
+    o.postSchedule = { times: [...new Set(t)].sort(), brief: String(b.postSchedule?.brief || '').slice(0, 2000) };
+  }
   if (b.groups !== undefined) {
     const lines = Array.isArray(b.groups) ? b.groups : String(b.groups).split('\n');
     o.groups = lines.map((g) => (typeof g === 'string' ? g : g.url)).map((u) => String(u || '').trim()).filter(Boolean).slice(0, 20)
@@ -54,13 +61,15 @@ const hcmHM = (d) => hcm(d).slice(11, 16);
 
 // Chu kỳ đến giờ chạy (giờ Việt Nam). Mỗi giờ đăng bài chạy một lần mỗi ngày.
 export function dueCycles(ops, now = new Date()) {
-  if (!ops?.enabled || !ops.fanpageLinkId) return [];
+  if (!ops?.fanpageLinkId) return [];
   const day = hcmDay(now);
   const hm = hcmHM(now);
   const lr = ops.lastRun || {};
   const out = [];
-  const slot = (ops.contentTimes || []).filter((t) => t <= hm).pop();
+  const times = [...(ops.enabled ? ops.contentTimes || [] : []), ...(ops.postSchedule?.times || [])].sort();
+  const slot = times.filter((t) => t <= hm).pop();
   if (slot && lr.content?.[slot] !== day) out.push({ cycle: 'content', slot });
+  if (!ops.enabled) return out;
   if (!lr.analyst || now - Date.parse(lr.analyst) >= ops.analystEveryHours * 3600000) out.push({ cycle: 'analyst' });
   if (ops.adsTime <= hm && lr.ads !== day) out.push({ cycle: 'ads' });
   if (ops.groups?.length && ops.shareMaxPerDay > 0 && ops.shareTime <= hm && lr.share !== day) out.push({ cycle: 'share' });
@@ -113,7 +122,7 @@ export function contentQuestion({ ops, posts, advice, feedback = '' }) {
   return `NHIỆM VỤ THƯỜNG TRỰC: bạn phụ trách nội dung Fanpage${ops.brand ? ` "${ops.brand}"` : ''}. Làm MỘT bài đăng mới hoàn chỉnh (bài quảng cáo / giới thiệu / mẹo dùng sản phẩm…) kèm bản thiết kế ảnh.
 Dùng sản phẩm, giá, tồn kho THẬT trong "Dữ kiện thật đã có" (phanMemCuaToi) nếu có; không bịa giá.
 Bài và ảnh KHÔNG được giống các bài gần đây (khác chủ đề hoặc góc nhìn, khác tiêu đề, khác bố cục + bảng màu).
-Các bài gần đây: ${JSON.stringify(posts.slice(0, 12).map((p) => ({ luc: p.createdAt, chuDe: p.topic, tieuDeAnh: p.design?.tieuDe, boCuc: p.design?.boCuc, bangMau: p.design?.bangMau, tuongTac: p.stats || null, doan: cut(p.text, 160) })))}
+${ops.postSchedule?.brief ? `MẪU BÀI NGƯỜI DÙNG ĐÃ DẶN (làm bài MỚI theo mẫu này, không chép lại bài cũ): ${ops.postSchedule.brief}\n` : ''}Các bài gần đây: ${JSON.stringify(posts.slice(0, 12).map((p) => ({ luc: p.createdAt, chuDe: p.topic, tieuDeAnh: p.design?.tieuDe, boCuc: p.design?.boCuc, bangMau: p.design?.bangMau, tuongTac: p.stats || null, doan: cut(p.text, 160) })))}
 Lời khuyên mới nhất của Tuấn (phân tích) cho bạn: ${JSON.stringify(advice.slice(0, 3).map((a) => cut(a.text, 600)))}
 ${feedback ? `BẢN TRƯỚC BỊ TRẢ LẠI: ${feedback}\n` : ''}Bố cục được chọn: ${JSON.stringify(LAYOUTS)}
 Bảng màu được chọn: ${JSON.stringify(Object.keys(PALETTES))}

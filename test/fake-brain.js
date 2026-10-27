@@ -113,6 +113,14 @@ export function fakeAnswer(prompt, flags = {}) {
     const has = (a) => trace.some((t) => t.hanhDong === a);
     const fb = links.find((l) => l.loai === 'facebook_page' || /fanpage/i.test(l.ten));
     if (links.length && !has('xem_phan_mem')) return JSON.stringify({ hanhDong: 'xem_phan_mem', phanMem: (links.find((l) => l !== fb) || links[0]).ma, canLay: 'giá và tồn kho' });
+    if (/vừa nhắn thêm trong ô chat/.test(question)) {
+      const msg = /«([^»]*)»/.exec(question)?.[1] || '';
+      const hm = /(\d{1,2})\s*(?:h|giờ|:)\s*(\d{2})?/i.exec(msg);
+      if (/lịch|hằng ngày|mỗi ngày/i.test(msg) && fb && hm && !has('len_lich')) return JSON.stringify({ hanhDong: 'len_lich', phanMem: fb.ma, gio: `${hm[1]}:${hm[2] || '00'}`, mauBai: '[TEST] Bài mẹo bảo dưỡng xe tải, giọng thân thiện, ảnh tiêu điểm vàng-đen' });
+      if (/thiết kế|viết bài/i.test(msg) && fb && !has('tao_anh')) return JSON.stringify({ hanhDong: 'tao_anh', thietKe: { boCuc: 'tieu-diem', bangMau: 'vang-den', tieuDe: 'Bài thêm theo yêu cầu', phuDe: 'Long Phu', nhan: '', chiTiet: ['ý 1'], keuGoi: 'Nhắn tin ngay' } });
+      if (/thiết kế|viết bài/i.test(msg) && fb && !has('xin_duyet_dang')) return JSON.stringify({ hanhDong: 'xin_duyet_dang', phanMem: fb.ma, noiDung: '[TEST] Bài thêm theo yêu cầu của chủ.', anh: /mã ảnh: (IMG-\w+)/.exec(question)?.[1], ghiChu: 'đăng ngay' });
+      return JSON.stringify({ hanhDong: 'nop', ketQua: `[TEST] ${name} đã làm xong: ${msg}` });
+    }
     if (/PHẦN CỦA BẠN/.test(question) && name === 'Tuấn' && !has('tim_tren_web')) return JSON.stringify({ hanhDong: 'tim_tren_web', tuKhoa: 'xu hướng phụ tùng xe tải' });
     if (/PHẦN CỦA BẠN/.test(question) && name === 'An' && fb && !has('tao_anh')) return JSON.stringify({ hanhDong: 'tao_anh', thietKe: { boCuc: 'tieu-diem', bangMau: 'xanh-cam', tieuDe: 'Lọc gió chính hãng', nhan: '185K', chiTiet: ['Còn hàng'], keuGoi: 'Nhắn tin ngay' } });
     if (/PHẦN CỦA BẠN/.test(question) && name === 'An' && fb && !has('xin_duyet_dang')) {

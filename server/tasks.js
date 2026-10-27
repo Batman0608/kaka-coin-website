@@ -13,7 +13,7 @@ import { readSoftware } from './browse.js';
 import { runCampaign } from './campaign.js';
 import { runTeamFlow, addDelegation } from '../shared/teamflow.js';
 import { webSearch } from './browser.js';
-import { renderDesign } from './fanpage.js';
+import { renderDesign, setPostSchedule } from './fanpage.js';
 import { saveImage, getImage } from './images.js';
 import { currentAction } from '../shared/realwork.js';
 
@@ -245,6 +245,45 @@ export async function executeTask(accountId, taskId) {
   }
 }
 
+// Công cụ làm việc thật của một nhân viên trong một việc (dùng cho bước của việc và cho tin bạn nhắn trong ô chat).
+function workTools(accountId, taskId, stepKey, staff, flow, saveFlow) {
+  return {
+    listLinks: (staffId) => listLinks(accountId, staffId),
+    readSoftware: (linkId, want) => readSoftware(accountId, linkId, want),
+    createRequest: (q) => createRequest(accountId, { ...q, taskId, stepKey, staffId: staff.id }),
+    getRequest: (id) => getRequest(accountId, id),
+    knownAnswers: () => knownAnswers(accountId, taskId),
+    webSearch,
+    makeImage: async (spec) => { const url = await renderDesign(spec); return url ? saveImage(accountId, url) : null; },
+    hasImage: (id) => !!getImage(accountId, id),
+    schedule: async ({ linkId, time, brief }) => setPostSchedule(accountId, { linkId, time, brief }),
+    delegate: flow ? (name, viec) => {
+      const st = listStaff(accountId).find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+      if (!st) return `Không có đồng nghiệp tên "${name}".`;
+      const ok = addDelegation(flow, st, viec, staff.name);
+      saveFlow();
+      return ok ? `Đã nhờ ${st.name}: ${viec}. ${st.name} sẽ làm sau bạn.` : `${st.name} đã có phần việc này.`;
+    } : undefined,
+  };
+}
+
+// Tin bạn nhắn thêm trong ô chat của việc: người được nhắn LÀM LUÔN (xem phần mềm, thiết kế, xin duyệt đăng, lên lịch…) rồi trả lời.
+export async function runChatTurn(accountId, taskId, staff, q, recent = []) {
+  const row = getTaskRow(accountId, taskId);
+  const task = rowToTask(row);
+  const ask = `Người dùng vừa nhắn thêm trong ô chat của việc "${task.title}": «${q}»
+Nếu là yêu cầu làm việc (viết / thiết kế bài, đăng, lên lịch, xem số liệu…) thì LÀM LUÔN bằng hành động thật rồi báo kết quả. Nếu chỉ là câu hỏi thì nộp câu trả lời ngắn, đúng việc, dựa trên kết quả đã có.`;
+  const priorTurns = [
+    ...(task.outputs || []).filter((o) => o.text && !o.error).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: String(o.text).slice(0, 1500) })),
+    ...recent.filter((x) => x.answer).slice(-6).flatMap((x) => [{ nguoi: 'Người dùng', noiDung: x.question }, { nguoi: x.staffName, noiDung: String(x.answer).slice(0, 800) }]),
+  ];
+  return runWorkStep({
+    staff, ask, ctx: { ...taskContext(row), priorTurns },
+    think: (st, ctx) => thinkWithBrain(accountId, st, selectBrain(accountId, st, row.task_kind), ctx),
+    tools: workTools(accountId, taskId, `chat-${newId('')}`, staff, null, null), trace: [],
+  });
+}
+
 async function executeOnce(accountId, taskId) {
   {
     let row = getTaskRow(accountId, taskId);
@@ -268,23 +307,7 @@ async function executeOnce(accountId, taskId) {
     // Làm việc thật: xem phần mềm, hỏi người dùng, xin duyệt đăng (shared/worker.js).
     outputsIo.work = (s, ctx, trace) => runWorkStep({
       staff: s.staff, ask: ctx.question, ctx, think: outputsIo.think, trace,
-      tools: {
-        listLinks: (staffId) => listLinks(accountId, staffId),
-        readSoftware: (linkId, want) => readSoftware(accountId, linkId, want),
-        createRequest: (q) => createRequest(accountId, { ...q, taskId, stepKey: s.key, staffId: s.staff.id }),
-        getRequest: (id) => getRequest(accountId, id),
-        knownAnswers: () => knownAnswers(accountId, taskId),
-        webSearch,
-        makeImage: async (spec) => { const url = await renderDesign(spec); return url ? saveImage(accountId, url) : null; },
-        hasImage: (id) => !!getImage(accountId, id),
-        delegate: flow ? (name, viec) => {
-          const st = listStaff(accountId).find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
-          if (!st) return `Không có đồng nghiệp tên "${name}".`;
-          const ok = addDelegation(flow, st, viec, s.staff.name);
-          saveFlow();
-          return ok ? `Đã nhờ ${st.name}: ${viec}. ${st.name} sẽ làm sau bạn.` : `${st.name} đã có phần việc này.`;
-        } : undefined,
-      },
+      tools: workTools(accountId, taskId, s.key, s.staff, flow, saveFlow),
     });
     let result;
     if (flow) {

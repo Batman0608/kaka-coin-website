@@ -18,6 +18,9 @@
   - Ô nhắn ở dưới cùng, bạn nhắn thêm bất cứ lúc nào, tự gửi cho người đang làm. Ảnh đính kèm được gửi tới bộ não.
   - Mọi nhân viên dùng bộ não mạnh nhất (Claude Opus mặc định ở máy chủ, mức "complex" ở bản trải nghiệm). Mỗi người vẫn đổi được bộ não riêng. Chỉ lượt xét việc dùng mức nhanh.
   - Việc ra ngoài (đăng bài, nhắn khách, chạy quảng cáo) luôn cần bạn duyệt.
+  - Bài đăng: mỗi bài hoàn chỉnh có ảnh thiết kế riêng và nút **Duyệt** ngay dưới bài trong chat. Bấm duyệt thì chính người viết tự đăng lên Fanpage. Chưa làm được video.
+  - Tin bạn nhắn ở ô dưới là một việc: người được nhắn làm luôn (viết bài, thiết kế, xem số liệu, xin duyệt…). Ví dụ "lên lịch hằng ngày 8:30 đăng bài theo mẫu như vậy" → người phụ trách lưu lịch + mẫu bài, tới giờ tự đăng bài mới (không cần duyệt lại từng bài). Lịch nằm ở Vận hành Fanpage (`postSchedule`). Ở bản trải nghiệm chỉ tự đăng khi văn phòng đang mở trong Claude.
+  - Màn hình chính: thẻ vàng "N việc cần bạn duyệt" (ghi ai đang chờ), bấm vào xem hết; lối tắt xếp lưới 2 cột; đã bỏ thanh điều hướng dưới.
   - Vẫn còn API `workflow: "real"` (`shared/realwork.js`): chuỗi một-việc-một-người có cổng chặn (Tuấn ghi số liệu → An viết bài → link → Bình đề xuất → duyệt → mã chiến dịch), nhưng form không dùng nữa.
 - **Vai trò chuẩn của 10 nhân viên** (`shared/roles.js`; Cài đặt → "Thiết lập lại toàn bộ nhân viên"):
   - **Marketing** (tăng độ nhận diện, thu thập dữ liệu khách để chuyển Sale):

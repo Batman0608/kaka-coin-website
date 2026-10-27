@@ -379,6 +379,36 @@ function createTaskRecord(b) {
 }
 const isBlocked = (taskId) => !!taskId && getTask(taskId)?.status === 'stopped_by_manager';
 
+// Công cụ làm việc thật của một nhân viên trong một việc (bước của việc và tin bạn nhắn trong ô chat).
+function workTools(taskId, stepKey, staff, withDelegate) {
+  return {
+    listLinks: (staffId) => linksOf(staffId),
+    readSoftware,
+    createRequest: (q) => createRequest({ ...q, taskId, stepKey, staffId: staff.id }),
+    getRequest,
+    knownAnswers: () => settledExchanges(reqDoc().list.filter((r) => r.taskId === taskId).map(requestView)),
+    webSearch,
+    makeImage: async (spec) => { const url = renderDesign(spec); if (!url) return null; const id = rid('IMG-'); store.docs.set(`img-${id}`, { dataUrl: url }); store.save(`img-${id}`); return id; },
+    hasImage: (id) => !!store.docs.get(`img-${id}`),
+    // Lịch đăng bài: tới giờ (khi văn phòng đang mở trong Claude) An tự đăng bài mới theo mẫu.
+    schedule: async ({ linkId, time, brief }) => {
+      needLink(linkId);
+      const d = fp();
+      const times = [...new Set([...(d.ops.postSchedule?.times || []), time])];
+      d.ops = validateOps({ fanpageLinkId: d.ops.fanpageLinkId || linkId, postSchedule: { times, brief } }, d.ops);
+      saveFp();
+      return `Đã lưu lịch: mỗi ngày lúc ${times.join(', ')} (giờ Việt Nam) tự đăng bài mới theo mẫu${'. Bản trải nghiệm chỉ tự đăng khi văn phòng đang mở trong Claude.'}`;
+    },
+    delegate: withDelegate ? (name, viec) => {
+      const stf = staffList().find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+      if (!stf) return `Không có đồng nghiệp tên "${name}".`;
+      const cur = getTask(taskId);
+      const ok = addDelegation(cur.flow, stf, viec, staff.name);
+      saveTask(cur);
+      return ok ? `Đã nhờ ${stf.name}: ${viec}. ${stf.name} sẽ làm sau bạn.` : `${stf.name} đã có phần việc này.`;
+    } : undefined,
+  };
+}
 function taskCtx(t) {
   return {
     currentTask: { id: t.id, title: t.title, description: t.description, status: t.status, returnReason: t.returnReason, passCriteria: t.passCriteria },
@@ -500,24 +530,7 @@ async function executeOnce(taskId) {
     // Làm việc thật: xem phần mềm (xin phép lần đầu), hỏi người dùng, xin duyệt trước khi đăng.
     io.work = (st, ctx, trace) => runWorkStep({
       staff: st.staff, ask: ctx.question, ctx, think, trace,
-      tools: {
-        listLinks: (staffId) => linksOf(staffId),
-        readSoftware,
-        createRequest: (q) => createRequest({ ...q, taskId, stepKey: st.key, staffId: st.staff.id }),
-        getRequest,
-        knownAnswers: () => settledExchanges(reqDoc().list.filter((r) => r.taskId === taskId).map(requestView)),
-        webSearch,
-        makeImage: async (spec) => { const url = renderDesign(spec); if (!url) return null; const id = rid('IMG-'); store.docs.set(`img-${id}`, { dataUrl: url }); store.save(`img-${id}`); return id; },
-        hasImage: (id) => !!store.docs.get(`img-${id}`),
-        delegate: t.flow ? (name, viec) => {
-          const stf = staffList().find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
-          if (!stf) return `Không có đồng nghiệp tên "${name}".`;
-          const cur = getTask(taskId);
-          const ok = addDelegation(cur.flow, stf, viec, st.staff.name);
-          saveTask(cur);
-          return ok ? `Đã nhờ ${stf.name}: ${viec}. ${stf.name} sẽ làm sau bạn.` : `${stf.name} đã có phần việc này.`;
-        } : undefined,
-      },
+      tools: workTools(taskId, st.key, st.staff, !!t.flow),
     });
     let result;
     if (t.flow) {
@@ -1278,7 +1291,18 @@ on('POST', '/api/tasks/([\\w-]+)/ask', (b, [id]) => {
   saveTask(t);
   bg((async () => {
     try {
-      const r = await think(staff, { ...ctx, question: q, kind: t.taskKind, imageIds: (t.attachments || []).map((a) => a.id) });
+      let r;
+      if (t.flow) {
+        // Việc giao cả văn phòng = ô chat: người được nhắn làm luôn việc bạn nhắn.
+        const ask = `Người dùng vừa nhắn thêm trong ô chat của việc "${t.title}": «${q}»\nNếu là yêu cầu làm việc (viết / thiết kế bài, đăng, lên lịch, xem số liệu…) thì LÀM LUÔN bằng hành động thật rồi báo kết quả. Nếu chỉ là câu hỏi thì nộp câu trả lời ngắn, đúng việc, dựa trên kết quả đã có.`;
+        const priorTurns = [
+          ...(t.outputs || []).filter((o) => o.text && !o.error).map((o) => ({ nguoi: o.staffName, buoc: o.step, noiDung: String(o.text).slice(0, 1500) })),
+          ...(t.qa || []).filter((x) => x.answer && x.id !== entry.id).slice(-6).flatMap((x) => [{ nguoi: 'Người dùng', noiDung: x.question }, { nguoi: x.staffName, noiDung: String(x.answer).slice(0, 800) }]),
+        ];
+        const w = await runWorkStep({ staff, ask, ctx: { ...taskCtx(t), priorTurns, kind: t.taskKind }, think, tools: workTools(id, `chat-${entry.id}`, staff, false), trace: [] });
+        entry.trace = w.trace; entry.requestId = w.requestId || null; entry.waiting = w.status === 'waiting';
+        r = { text: w.status === 'done' ? w.text : '', brainLabel: w.brainLabel };
+      } else r = await think(staff, { ...ctx, question: q, kind: t.taskKind, imageIds: (t.attachments || []).map((a) => a.id) });
       Object.assign(entry, { answer: r.text, brainLabel: r.brainLabel });
     } catch (e) {
       Object.assign(entry, { answer: `Bộ não lỗi, chưa trả lời được: ${e.message}`, brainLabel: e.brainLabel || null, isError: true });

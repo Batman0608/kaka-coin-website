@@ -229,7 +229,6 @@ function openView(view, arg = null) {
   state.view = view; state.viewArg = arg;
   state.taskDetail = view === 'tasks' && arg && arg !== 'new' && arg !== 'meeting' ? arg : null;
   $('#sheetTitle').textContent = view === 'staff' ? `${staffById(arg)?.name} — ${staffById(arg)?.role}` : VIEW_TITLES[view] || 'Chi tiết';
-  for (const b of $$('.bottom-nav button')) b.classList.toggle('active', b.dataset.open.split(':')[0] === view);
   state.office?.select(view === 'staff' ? arg : null);
   state.drawerKey = ''; renderDrawer();
   VIEWS[view](arg);
@@ -241,7 +240,6 @@ function closeSheet() {
   if (desktop.matches) return;
   $('#sheet').classList.remove('open');
   if (!$('#drawer').classList.contains('open')) $('#backdrop').classList.add('hidden');
-  for (const b of $$('.bottom-nav button')) b.classList.remove('active');
   state.refresh = null;
 }
 
@@ -1125,6 +1123,13 @@ function renderFlow(box, t, c, requests) {
 
 // Giao việc cho cả văn phòng thành MỘT ô chat như khi bạn nhắn với Claude: nhân viên tự xét việc, ai nhận thì làm
 // và nhắn vào ô chat theo từng bước (xem phần mềm, tìm web, thiết kế ảnh, xin duyệt…). Bạn nhắn lại ở ô dưới cùng.
+// Yêu cầu của nhân viên hiện ngay trong chat: bài chờ duyệt có ảnh + nút duyệt; đã xử lý thì chỉ còn một dòng kết quả.
+function reqInChat(r) {
+  if (['pending', 'publishing'].includes(r.status)) return requestCard(r, false);
+  const line = r.status === 'published' ? `Đã đăng lên ${r.linkName}${r.result ? `: ${r.result}` : ''}` : r.status === 'failed' ? `Đăng lên ${r.linkName} thất bại: ${r.result || ''}`
+    : r.status === 'rejected' ? 'Bạn không duyệt' : r.status === 'answered' ? `Bạn đã trả lời: ${r.answer}` : r.status === 'approved' ? 'Bạn đã cho phép' : '';
+  return line ? `<p class="kv" style="margin:0">✔ ${esc(String(line).slice(0, 300))}</p>` : '';
+}
 function renderChat(box, t, f, requests, qa) {
   if (!f) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
@@ -1149,14 +1154,20 @@ function renderChat(box, t, f, requests, qa) {
     }
     if (o?.text) parts.push(staffMsg(p.staffId, p.name, esc(o.text), o.brainLabel ? `<div class="brain">Bộ não: ${esc(o.brainLabel)}</div>` : ''));
     if (o?.error) parts.push(`<div class="msg err"><div class="who">${esc(p.name)}</div><div class="body">Bộ não lỗi: ${esc(o.error)}</div></div>`);
-    for (const r of reqs.filter((r) => ['pending', 'publishing'].includes(r.status))) parts.push(requestCard(r, false));
+    for (const r of reqs) parts.push(reqInChat(r));
     if (p.status === 'doing' && !o?.text) parts.push(`<div class="typing">${esc(p.name)} đang làm…</div>`);
   }
   const sum = outs.tongket;
   if (sum?.text) parts.push(staffMsg('STAFF-007', 'Phúc tổng kết', esc(sum.text), sum.brainLabel ? `<div class="brain">Bộ não: ${esc(sum.brainLabel)}</div>` : ''));
   for (const q of qa) {
-    parts.push(`<div class="msg user"><div class="who">Bạn hỏi ${esc(q.staffName)}</div><div class="body">${esc(q.question)}</div></div>`);
-    parts.push(q.answer ? `<div class="msg staff ${q.isError ? 'err' : ''}"><div class="who">${esc(q.staffName)}</div><div class="body">${esc(q.answer)}</div></div>` : `<div class="typing">${esc(q.staffName)} đang trả lời…</div>`);
+    parts.push(`<div class="msg user"><div class="who">Bạn → ${esc(q.staffName)}</div><div class="body">${esc(q.question)}</div></div>`);
+    for (const x of (q.trace || []).filter((x) => x.hanhDong !== 'nop')) {
+      parts.push(staffMsg(q.staffId, q.staffName, `<b>${esc(TRACE_LABEL[x.hanhDong] || x.hanhDong)}</b>${x.chiTiet ? ` — ${esc(x.chiTiet)}` : ''}${x.ketQua != null && x.hanhDong !== 'xin_duyet_dang' ? `\n→ ${esc(String(x.ketQua).slice(0, 600))}` : ''}`,
+        x.imageId ? `<img class="post-img" data-image-id="${esc(x.imageId)}" alt="Ảnh ${esc(q.staffName)} thiết kế" width="1080" height="1080">` : ''));
+    }
+    for (const r of requests.filter((r) => r.stepKey === `chat-${q.id}` || r.id === q.requestId)) parts.push(reqInChat(r));
+    if (q.answer) parts.push(`<div class="msg staff ${q.isError ? 'err' : ''}"><div class="who">${avatar(staffById(q.staffId), 'sm')} ${esc(q.staffName)}</div><div class="body">${esc(q.answer)}</div></div>`);
+    else if (!q.waiting) parts.push(`<div class="typing">${esc(q.staffName)} đang làm…</div>`);
   }
   if (f.stage === 'done' && !f.plan.some((p) => p.status !== 'done')) parts.push('<p class="kv" style="margin:0">Đã xong. Bạn vẫn có thể nhắn thêm bên dưới.</p>');
   const html = `<section class="card stack tight chat-task"><div class="chat">${parts.join('')}</div></section>`;
@@ -1520,7 +1531,7 @@ VIEWS.requests = () => {
 };
 
 // Từng lượt làm việc thật của một bước (xem phần mềm, hỏi bạn, xin duyệt, nộp).
-const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', tim_tren_web: 'Tìm trên web', tao_anh: 'Thiết kế ảnh', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt', xin_duyet_quang_cao: 'Xin duyệt quảng cáo', nho_dong_nghiep: 'Nhờ đồng nghiệp', nop: 'Nộp kết quả' };
+const TRACE_LABEL = { xem_phan_mem: 'Xem phần mềm', tim_tren_web: 'Tìm trên web', tao_anh: 'Thiết kế ảnh', hoi_nguoi_dung: 'Hỏi bạn', xin_duyet_dang: 'Xin duyệt', xin_duyet_quang_cao: 'Xin duyệt quảng cáo', nho_dong_nghiep: 'Nhờ đồng nghiệp', len_lich: 'Lên lịch đăng', nop: 'Nộp kết quả' };
 function traceHtml(trace) {
   if (!trace?.length) return '';
   return `<ol class="trace">${trace.map((t) => `<li><b>${esc(TRACE_LABEL[t.hanhDong] || t.hanhDong)}</b>${t.chiTiet ? ` — ${esc(t.chiTiet)}` : ''}${t.ketQua == null ? ' <span class="pill gold">Đang chờ bạn</span>' : t.hanhDong === 'nop' ? '' : `<div class="kv">${esc(String(t.ketQua).slice(0, 400))}</div>`}</li>`).join('')}</ol>`;
@@ -1855,7 +1866,12 @@ async function loadActivity() {
   const n = a.pendingRequests || 0;
   $('#reqCount').textContent = n;
   $('#reqBtn').classList.toggle('hidden', !n);
-  if (n > (state.lastPending ?? n)) toast(`Nhân viên đang chờ bạn (${n} yêu cầu). Bấm "Chờ bạn duyệt" ở đầu trang.`, 7000);
+  if (n) { // ghi rõ ai đang chờ bạn
+    const list = await api('/api/requests').catch(() => []);
+    const who = [...new Set(list.filter((r) => r.status === 'pending').map((r) => r.staffName))];
+    $('#reqWho').textContent = who.length ? `${who.join(', ')} đang chờ · bấm để xem tất cả` : 'Bấm để xem tất cả';
+  }
+  if (n > (state.lastPending ?? n)) toast(`Nhân viên đang chờ bạn (${n} yêu cầu). Bấm thẻ vàng ở đầu trang để xem hết.`, 7000);
   state.lastPending = n;
   const warn = a.storageWarning || state.me?.storageWarning || '';
   $('#notice').textContent = warn; $('#notice').classList.toggle('hidden', !warn);

@@ -38,6 +38,14 @@ export function getOps(accountId) {
 function saveOps(accountId, ops) {
   db.prepare('INSERT INTO fanpage_ops (account_id, data) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET data = excluded.data').run(accountId, JSON.stringify(ops));
 }
+// Người dùng nhắn lịch đăng trong ô chat của việc: lưu giờ + mẫu bài, tới giờ tự đăng (chu kỳ nội dung).
+export function setPostSchedule(accountId, { linkId, time, brief }) {
+  getRow(accountId, linkId);
+  const cur = getOps(accountId);
+  const times = [...new Set([...(cur.postSchedule?.times || []), time])];
+  updateOps(accountId, { fanpageLinkId: cur.fanpageLinkId || linkId, postSchedule: { times, brief } });
+  return `Đã lưu lịch: mỗi ngày lúc ${times.join(', ')} (giờ Việt Nam) tự đăng bài mới theo mẫu.`;
+}
 export function updateOps(accountId, b) {
   const ops = validateOps(b, getOps(accountId));
   for (const k of ['fanpageLinkId', 'adsLinkId']) if (ops[k]) getRow(accountId, ops[k]);

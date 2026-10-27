@@ -126,7 +126,7 @@ ul.log li.bad { border-left: 3px solid var(--danger); }
 
 /* ---------- Khung ứng dụng ---------- */
 .app { min-height: 100%; }
-.main { padding: 12px max(16px, env(safe-area-inset-right, 0px)) 120px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; align-content: start; min-width: 0; }
+.main { padding: 12px max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; align-content: start; min-width: 0; }
 .hero { display: grid; gap: 8px; }
 .hero-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .hero h1 { font-size: clamp(22px, 4.6vw, 28px); font-weight: 700; color: var(--gold); letter-spacing: -.01em; }
@@ -140,7 +140,7 @@ ul.log li.bad { border-left: 3px solid var(--danger); }
 .office-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 26px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
 .office-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .office-toolbar select { flex: 1 1 200px; max-width: 320px; min-height: 44px; }
-.stage { position: relative; height: clamp(360px, 62vh, 640px); border-radius: 20px; overflow: hidden; background: #1a2236; }
+.stage { position: relative; height: clamp(300px, 46vh, 640px); border-radius: 20px; overflow: hidden; background: #1a2236; }
 #office3d { position: absolute; inset: 0; }
 #office3d canvas { display: block; touch-action: none; }
 .stage-ctl { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
@@ -150,8 +150,18 @@ ul.log li.bad { border-left: 3px solid var(--danger); }
 .stage-exit { position: absolute; top: 12px; left: 12px; }
 .stage.immersive { position: fixed; inset: 0; height: auto; border-radius: 0; z-index: 70; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
 .stage-hint { position: absolute; left: 14px; top: 14px; font-size: 12px; color: var(--muted); background: rgba(12, 19, 34, .7); padding: 4px 10px; border-radius: 999px; pointer-events: none; }
-.quick { display: flex; flex-wrap: wrap; gap: 10px; }
-.quick .btn { min-height: 46px; }
+.quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.quick .btn { min-height: 64px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 10px 16px; border-radius: 18px; text-align: left; }
+.quick .btn b { font-size: 15px; }
+.quick .btn small { font-size: 12px; font-weight: 400; color: var(--muted); }
+@media (min-width: 1100px) { .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.approval-banner { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border-radius: 18px; border: 1.5px solid var(--gold); background: rgba(245, 197, 66, .12); color: var(--text); text-align: left; cursor: pointer; animation: pulse 1.6s ease-in-out infinite; }
+.approval-banner.hidden { display: none; }
+.approval-banner .ab-icon { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--gold); color: var(--gold-ink); display: grid; place-items: center; font-weight: 800; }
+.approval-banner .ab-text { flex: 1; min-width: 0; display: grid; }
+.approval-banner .ab-text b { font-size: 16px; }
+.approval-banner .ab-text small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.approval-banner .ab-go { font-size: 26px; color: var(--gold); }
 
 /* ---------- Ngăn kéo nhân viên ---------- */
 .drawer, .sheet { background: var(--bg-2); border-color: var(--line); min-width: 0; }
@@ -248,13 +258,6 @@ table.score tr.lead td { color: var(--gold-2); font-weight: 700; }
 .menu-list { display: grid; gap: 10px; }
 .menu-list .btn { justify-content: flex-start; min-height: 56px; border-radius: 16px; }
 
-/* ---------- Thanh điều hướng dưới ---------- */
-.bottom-nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 60;
-  display: flex; gap: 4px; padding: 8px; border-radius: 999px; background: rgba(28, 33, 46, .94); border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 12px 30px rgba(0, 0, 0, .45); backdrop-filter: blur(10px); }
-.bottom-nav button { width: 64px; height: 56px; border-radius: 999px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--text); }
-.bottom-nav button svg { width: 28px; height: 28px; }
-.bottom-nav button.active { background: #3a3f4c; width: 84px; }
-
 /* ---------- Đăng nhập ---------- */
 .auth { min-height: 100%; display: grid; place-items: center; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); }
 .auth-card { width: 100%; max-width: 420px; display: grid; gap: 16px; }
@@ -266,14 +269,14 @@ table.score tr.lead td { color: var(--gold-2); font-weight: 700; }
 .overlay { position: fixed; inset: 0; background: rgba(4, 8, 16, .7); display: grid; place-items: center; padding: 16px; z-index: 90; }
 .dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; max-width: 420px; width: 100%; display: grid; gap: 16px; }
 .dialog .row { justify-content: flex-end; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); max-width: min(92vw, 460px); background: var(--gold); color: var(--gold-ink); font-weight: 600; padding: 12px 18px; border-radius: 16px; z-index: 95; white-space: pre-wrap; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: min(92vw, 460px); background: var(--gold); color: var(--gold-ink); font-weight: 600; padding: 12px 18px; border-radius: 16px; z-index: 95; white-space: pre-wrap; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
 
 /* ---------- Bố cục theo màn hình ---------- */
 /* Điện thoại & máy tính bảng: ngăn kéo và bảng chi tiết trượt lên trên văn phòng. */
 @media (max-width: 1099px) {
   .drawer { position: fixed; inset: 0 auto 0 0; width: min(88vw, 420px); z-index: 50; border-right: 1px solid var(--line); overflow-y: auto; transform: translateX(-102%); transition: transform .22s ease; padding-top: env(safe-area-inset-top, 0px); }
   .drawer.open { transform: none; }
-  .sheet { position: fixed; inset: 0 0 0 auto; width: min(100vw, 560px); z-index: 50; border-left: 1px solid var(--line); overflow-y: auto; transform: translateX(102%); transition: transform .22s ease; padding-top: env(safe-area-inset-top, 0px); padding-bottom: 100px; }
+  .sheet { position: fixed; inset: 0 0 0 auto; width: min(100vw, 560px); z-index: 50; border-left: 1px solid var(--line); overflow-y: auto; transform: translateX(102%); transition: transform .22s ease; padding-top: env(safe-area-inset-top, 0px); padding-bottom: 24px; }
   .sheet.open { transform: none; }
 }
 @media (max-width: 560px) {
@@ -289,7 +292,7 @@ table.score tr.lead td { color: var(--gold-2); font-weight: 700; }
   .drawer { border-right: 1px solid var(--line); overflow-y: auto; }
   .main { overflow-y: auto; padding-bottom: 24px; }
   .sheet { border-left: 1px solid var(--line); overflow-y: auto; }
-  .drawer .close-btn, .sheet .close-btn.mobile-only, #drawerBtn, .bottom-nav, .backdrop { display: none !important; }
+  .drawer .close-btn, .sheet .close-btn.mobile-only, #drawerBtn, .backdrop { display: none !important; }
   .stage { height: clamp(420px, 58vh, 720px); }
   .toast { bottom: 24px; }
 }
