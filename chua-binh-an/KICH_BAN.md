@@ -19,6 +19,32 @@
 
 ---
 
+## 0b. So sánh với niemphat.online và những gì đã học theo (bản 3)
+
+**Hai sản phẩm khác loại.** niemphat.online là **game chùa 3D trên web cho từng người**: có tài khoản, tự đi lại, ngồi bồ đoàn, nhiệm vụ, túi đồ, cửa hàng, tiền ảo Sen/Ngọc, nạp qua VietQR. **Chùa Bình An** là **màn hình tương tác cho TikTok LIVE**: người xem không cài gì, chỉ comment, thả tim, tặng quà. Vì vậy chỉ lấy những cơ chế giữ chân người xem phù hợp với livestream, và tự làm lại theo cách riêng (không sao chép hình ảnh hay chữ của họ).
+
+| Hạng mục | niemphat.online | Chùa Bình An (bản 3) |
+|---|---|---|
+| Nền tảng | Web 3D (Three.js), mỗi người tự chơi | Lớp phủ 9:16 cho TikTok LIVE |
+| Tham gia | Tạo nhân vật, chọn thiền phái | Comment / tim / quà → tự có nhân vật mang tên TikTok |
+| Tràng hạt 108 | Mỗi người tự lần | Cả phòng cùng lần chung + bảng Tinh Tấn từng người |
+| Cấp độ & danh xưng | 25 cấp theo thiền phái | **Mới:** 10 cấp theo tổng hạt tích lũy qua mọi buổi live (Sơ Phát Tâm → Viên Mãn Tâm), số cấp hiện trên bảng tên |
+| Điểm danh / chuỗi ngày | Có, quà tăng dần tới ngày 7 | **Mới:** chuỗi ngày lên chùa, thưởng +3 hạt/ngày (tối đa +21), chúc mừng đặc biệt ngày 7, 21, 49, 100 |
+| Cùng lạy được thưởng | “Đồng tâm” +5%/người | **Mới:** Đồng tâm — trong 60 giây có ≥3 người niệm Phật thì cả phòng ×(1 + 5%/người), tối đa ×1,5 |
+| Thắp hương tăng điểm | +20% trong 10 phút | **Mới:** người thắp hương ×1,2 hạt trong 10 phút; quà Hoa đăng/Rồng làm *hương trầm tỏa khắp chùa* ×1,2 cho **cả phòng** 5 phút → người tặng quà giúp cả cộng đồng |
+| Ngày rằm, lễ lớn | Mùng 1, rằm ×1,5; đại lễ ×2 | **Mới:** tự tính lịch âm; mùng 1/rằm ×1,5; Tết, Phật Đản, Vu Lan, vía A Di Đà, Thành Đạo ×2; vía Quán Âm, Dược Sư ×1,5. Tháng 7 âm nhắc bật chương trình Vu Lan |
+| Đèn hoa đăng / lời nguyện | Thả đèn kèm lời nguyện, người khác tùy hỷ | **Mới:** comment “Cầu an…/Nguyện…” → đèn nguyện bay lên + hiện ở khung Đèn nguyện; người khác comment “Tùy hỷ” → chủ đèn +2 hạt, nhân vật cùng lạy |
+| Tụng kinh | Tụng trọn bài +5 | **Mới:** tụng trọn một bài kinh có chữ → mọi người trong chùa +9 hạt |
+| Bảng xếp hạng | Tuần / tháng / tất cả; Bảng vàng trong chánh điện | **Mới:** khung bên phải luân phiên **Bảng Công Đức (buổi này)** ↔ **Bảng Vàng Tuần** (cộng dồn mọi buổi live) |
+| Lời nhắc | “Công đức trong game không phải công đức thật” | **Mới:** dòng nhắc nhỏ ở cuối khung Cách tham gia |
+| Linh thú, cửa hàng, túi đồ, thiền phái | Có (linh thú có tỉ lệ ngẫu nhiên, mua bằng Ngọc) | **Không làm.** Cơ chế quay may rủi gắn với tiền dễ vi phạm quy định TikTok, và người xem live không có tài khoản trong game |
+| Hình phạt “ngạ quỷ” | Bị phạt phải nghe kinh 30 phút | **Không làm.** Phạt người xem live chỉ làm họ rời phòng |
+| Kiếm tiền | Nạp Ngọc + ủng hộ qua VietQR (website riêng) | Chỉ quà TikTok. **Không** hiện QR/số tài khoản trên live |
+
+> Hướng phát triển sau: nếu muốn có web riêng như niemphat.online (tài khoản, nạp tiền), nên làm thành một dự án riêng có điều khoản thanh toán đầy đủ, rồi chỉ giới thiệu trên kênh TikTok, không xin chuyển khoản ngay trên live.
+
+---
+
 ## I. Bố cục màn hình (1080×1920, dọc 9:16)
 
 Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình luận góc dưới trái, nút bên phải). Bấm phím **S** trên màn hình phát để xem vùng an toàn.
@@ -63,11 +89,13 @@ Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình 
 |---|---|---|
 | Bất kỳ | Nhân vật mang tên TikTok đi từ cổng vào chỗ quỳ, bong bóng thoại | +1 |
 | “Bình an”, “Nam mô…”, “A Di Đà Phật”, “adidaphat”, “Om mani”… | Lạy, sen nhỏ bay lên | **+3** |
-| “Cầu an + điều ước” (vd: *Cầu an cho mẹ con mau khỏe*) | Bong bóng vàng lời nguyện + thông báo | +1 |
+| “Cầu an + điều ước” (vd: *Cầu an cho mẹ con mau khỏe*) | Bong bóng vàng + **đèn nguyện** bay lên, hiện ở khung Đèn nguyện | +1 |
 | “Cầu siêu …” | Đèn cầu siêu, tiếng khánh, thẻ lời nguyện (mỗi người 2 phút/lần) | +1 |
 | “Còn mẹ” (mùa Vu Lan) | Cài **hoa hồng đỏ** lên nhân vật | +1 |
 | “Mất mẹ” | Cài **hoa hồng trắng** | +1 |
-| “!hat” | Bong bóng báo số hạt + công đức của người đó | +1 |
+| “!hat” / “!cap” | Bong bóng báo cấp, tổng hạt tích lũy, chuỗi ngày | +1 |
+| “Nguyện …” | Thả đèn nguyện (như “Cầu an”) | +1 |
+| “Tùy hỷ” | Chung vui với đèn nguyện gần nhất của người khác; chủ đèn +2 hạt | +1 |
 
 ### 2. Tim, Follow, Share
 

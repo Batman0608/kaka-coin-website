@@ -59,8 +59,87 @@
     if (ev.name) u.name = ev.name;
     if (ev.avatar) u.avatar = ev.avatar;
     u.last = now();
+    checkIn(u);
     return u;
   }
+
+  /* ===================== HỒ SƠ LÂU DÀI: CẤP ĐỘ · CHUỖI NGÀY · BẢNG VÀNG TUẦN =====================
+     Lưu riêng (không bị xóa khi bắt đầu phiên mới) — người xem quay lại vẫn giữ cấp và chuỗi ngày. */
+  const PKEY = 'cba_profiles_v1';
+  let P = {};
+  try { P = JSON.parse(localStorage.getItem(PKEY) || '{}') || {}; } catch (e) {}
+  let savePT = null;
+  function saveP() {
+    clearTimeout(savePT);
+    savePT = setTimeout(() => {
+      try {
+        const ids = Object.keys(P);
+        if (ids.length > 20000) { ids.sort((a, b) => P[b].beads - P[a].beads); ids.slice(20000).forEach(i => delete P[i]); }
+        localStorage.setItem(PKEY, JSON.stringify(P));
+      } catch (e) {}
+    }, 2000);
+  }
+  const vnDate = (t = new Date()) => new Date(t.getTime() + (t.getTimezoneOffset() + 420) * 60000);
+  const dayKey = (d) => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  function weekKey(d = vnDate()) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const wd = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - wd);
+    const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return t.getUTCFullYear() + '-W' + Math.ceil(((t - y0) / 86400000 + 1) / 7);
+  }
+  function prof(u) {
+    let p = P[u.id];
+    if (!p) p = P[u.id] = { name: u.name, beads: 0, merit: 0, streak: 0, best: 0, lastDay: '', days: 0, wk: '', wMerit: 0, wBeads: 0 };
+    p.name = u.name;
+    const wk = weekKey(); if (p.wk !== wk) { p.wk = wk; p.wMerit = 0; p.wBeads = 0; }
+    return p;
+  }
+  const levelOf = (beads) => { let i = 0; C.levels.forEach((l, k) => { if (beads >= l.at) i = k; }); return i; };
+
+  function checkIn(u) {
+    const p = prof(u), today = dayKey(vnDate());
+    if (p.lastDay === today) return;
+    const yesterday = dayKey(vnDate(new Date(Date.now() - 86400000)));
+    p.streak = p.lastDay === yesterday ? p.streak + 1 : 1;
+    p.best = Math.max(p.best, p.streak); p.days++; p.lastDay = today; saveP();
+    if (p.days > 1) setTimeout(() => greetReturn(u, p), 2600);   // đợi nhân vật đi vào chỗ
+  }
+  function greetReturn(u, p) {
+    const pp = present.get(u.id);
+    if (p.streak >= 2) {
+      const bonus = Math.min(C.streak.maxBonus, p.streak * C.streak.bonusPerDay);
+      addBeads(u, bonus, false, true);
+      toast('🔥', [{ b: u.name }, ` lên chùa ngày thứ ${p.streak} liên tiếp · +${bonus} hạt`], true, u.avatar);
+      say(pp, `🔥 ${p.streak} ngày liên tiếp`);
+    } else toast('🙏', [{ b: u.name }, ` đã trở lại chùa · lần thứ ${p.days}`], true, u.avatar);
+    if (C.streak.specialDays.includes(p.streak)) {
+      card({ kicker: 'Tinh tấn bền bỉ', title: u.name, text: `Tròn ${p.streak} ngày liên tiếp lên chùa. Cả chùa tùy hỷ với sự bền bỉ của bạn!`, ms: 6000, big: true });
+      A.khanh(); FX.petals(40, false);
+    }
+  }
+  function levelUp(u, lv) {
+    const L = C.levels[lv];
+    dirtySeats = true;
+    if (lv < 3) { toast('🪷', [{ b: u.name }, ` lên cấp ${lv + 1} · ${L.name}`], true, u.avatar); return; }
+    card({ kicker: 'Thăng cấp tu tập', title: u.name, text: `Đạt cấp ${lv + 1}: ${L.name}`, sub: pickOne(CBA.wisdom), ms: 5000 });
+    A.smallBell(); const pp = present.get(u.id); bow(pp);
+    const pos = figPos(pp); FX.sparkle(30, pos.x, pos.y);
+  }
+
+  /* ===================== HỆ SỐ NHÂN: NGÀY LỄ · ĐỒNG TÂM · HƯƠNG TRẦM ===================== */
+  let lunar = CBA.Lunar.today();
+  setInterval(() => { lunar = CBA.Lunar.today(); }, 10 * 60000);
+  const mantraAt = new Map();
+  let roomBuffUntil = 0, dongTamAnnounced = 0;
+  function dongTamCount() {
+    const t = now() - C.dongTam.windowSec * 1000; let n = 0;
+    for (const [id, ts] of mantraAt) { if (ts < t) mantraAt.delete(id); else n++; }
+    return n;
+  }
+  const dongTamMult = () => { const n = dongTamCount(); return n >= C.dongTam.minPeople ? Math.min(C.dongTam.max, 1 + C.dongTam.perPerson * n) : 1; };
+  const buffMult = (u) => (now() < roomBuffUntil || (u && now() < (u._buff || 0))) ? C.incenseBuff.mult : 1;
+  const lunarMult = () => (C.lunarBonus ? lunar.mult : 1);
+  const mult = (u) => lunarMult() * dongTamMult() * buffMult(u);
 
   /* ============================ GIAO DIỆN TĨNH ============================ */
   function applyConfig() {
@@ -119,8 +198,15 @@
   }
 
   let lastMo = 0;
-  function addBeads(u, n, withSound = true) {
+  function addBeads(u, n, withSound = true, raw = false) {
     if (n <= 0) return;
+    if (!raw) n = Math.round(n * mult(u));
+    if (u) {
+      const pr = prof(u), lv0 = levelOf(pr.beads);
+      pr.beads += n; pr.wBeads += n;
+      const lv = levelOf(pr.beads); if (lv > lv0) levelUp(u, lv);
+      saveP();
+    }
     const before = S.beads;
     S.beads += n; if (u) u.beads += n;
     renderMala();
@@ -180,7 +266,7 @@
       const im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = u.avatar; im.onerror = () => im.replaceWith(el('span', 'av'));
       tag.append(im);
     } else tag.append(el('span', 'av'));
-    tag.append(document.createTextNode(u.name));
+    tag.append(el('b', 'lv', '1'), document.createTextNode(u.name));
     const hasBun = (u.id.charCodeAt(0) + u.id.length) % 2 === 0;
     f.innerHTML = `<svg viewBox="0 0 74 104"><ellipse cx="37" cy="100" rx="31" ry="5" fill="rgba(0,0,0,.35)"/>
       <g class="body"><g class="torso" style="transform-box:fill-box;transform-origin:50% 100%">
@@ -241,6 +327,7 @@
         const t = tierOfUser(p.u, meritRank.indexOf(p.u.id) === -1 ? 99 : meritRank.indexOf(p.u.id));
         p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
         p.fig.querySelector('.robe').setAttribute('fill', ROBE[t]);
+        p.fig.querySelector('.lv').textContent = String(levelOf(prof(p.u).beads) + 1);
         p.fig.style.zIndex = String(10 + Math.round(s.y / 10));
         p.fig.style.transform = `scale(${s.sc})`;
         renderRose(p);
@@ -415,6 +502,7 @@
     const pos = figPos(p);
     switch (tier.id) {
       case 'huong':
+        u._buff = now() + C.incenseBuff.personalMin * 60000;
         addSticks(Math.min(count, 5)); FX.boostSmoke(6 + count * 2); A.mo(1);
         FX.sparkle(10, FX.BURNER.x, FX.BURNER.y);
         if (count >= 5) card({ title: name, text: bless, tier: tier.id, ms: 4200 });
@@ -434,6 +522,7 @@
         card({ title: name, text: bless, sub: pickOne(CBA.wisdom), tier: tier.id, ms: 6500, big: true });
         break;
       case 'hoadang':
+        roomIncense(name);
         queueBig(() => {
           FX.lanterns(40); A.bigBell(); A.smallBell(1.2); A.bigBell(3);
           radiant(5);
@@ -441,6 +530,7 @@
         }, 7);
         break;
       case 'rong':
+        roomIncense(name);
         queueBig(() => {
           FX.dragon(11); FX.lanterns(30); radiant(11); bowAll();
           A.bigBell(); A.bigBell(2.4); A.bigBell(4.8);
@@ -449,6 +539,11 @@
         break;
     }
     if (coins >= C.ttsMinCoins) A.speak(`Cảm ơn ${name} đã ${tier.label.toLowerCase()}. Chúc bạn và gia đình luôn bình an.`);
+  }
+  function roomIncense(name) {
+    const fresh = now() > roomBuffUntil;
+    roomBuffUntil = now() + C.incenseBuff.roomMin * 60000;
+    if (fresh) toast('🪔', ['Hương trầm của ', { b: name }, ` tỏa khắp chùa · cả phòng ×${C.incenseBuff.mult} hạt trong ${C.incenseBuff.roomMin} phút`], true);
   }
   function centerMantra() { const set = C.buddhaSets[C.buddhaSet] || C.buddhaSets.hoanh; return set[1].mantra; }
 
@@ -489,7 +584,11 @@
       u._cd = now();
       addBeads(u, mantra ? C.scoring.beadsPerMantraComment : C.scoring.beadsPerComment);
     }
-    if (has(n, K.checkHat)) { say(p, `${u.name}: ${fmt(u.beads)} hạt · ${fmt(u.merit)} công đức`); return; }
+    if (has(n, K.checkHat)) {
+      const pr = prof(u), lv = levelOf(pr.beads);
+      say(p, `Cấp ${lv + 1} ${C.levels[lv].name} · ${fmt(pr.beads)} hạt · 🔥${pr.streak} ngày`);
+      return;
+    }
     if (has(n, K.matMe)) { u.rose = 'white'; renderRose(p); say(p, '🤍 Cài bông hồng trắng'); toast('🤍', [{ b: u.name }, ' cài bông hồng trắng nhớ mẹ'], true); return save(); }
     if (has(n, K.conMe)) { u.rose = 'red'; renderRose(p); say(p, '🌹 Cài bông hồng đỏ'); toast('🌹', [{ b: u.name }, ' cài bông hồng đỏ — mẹ hiền còn đó'], true); return save(); }
     if (has(n, K.cauSieu)) {
@@ -501,12 +600,21 @@
       }
       return;
     }
-    if (has(n, K.cauAn)) {
-      say(p, bad ? '🙏 Cầu an' : '🙏 ' + text.slice(0, C.maxWishLength), true); bow(p);
-      if (!bad) toast('🙏', [{ b: u.name }, ' cầu an: ' + text.slice(0, 50)], true);
+    if (has(n, K.tuyHy)) { tuyHy(u, p); return; }
+    if (has(n, K.cauAn) || has(n, K.nguyen) || text.toLowerCase().startsWith('nguyện')) {
+      say(p, bad ? '🙏 Cầu an' : '🏮 ' + text.slice(0, C.maxWishLength), true); bow(p);
+      if (!bad) addWish(u, p, text.slice(0, C.maxWishLength));
       return;
     }
-    if (mantra) { bow(p); say(p, '📿 ' + text.slice(0, 40)); const pos = figPos(p); FX.lotusUp(pos.x, pos.y); return; }
+    if (mantra) {
+      mantraAt.set(u.id, now());
+      const dn = dongTamCount();
+      if (dn < C.dongTam.minPeople) dongTamAnnounced = 0;
+      else if ([3, 5, 10, 20, 50].some(t => dn >= t && dongTamAnnounced < t)) {
+        dongTamAnnounced = dn;
+        toast('🤝', ['Đồng tâm: ', { b: dn + ' người' }, ` cùng niệm · hạt ×${dongTamMult().toFixed(2)}`], true);
+        bowAll();
+      } bow(p); say(p, '📿 ' + text.slice(0, 40)); const pos = figPos(p); FX.lotusUp(pos.x, pos.y); return; }
     if (!bad && !text.startsWith('!')) say(p, text.slice(0, 60));
   }
 
@@ -525,8 +633,9 @@
     const count = Math.max(1, ev.count || 1);
     const coins = (ev.coins || 0) * count;
     S.gifts++; S.coins += coins; u.coins += coins;
-    const merit = coins * C.scoring.congDucPerCoin;
+    const merit = Math.round(coins * C.scoring.congDucPerCoin * lunarMult());
     u.merit += merit; S.merit += merit;
+    const pr = prof(u); pr.merit += merit; pr.wMerit += merit; saveP();
     if (!present.has(u.id)) join(u);
     dirtySeats = true; dirtyBoard = true; flashUser = u.id;
     if (ev.subscribe) {
@@ -553,11 +662,62 @@
     toast('🚪', [{ b: ev.name }, ' vừa bước vào cổng chùa'], true);
   }
 
+  /* ============================ ĐÈN NGUYỆN & TÙY HỶ ============================ */
+  let wishes = [], wishIdx = 0, wishShown = null;
+  function addWish(u, p, text) {
+    const w = { uid: u.id, name: u.name, text, tuy: 0, by: [], t: now() };
+    wishes.unshift(w); wishes = wishes.slice(0, 30);
+    const pos = figPos(p); FX.lanternAt(pos.x, pos.y);
+    toast('🏮', [{ b: u.name }, ' thả đèn nguyện · comment "Tùy hỷ" để chung vui'], true);
+    showWish(w);
+  }
+  function tuyHy(u, p) {
+    bow(p);
+    const w = wishes.find(x => x.uid !== u.id && now() - x.t < 15 * 60000 && !x.by.includes(u.id));
+    if (!w) { say(p, '🤲 Tùy hỷ công đức'); return; }
+    w.by.push(u.id); w.tuy++;
+    const owner = S.users[w.uid]; if (owner) addBeads(owner, 2, false, true);
+    say(p, `🤲 Tùy hỷ cùng ${w.name}`);
+    bow(present.get(w.uid));
+    showWish(w);
+  }
+  function showWish(w) {
+    wishShown = w;
+    $('wishBox').classList.remove('hidden');
+    $('wishName').textContent = w.name;
+    $('wishText').textContent = '“' + w.text + '”';
+    $('wishTuy').textContent = w.tuy ? `🤲 ${w.tuy} người tùy hỷ` : 'Comment "Tùy hỷ" để chung vui';
+    const b = $('wishBox'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
+  }
+  setInterval(() => {   // luân phiên 5 lời nguyện gần nhất
+    const recent = wishes.filter(w => now() - w.t < 30 * 60000).slice(0, 5);
+    if (!recent.length) { $('wishBox').classList.add('hidden'); return; }
+    wishIdx = (wishIdx + 1) % recent.length; showWish(recent[wishIdx]);
+  }, 7000);
+
+  /* ============================ TỤNG TRỌN BÀI KINH ============================ */
+  A.onComplete((tr) => {
+    const n = present.size; if (!n || !C.chantCompleteBonus) return;
+    for (const pp of present.values()) addBeads(pp.u, C.chantCompleteBonus, false);
+    A.khanh(); bowAll(); FX.petals(50, false);
+    card({ kicker: 'Viên mãn thời kinh', title: tr.title.replace(/\s*\(.*\)$/, ''), text: `${n} Phật tử cùng tụng trọn bài kinh · mỗi người +${C.chantCompleteBonus} hạt`, ms: 6000, big: true });
+  });
+
   /* ============================ BẢNG XẾP HẠNG & HUD ============================ */
   let flashUser = null;
+  let boardWeek = false;
+  setInterval(() => {   // luân phiên: Công Đức phiên này ↔ Bảng Vàng tuần
+    const hasWeek = Object.values(P).some(p => p.wk === weekKey() && p.wMerit > 0);
+    boardWeek = hasWeek ? !boardWeek : false; dirtyBoard = true;
+  }, 10000);
   function renderBoard() {
     if (!dirtyBoard) return; dirtyBoard = false;
-    const users = Object.values(S.users);
+    const wk = weekKey();
+    const users = boardWeek
+      ? Object.entries(P).filter(([, p]) => p.wk === wk).map(([id, p]) => ({ id, name: p.name, merit: p.wMerit, beads: p.wBeads }))
+      : Object.values(S.users);
+    $('boardTitle').textContent = boardWeek ? 'Bảng Vàng Tuần' : 'Bảng Công Đức';
+    $('boardSub').textContent = boardWeek ? 'cộng dồn mọi buổi live trong tuần' : 'buổi live hôm nay';
     const top = users.filter(u => u.merit > 0).sort((a, b) => b.merit - a.merit).slice(0, 5);
     const ol = $('topMerit'); ol.innerHTML = '';
     if (!top.length) ol.append(el('li', 'empty', 'Hãy là người đầu tiên'));
@@ -576,6 +736,17 @@
     $('cViewers').textContent = fmt(viewers);
     $('cMerit').textContent = fmt(S.merit);
     $('simBadge').classList.toggle('hidden', !(bot || now() < simActiveUntil));
+    const chips = [];
+    chips.push(lunar.feast && C.lunarBonus ? `🌕 ${lunar.feast.name} · ×${lunar.mult}` : `🌙 ${lunar.text}`);
+    const dn = dongTamCount(); if (dn >= C.dongTam.minPeople) chips.push(`🤝 Đồng tâm ${dn} người · ×${dongTamMult().toFixed(2)}`);
+    const left = roomBuffUntil - now();
+    if (left > 0) chips.push(`🪔 Hương trầm ×${C.incenseBuff.mult} · ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`);
+    const html = chips.join('|');
+    if (html !== updateHud._last) {
+      updateHud._last = html;
+      const box = $('bonus'); box.innerHTML = '';
+      chips.forEach((c, i) => box.append(el('span', 'chip' + (i === 0 && lunar.feast ? ' feast' : ''), c)));
+    }
     return seated;
   }
   setInterval(() => { layoutSeats(); renderBoard(); updateHud(); }, 600);
@@ -681,7 +852,8 @@
     const top = Object.values(S.users).filter(u => u.merit > 0).sort((a, b) => b.merit - a.merit).slice(0, 10).map(u => ({ name: u.name, merit: u.merit, coins: u.coins, beads: u.beads }));
     ch.postMessage({ type: 'state', conn: connStatus, connMsg, url: T.url(), viewers, present: present.size, seats: slots.length,
       stats: { merit: S.merit, beads: S.beads, coins: S.coins, likes: S.likes, comments: S.comments, gifts: S.gifts, follows: S.follows, shares: S.shares, started: S.started, users: Object.keys(S.users).length },
-      top, segment: S.segment, teaching: teaching ? teaching.id : null, bot: !!bot, audio: A.state(), lastEventAt });
+      top, segment: S.segment, lunar: { text: lunar.text, feast: lunar.feast, vuLanMonth: lunar.vuLanMonth },
+      mult: { lunar: lunarMult(), dongTam: dongTamMult(), room: now() < roomBuffUntil }, profiles: Object.keys(P).length, teaching: teaching ? teaching.id : null, bot: !!bot, audio: A.state(), lastEventAt });
   }
   setInterval(broadcast, 1500);
 
@@ -712,8 +884,10 @@
       case 'hideUi': stage.classList.toggle('hidden-ui'); break;
       case 'buddhaSet': C.buddhaSet = a.set; applyConfig(); break;
       case 'reset': resetSession(); break;
+      case 'resetProfiles': P = {}; try { localStorage.removeItem(PKEY); } catch (e) {} dirtySeats = true; break;
       case 'clearYard': for (const id of [...present.keys()]) leave(id); break;
-      case 'export': ch && ch.postMessage({ type: 'export', users: Object.values(S.users).sort((x, y) => (y.merit - x.merit) || (y.beads - x.beads)) }); break;
+      case 'export': ch && ch.postMessage({ type: 'export', users: Object.values(S.users).sort((x, y) => (y.merit - x.merit) || (y.beads - x.beads))
+        .map(u => { const pr = prof(u), lv = levelOf(pr.beads); return Object.assign({}, u, { level: `${lv + 1} ${C.levels[lv].name}`, streak: pr.streak, lifeBeads: pr.beads }); }) }); break;
     }
     broadcast();
   }
@@ -722,6 +896,7 @@
   function resetSession() {
     for (const id of [...present.keys()]) leave(id);
     S = fresh(); shownBeads = 0; lastLit = -1; sticks = [];
+    wishes = []; $('wishBox').classList.add('hidden'); roomBuffUntil = 0; mantraAt.clear();
     renderMala(); renderCandles(); renderOfferings(); renderSticks();
     dirtyBoard = true; renderBoard(); updateHud();
     $('beadNum').textContent = '0'; $('beadSub').textContent = 'hạt · vòng 0';

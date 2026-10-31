@@ -145,18 +145,25 @@
       <span class="chip">✨ Công đức <b id="cMerit">0</b></span>
     </div>
     <div id="segment"><span id="segTitle">Khai Chuông · Nhập Điện</span><small id="segNote"></small></div>
+    <div id="bonus" class="chips bonus"></div>
   </header>
 
   <aside id="guide" class="panel">
     <h3>Cách tham gia</h3>
     <ul id="guideList"></ul>
+    <p class="note">Điểm trong game chỉ để khích lệ tu tập, không phải công đức thật.</p>
   </aside>
 
   <aside id="board" class="panel">
-    <h3>Bảng Công Đức</h3>
+    <h3 id="boardTitle">Bảng Công Đức</h3>
+    <div class="bsub" id="boardSub">buổi live hôm nay</div>
     <ol id="topMerit"><li class="empty">Hãy là người đầu tiên</li></ol>
     <h4>📿 Tinh Tấn (hạt)</h4>
     <ol id="topBeads" class="small"><li class="empty">—</li></ol>
+    <div id="wishBox" class="hidden">
+      <h4>🏮 Đèn nguyện</h4>
+      <div id="wishName"></div><div id="wishText"></div><div id="wishTuy"></div>
+    </div>
   </aside>
 
   <div id="blessing" class="hidden">
@@ -198,6 +205,7 @@
 
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
+<script src="js/lunar.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/tiktok.js"></script>
 <script src="js/fx.js"></script>

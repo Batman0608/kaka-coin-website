@@ -53,6 +53,10 @@ CBA.FX = (() => {
   function lotusUp(x, y) {   // sen nhỏ bay lên khi thả tim
     parts.push({ k: 'lotusUp', x, y, vy: rnd(-120, -80), vx: rnd(-15, 15), s: rnd(14, 22), life: 0, max: 3 });
   }
+  function lanternAt(x, y) {   // một đèn nguyện bay lên từ chỗ người thả
+    parts.push({ k: 'lantern', x, y, vx: rnd(-8, 8), vy: -70, s: 34, life: 0, max: 11, ph: rnd(0, 6) });
+    sparkle(12, x, y, 30);
+  }
   function goldenLotus(fromX = 540, fromY = 1700) {
     parts.push({ k: 'goldLotus', x: fromX, y: fromY, x0: fromX, y0: fromY, tx: 540, ty: 760, life: 0, max: 4.5 });
     sparkle(30, fromX, fromY);
@@ -205,5 +209,5 @@ CBA.FX = (() => {
     requestAnimationFrame(loop);
   }
 
-  return { init, smoke, petals, lotusUp, goldenLotus, lanterns, sparkle, ring, halo, dragon, boostSmoke, BURNER };
+  return { init, smoke, petals, lotusUp, lanternAt, goldenLotus, lanterns, sparkle, ring, halo, dragon, boostSmoke, BURNER };
 })();

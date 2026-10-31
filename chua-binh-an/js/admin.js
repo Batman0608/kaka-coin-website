@@ -66,6 +66,7 @@
   /* phiên */
   $('reset').onclick = () => { if (confirm('Xóa toàn bộ điểm Công Đức, hạt và bảng xếp hạng của phiên hiện tại?')) send('reset'); };
   $('export').onclick = () => send('export');
+  $('resetProfiles').onclick = () => { if (confirm('Xóa cấp độ, chuỗi ngày và Bảng Vàng tuần của TẤT CẢ người xem? Không thể hoàn tác.')) send('resetProfiles'); };
 
   /* nhận trạng thái */
   ch.onmessage = (e) => {
@@ -109,6 +110,11 @@
     const t = s.stats;
     $('tMerit').textContent = fmt(t.merit); $('tBeads').textContent = fmt(t.beads); $('tCoins').textContent = fmt(t.coins);
     $('tGifts').textContent = fmt(t.gifts); $('tComments').textContent = fmt(t.comments); $('tLikes').textContent = fmt(t.likes);
+    $('tProfiles').textContent = fmt(s.profiles);
+    const m = s.mult.lunar * s.mult.dongTam * (s.mult.room ? C.incenseBuff.mult : 1);
+    $('tMult').textContent = '×' + (Math.round(m * 100) / 100);
+    $('lunarInfo').textContent = '🌙 Hôm nay ' + s.lunar.text + (s.lunar.feast ? ` · ${s.lunar.feast.name}: hạt & công đức ×${s.lunar.feast.x}` : ' · ngày thường')
+      + (s.lunar.vuLanMonth ? ' · Đang tháng Vu Lan — nên chọn chương trình “Mùa Vu Lan Báo Hiếu”' : '');
     $('tSocial').textContent = `${fmt(t.follows)} / ${fmt(t.shares)}`; $('tUsers').textContent = fmt(t.users);
     const tb = $('topTable'); tb.innerHTML = '';
     s.top.forEach((u, i) => { const tr = el('tr'); [i + 1, u.name, fmt(u.merit), fmt(u.coins), fmt(u.beads)].forEach(v => tr.append(el('td', '', String(v)))); tb.append(tr); });
@@ -122,7 +128,8 @@
 
   function downloadCsv(users) {
     const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
-    const rows = [['Hạng', 'Tên', 'TikTok ID', 'Công đức', 'Xu', 'Hạt']].concat(users.map((u, i) => [i + 1, u.name, u.id, u.merit, u.coins, u.beads]));
+    const rows = [['Hạng', 'Tên', 'TikTok ID', 'Công đức', 'Xu', 'Hạt (buổi này)', 'Cấp', 'Chuỗi ngày', 'Tổng hạt tích lũy']]
+      .concat(users.map((u, i) => [i + 1, u.name, u.id, u.merit, u.coins, u.beads, u.level, u.streak, u.lifeBeads]));
     const csv = '﻿' + rows.map(r => r.map(q).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));

@@ -66,4 +66,8 @@ CBA.game.addGongSound()                          // đại hồng chung
 CBA.game.CongDucCounter(); CBA.game.MantraCounter()
 ```
 
+## Cơ chế giữ chân người xem (bản 3)
+
+Cấp độ 10 bậc, chuỗi ngày lên chùa, Đồng tâm, hương trầm, hệ số ngày rằm/lễ theo lịch âm, đèn nguyện + tùy hỷ, thưởng tụng trọn bài kinh, Bảng Vàng tuần. Chỉnh trong `config.js` (`levels`, `streak`, `dongTam`, `incenseBuff`, `lunarBonus`, `chantCompleteBonus`). Hồ sơ lâu dài (cấp, chuỗi ngày) lưu riêng, không bị xóa khi bấm “Bắt đầu phiên mới”. Hãy dùng **cùng một trình duyệt, cùng địa chỉ** `http://127.0.0.1:4173` mỗi lần live để giữ dữ liệu.
+
 Điểm của phiên được lưu trong trình duyệt (tải lại trang không mất). Bấm “Bắt đầu phiên mới” để xóa.

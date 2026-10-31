@@ -21,6 +21,7 @@ CBA.Audio = (() => {
   };
   let onChange = () => {};
   let onBeat = () => {};
+  let onComplete = () => {};
 
   /* ---------- khởi tạo ---------- */
   function ensure() {
@@ -173,7 +174,7 @@ CBA.Audio = (() => {
       beat++;
       if (lines.length && beat % (tr.beatsPerLine || 8) === 0) {
         const n = st.lineIdx + 1;
-        if (n >= lines.length) { if (st.mode === 'loop') setLine(0); else next(); return; }
+        if (n >= lines.length) { onComplete(tr); if (st.mode === 'loop') setLine(0); else next(); return; }
         setLine(n);
       }
     }, ms);
@@ -224,7 +225,7 @@ CBA.Audio = (() => {
     const i = Math.min(lines.length - 1, Math.floor(el.currentTime / el.duration * lines.length));
     if (i !== st.lineIdx) setLine(i);
   });
-  el.addEventListener('ended', () => { if (st.mode !== 'loop') next(); });
+  el.addEventListener('ended', () => { const tr = cur(); if (tr && tr.text) onComplete(tr); if (st.mode !== 'loop') next(); });
 
   function next() {
     if (st.mode === 'shuffle') play(Math.floor(Math.random() * list().length));
@@ -287,6 +288,6 @@ CBA.Audio = (() => {
     ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
     set, state,
-    onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }
+    onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();

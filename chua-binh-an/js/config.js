@@ -52,6 +52,37 @@ CBA.config = {
     commentCooldownMs: 2500     // chống spam: mỗi người chỉ được tính hạt 1 lần / 2,5s
   },
 
+  /* ---------------- TU TẬP LÂU DÀI (lưu qua nhiều buổi live) ----------------
+     Cấp độ tính theo TỔNG HẠT tích lũy của mỗi người xem qua mọi buổi live. */
+  levels: [
+    { at: 0,       name: 'Sơ Phát Tâm' },
+    { at: 108,     name: 'Tín Tâm' },
+    { at: 324,     name: 'Hỷ Tâm' },
+    { at: 1080,    name: 'Tịnh Tâm' },
+    { at: 3240,    name: 'Định Tâm' },
+    { at: 10800,   name: 'Tuệ Tâm' },
+    { at: 32400,   name: 'Từ Tâm' },
+    { at: 108000,  name: 'Bi Tâm' },
+    { at: 324000,  name: 'Bồ Đề Tâm' },
+    { at: 1080000, name: 'Viên Mãn Tâm' }
+  ],
+
+  /* Chuỗi ngày lên chùa: tương tác ít nhất 1 lần mỗi ngày (giờ Việt Nam) */
+  streak: { bonusPerDay: 3, maxBonus: 21, specialDays: [7, 21, 49, 100] },
+
+  /* Đồng tâm: nhiều người cùng niệm trong 60 giây → cả phòng được nhân hạt */
+  dongTam: { windowSec: 60, minPeople: 3, perPerson: 0.05, max: 1.5 },
+
+  /* Hương trầm: người thắp hương được ×1.2 hạt trong 10 phút;
+     quà Hoa đăng / Rồng làm "hương trầm tỏa khắp chùa" ×1.2 cho cả phòng 5 phút */
+  incenseBuff: { mult: 1.2, personalMin: 10, roomMin: 5 },
+
+  /* Ngày rằm, mùng 1, đại lễ (tự tính theo lịch âm) nhân hạt & công đức */
+  lunarBonus: true,
+
+  /* Tụng trọn một bài kinh có chữ: mọi người đang trong chùa được thưởng */
+  chantCompleteBonus: 9,
+
   /* Cột mốc hạt của cả phòng (đạt bội số sẽ kích hoạt) */
   milestones: [
     { every: 108,   kind: 'vong',  title: 'Viên mãn một vòng tràng hạt', text: 'Cả phòng vừa niệm đủ 108 hạt. Nguyện cho tất cả được an lạc.' },
@@ -98,7 +129,8 @@ CBA.config = {
   guide: [
     { icon: '💬', title: 'Comment "Bình An"', desc: 'Vào chùa quỳ lễ' },
     { icon: '📿', title: 'Comment "Nam Mô"', desc: '+3 hạt niệm Phật' },
-    { icon: '🙏', title: '"Cầu an + điều ước"', desc: 'Hiện lời nguyện' },
+    { icon: '🏮', title: '"Cầu an/Nguyện + điều ước"', desc: 'Thả đèn nguyện' },
+    { icon: '🤲', title: 'Comment "Tùy hỷ"', desc: 'Chung vui đèn nguyện' },
     { icon: '❤️', title: 'Thả tim', desc: 'Lần hạt · sen bay' },
     { icon: '🌹', title: 'Hoa hồng', desc: 'Thắp nén hương' },
     { icon: '🍩', title: 'Quà 30+ xu', desc: 'Dâng mâm ngũ quả' },
@@ -113,7 +145,9 @@ CBA.config = {
     cauSieu: ['cau sieu', 'sieu do', 'hoi huong cho'],
     conMe: ['con me', 'con ca me', 'con cha me'],
     matMe: ['mat me', 'me da mat', 'mo coi me', 'me da di xa'],
-    checkHat: ['!hat', 'hat cua toi', 'bao nhieu hat', '!congduc']
+    checkHat: ['!hat', 'hat cua toi', 'bao nhieu hat', '!congduc', '!cap'],
+    nguyen: ['nguyen cho', 'con nguyen', 'xin nguyen', 'nguyen cau', 'uoc nguyen', 'nguyen mong'],   // + mọi comment bắt đầu bằng chữ "Nguyện" (có dấu, để không nhầm họ Nguyễn)
+    tuyHy: ['tuy hy', 'tuyhy', 'tuy hi', 'tuy hi cong duc', 'tuy hy cong duc']
   },
 
   /* Từ cấm — comment chứa từ này không hiện bong bóng/lời nguyện */

@@ -92,6 +92,7 @@
   <!-- 4. Chương trình -->
   <section class="card">
     <h2>④ Chương trình buổi live</h2>
+    <p class="hint lunar" id="lunarInfo">—</p>
     <div id="segments" class="seglist"></div>
     <label class="sw"><input type="checkbox" id="segAuto" checked> Tự đổi nhạc theo chương trình</label>
     <h3>Bài giảng hiển thị</h3>
@@ -145,12 +146,15 @@
       <div><small>Tim</small><b id="tLikes">0</b></div>
       <div><small>Follow / Share</small><b id="tSocial">0</b></div>
       <div><small>Phật tử ghi nhận</small><b id="tUsers">0</b></div>
+      <div><small>Hồ sơ lâu dài</small><b id="tProfiles">0</b></div>
+      <div><small>Hệ số hạt hiện tại</small><b id="tMult">×1</b></div>
     </div>
     <table class="top"><thead><tr><th>#</th><th>Tên</th><th>Công đức</th><th>Xu</th><th>Hạt</th></tr></thead><tbody id="topTable"></tbody></table>
     <div class="row">
       <button class="btn" id="export">Xuất danh sách (CSV) để hồi hướng / cảm ơn</button>
       <button class="btn" data-cmd="clearYard">Dọn sân chùa</button>
       <button class="btn danger" id="reset">Bắt đầu phiên mới (xóa điểm)</button>
+      <button class="btn danger" id="resetProfiles">Xóa hồ sơ lâu dài (cấp, chuỗi ngày, Bảng Vàng)</button>
     </div>
   </section>
 </main>

@@ -33,6 +33,7 @@ input[type=checkbox] { width: auto; margin: 0 6px 0 0; padding: 0; }
 .pill { font: 700 12px 'Be Vietnam Pro', sans-serif; padding: 3px 10px; border-radius: 12px; background: #eee; color: #777; }
 .pill.ok { background: #d8f0e3; color: var(--green); }
 .pill.err { background: #fbe0dc; color: var(--red); }
+.hint.lunar { background: #3a1c0e; color: #fff1c2; padding: 8px 12px; border-radius: 10px; }
 .hint { font-size: 13px; color: var(--mut); margin: 8px 0; }
 code { background: #f3e6cc; padding: 1px 5px; border-radius: 4px; }
 .stats3, .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
