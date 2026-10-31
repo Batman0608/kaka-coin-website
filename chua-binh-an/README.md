@@ -10,6 +10,9 @@ Kịch bản đầy đủ: [`KICH_BAN.md`](KICH_BAN.md)
 chua-binh-an/
 ├── index.html      Bảng điều khiển (kết nối, nhạc, chương trình, thử hiệu ứng, thống kê)
 ├── live.html       Màn hình phát 9:16 — đưa vào TikTok LIVE Studio / OBS
+├── choi.html       Chơi bình thường (không cần TikTok)
+├── js/play.js      Chế độ chơi: tạo nhân vật, thanh hành động, tràng hạt, thiền…
+├── preview.html    Trang xem trước: màn hình phát + nút thử nhanh
 ├── start.bat       Chạy máy chủ nội bộ trên Windows (bấm đúp)
 ├── lien-ket-thu-muc-nhac.bat  Liên kết thư mục nhạc có sẵn (F:\I.Kinh,DanThien) vào audio/
 ├── js/stories.js   📖 40 truyện Phật + câu đố
@@ -29,6 +32,11 @@ chua-binh-an/
 ├── audio/          Chép file mp3 kinh / nhạc của bạn vào đây
 └── assets/         Ảnh nền riêng (tùy chọn)
 ```
+
+## Hai chế độ
+
+- **Chơi bình thường** (không cần TikTok): mở `choi.html` (hoặc `live.html?mode=play`). Người chơi tạo nhân vật (pháp danh, nam/nữ, tóc, áo), chạm đệm để ngồi, chạm sân để đi lại, và dùng thanh hành động: Lạy Phật · Tràng hạt 108 · Tụng kinh (gõ mõ) · Thiền · Dâng lễ · Kinh hành · Đèn nguyện · Nghe truyện (bấm đáp án A/B/C) · Bản đồ · Cài đặt. Tiến trình lưu trên trình duyệt.
+- **Livestream TikTok**: `index.html` (bảng điều khiển) + `live.html` (màn hình phát 9:16), người xem tương tác bằng comment, tim, quà như các phần dưới.
 
 ## Chạy thử (5 phút)
 

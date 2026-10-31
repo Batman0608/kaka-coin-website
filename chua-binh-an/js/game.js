@@ -22,7 +22,8 @@
   /* ============================ KHUNG HÌNH ============================ */
   const stage = $('stage');
   function fit() {
-    const s = Math.min(innerWidth / 1080, innerHeight / 1920);
+    const h = document.body.classList.contains('play') ? innerHeight - 92 : innerHeight;   // chế độ chơi chừa chỗ cho thanh hành động
+    const s = Math.min(innerWidth / 1080, h / 1920);
     stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
   }
   addEventListener('resize', fit); fit();
@@ -34,9 +35,10 @@
   let S = fresh();
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(fresh(), JSON.parse(raw)); } catch (e) {}
   let saveT = null;
-  function save() {
-    clearTimeout(saveT);
+  function save() {   // gom ghi tối đa mỗi 1,5 giây (không bị trì hoãn mãi khi sự kiện dồn dập)
+    if (saveT) return;
     saveT = setTimeout(() => {
+      saveT = null;
       try {
         const ids = Object.keys(S.users);
         if (ids.length > 3000) { // giữ lại người có điểm cao nhất
@@ -70,8 +72,9 @@
   try { P = JSON.parse(localStorage.getItem(PKEY) || '{}') || {}; } catch (e) {}
   let savePT = null;
   function saveP() {
-    clearTimeout(savePT);
+    if (savePT) return;
     savePT = setTimeout(() => {
+      savePT = null;
       try {
         const ids = Object.keys(P);
         if (ids.length > 20000) { ids.sort((a, b) => P[b].beads - P[a].beads); ids.slice(20000).forEach(i => delete P[i]); }
@@ -400,7 +403,7 @@
   }
   function setFigTier(p, t) {
     p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
-    const robe = t === 3 ? 'vang' : lookOf(p.u).robe;      // Top 3 công đức mặc áo vàng
+    const robe = t === 3 && !p.isMe ? 'vang' : lookOf(p.u).robe;      // Top 3 công đức mặc áo vàng (người chơi giữ áo tự chọn)
     const key = robe + '|' + JSON.stringify(lookOf(p.u));
     if (p.figKey !== key) { p.figKey = key; p.fig.querySelector('svg').innerHTML = figSvg(p.u, robe); }
   }
@@ -482,9 +485,16 @@
 
   function layoutSeats() {
     if (!dirtySeats) return; dirtySeats = false;
-    const list = ranked();
+    let list = ranked();
     const meritRank = Object.values(S.users).filter(u => u.merit > 0).sort((a, b) => b.merit - a.merit).slice(0, 3).map(u => u.id);
-    list.forEach((p, i) => {
+    // người chơi tự chọn đệm (chế độ chơi): giữ đúng đệm đó, người khác xếp vào chỗ còn lại
+    const pinned = list.filter(p => p.pin != null);
+    const order = slots.map((_, i) => i).filter(i => !pinned.some(p => p.pin === i));
+    list = list.filter(p => p.pin == null);
+    const seatOf = new Map(); list.forEach((p, k) => seatOf.set(p, order[k] ?? 999)); pinned.forEach(p => seatOf.set(p, p.pin));
+    list = pinned.concat(list);
+    list.forEach((p) => {
+      const i = seatOf.get(p);
       if (i < slots.length) {
         if (!p.fig) { p.fig = makeFigure(p.u); p.pos = null; place(p, AISLE + jit(), 1990, 0); }
         const r = meritRank.indexOf(p.u.id);
@@ -1363,7 +1373,8 @@
     clearInterval(bot); bot = null;
     if (on) bot = setInterval(() => {
       const r = Math.random();
-      sim(r < .5 ? 'like' : r < .88 ? 'chat' : r < .985 ? 'gift' : 'follow');
+      const playMode = document.body.classList.contains('play');   // chế độ chơi: Phật tử mô phỏng không "tặng quà TikTok"
+      sim(r < .5 ? 'like' : r < .9 ? 'chat' : (!playMode && r < .985) ? 'gift' : 'follow');
       if (Math.random() < .3) { viewers = Math.max(viewers, present.size + Math.floor(Math.random() * 20)); }
     }, RATE[rate] || 650);
     updateHud(); broadcast();
@@ -1511,6 +1522,14 @@
       else sim('gift', { name: username, giftName: giftTypeOrTier, coins: coins || 1 });
     },
     CongDucCounter: () => S.merit,
+    play: {   // dùng cho chế độ chơi bình thường (js/play.js)
+      user, join, present: () => present, slots, addBeads, bow, bowAll, kinhHanh, visitBurner, visitFront, walkPath, routeTo, sitDown, goSeat,
+      giftEffect: (tierId, u, label) => { const t = TIERS.find(x => x.id === tierId); if (t) giftEffect(t, u, label, 1, 0); },
+      addMerit: (u, n) => { u.merit += n; S.merit += n; const pr = prof(u); pr.merit += n; pr.wMerit += n; saveP(); dirtySeats = true; dirtyBoard = true; layoutSeats(); },
+      addWish, startStory, stopStory, answerQuiz: (u, n) => answerQuiz(u, n), quizActive: () => !!(quiz && !quiz.revealed), storyActive: () => !!storyRun,
+      setTemple, curTemple, charCommand, prof, levelOf, lookOf, card, toast, say, figPos, bless, holdIncense, scaleAt, place,
+      relayout: () => { dirtySeats = true; layoutSeats(); }, setBot, A, FX, S: () => S, lunar: () => lunar, mult
+    },
     MantraCounter: () => S.beads,
     simulate: sim, setBot, reset: resetSession, state: () => S
   };

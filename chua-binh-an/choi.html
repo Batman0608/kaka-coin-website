@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Chùa Bình An · Lên chùa</title></head>
+<body style="background:#120604;color:#fbeed6;font:16px sans-serif">
+<p style="text-align:center;margin-top:40vh">Đang thắp đèn chánh điện…</p>
+<script>
+  /* Chế độ chơi bình thường: nạp màn hình chùa (live.html) ở chế độ "play" */
+  fetch('live.html').then(r => r.text()).then(t => {
+    t = t.replace('<head>', '<head><script>window.CBA_MODE = "play"<\/script>');
+    document.open(); document.write(t); document.close();
+  }).catch(() => { location.href = 'live.html?mode=play'; });
+</script>
+</body></html>
