@@ -149,9 +149,17 @@
   </header>
 
   <aside id="guide" class="panel">
-    <h3>Cách tham gia</h3>
-    <ul id="guideList"></ul>
-    <p class="note">Điểm trong game chỉ để khích lệ tu tập, không phải công đức thật.</p>
+    <div class="ga">
+      <h3>Cách tham gia</h3>
+      <ul id="guideList"></ul>
+      <p class="note">Điểm trong game chỉ để khích lệ tu tập, không phải công đức thật.</p>
+    </div>
+    <div class="gb">
+      <h3>Nhiệm vụ hôm nay</h3>
+      <div class="mh" id="mHanh"></div><div class="mtip" id="mTip"></div>
+      <ul id="missionList"></ul>
+      <p class="note" id="mStreak"></p>
+    </div>
   </aside>
 
   <aside id="board" class="panel">
@@ -174,6 +182,19 @@
   </div>
 
   <div id="milestone" class="hidden"><div id="msTitle"></div><div id="msText"></div></div>
+
+  <div id="story" class="hidden">
+    <div class="st-head">
+      <svg class="st-monk" viewBox="0 0 60 60"><circle cx="30" cy="30" r="29" fill="#5a2a10" stroke="#ffd36b" stroke-width="2"/>
+        <path d="M10 58 Q12 40 30 38 Q48 40 50 58Z" fill="#8a4a1c"/><path d="M22 40 L30 50 L38 40" stroke="#c98a1c" stroke-width="3" fill="none"/>
+        <circle cx="30" cy="25" r="11" fill="#eec39a"/><path d="M24 25 q2 -2 4 0 M32 25 q2 -2 4 0" stroke="#5a2a10" stroke-width="1.5" fill="none"/>
+        <path d="M26 31 q4 3 8 0" stroke="#8a3a12" stroke-width="1.5" fill="none"/></svg>
+      <div class="st-t"><small id="stSeries"></small><b id="stTitle"></b></div>
+      <span id="stPage"></span>
+    </div>
+    <div class="st-text" id="stText"></div>
+    <div class="st-foot"><div class="st-bar"><i id="stBar"></i></div><span id="stHint"></span></div>
+  </div>
 
   <div id="toasts"></div>
 
@@ -199,12 +220,13 @@
 <div id="quick" class="hidden">
   <b>Phím tắt màn hình phát</b>
   <p>M bật/tắt nhạc · N bài kế · P phát/dừng · K kết nối TikFinity<br>
-     1–6 thử quà theo bậc · C thử comment · L thử thả tim<br>
+     1–6 thử quà theo bậc · C thử comment · L thử thả tim · T kể chuyện<br>
      B bot mô phỏng · S vùng an toàn TikTok · F toàn màn hình · H ẩn</p>
 </div>
 
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
+<script src="js/stories.js"></script>
 <script src="js/lunar.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/tiktok.js"></script>

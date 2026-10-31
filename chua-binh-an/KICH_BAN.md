@@ -45,6 +45,49 @@
 
 ---
 
+## 0c. Cốt truyện & vòng lặp mỗi ngày (bản 4)
+
+**Ý tưởng chung:** người xem là Phật tử về một ngôi chùa nhỏ trên mạng. Sư trụ trì là **Sư Ông Tâm An** (nhân vật tự tạo). Mỗi ngày Sư Ông kể một chương **“Hành Trình Theo Dấu Chân Phật”**. Cả phòng cùng thả tim, niệm Phật để lật trang, cuối truyện có câu đố, người nghe được ghi vào **Sổ Truyện**. Học theo niemphat.online: người kể chuyện, nghe chuyện được thưởng, sổ đóng ấn, nhiệm vụ ngày, “duyên” ngẫu nhiên. Tất cả làm lại cho livestream, và lời truyện do mình tự viết.
+
+### Kho truyện: 40 truyện, 6 bộ (`js/stories.js`)
+
+| Bộ | Số truyện | Danh hiệu khi nghe đủ cả bộ |
+|---|---|---|
+| ☸ Cuộc Đời Đức Phật: giấc mộng voi trắng → đản sanh → thiên nga → bốn cửa thành → xuất gia → khổ hạnh → thành đạo → chuyển pháp luân → La Hầu La → voi say → Ni đoàn → nhập Niết Bàn | 12 chương | Người Theo Dấu Chân Phật |
+| 🪷 Tam Thế Phật & Bồ Tát: Phật Nhiên Đăng thọ ký, 48 nguyện A Di Đà, Phật Dược Sư, Di Lặc, Diệu Thiện (chùa Hương), Địa Tạng | 6 | Đệ Tử Tam Thế Phật |
+| 📿 Các vị đệ tử: Xá Lợi Phất, Ca Diếp cầm hoa mỉm cười, A Nan xin nước, Châu Lợi Bàn Đặc, Ương Quật Ma La, Kisa Gotami, ngọn đèn bà lão nghèo, vườn trải vàng Kỳ Viên | 8 | Bạn Lành Của Tăng Đoàn |
+| 🦌 Tiền thân (Bổn sanh): thỏ trên mặt trăng, vua khỉ làm cầu, hươu chúa, vua Thi Tỳ, chú vẹt dập lửa, cọp mẹ đói | 6 | Hạnh Nguyện Bồ Tát |
+| 🏯 Phật giáo Việt Nam: Quan Âm Thị Kính, Phật hoàng Trần Nhân Tông, chùa Một Cột, Man Nương & Tứ Pháp, Vạn Hạnh & Lý Công Uẩn | 5 | Người Giữ Hồn Thiền Việt |
+| 🌹 Hiếu hạnh Vu Lan: Mục Kiền Liên cứu mẹ, Bông hồng cài áo, công ơn cha mẹ | 3 | Hiếu Tử Vu Lan |
+
+### Một buổi kể chuyện diễn ra thế nào (khoảng 3–5 phút)
+1. Sư Ông giới thiệu tên truyện. Giọng máy đọc nếu bật “Đọc truyện”.
+2. Mỗi **trang** hiện một đoạn. Thanh tiến độ: *“Thả tim / niệm Phật để lật trang: 30/54 hạt”*. Cả phòng góp đủ hạt thì trang lật sớm; không đủ thì tối đa 40 giây trang cũng tự lật.
+3. Trang cuối là **Lời dạy** của truyện: cánh hoa rơi, cả chùa lạy.
+4. **Câu đố** 35 giây: comment A, B, C (hoặc 1, 2, 3, hoặc gõ nguyên đáp án). Số người chọn từng đáp án hiện trực tiếp. Người trả lời đúng +27 hạt, tên được xướng lên.
+5. Kết thúc: ai đã tương tác trong lúc kể được **+9 hạt** và thêm 1 trang vào **Sổ Truyện**. Nghe đủ một bộ thì nhận **danh hiệu**. Trả lời đúng 10 và 50 câu cũng có danh hiệu.
+6. **Câu móc nối:** *“Hẹn ngày mai: Chương 5 — Đêm vượt thành xuất gia”*. Đây là lý do để người xem quay lại hôm sau.
+
+### Lịch kể
+- **Mỗi ngày 1 chương chính** của Cuộc Đời Đức Phật, kể xong mới chuyển sang chương kế vào ngày hôm sau. 12 ngày trọn bộ rồi bắt đầu lại.
+- Các lần kể khác trong ngày là **truyện phụ**, ưu tiên truyện lâu chưa kể. Tháng 7 âm lịch ưu tiên bộ Vu Lan, ngày rằm hoặc lễ ưu tiên bộ Tam Thế Phật.
+- Tự kể mỗi 20 phút (chỉnh được), hoặc người dẫn bấm “Kể truyện hôm nay”, phím **T**, hay chọn chương trình “Kể Chuyện Phật”.
+
+### Vòng lặp giữ chân người xem mỗi ngày
+
+| Mỗi ngày | Mục đích |
+|---|---|
+| **Chương mới** của Cuộc Đời Đức Phật + câu móc nối | Tò mò muốn nghe tiếp |
+| **Hạnh tu hôm nay** (Lục độ: Bố thí, Trì giới, Nhẫn nhục, Tinh tấn, Thiền định, Trí tuệ) kèm một việc nhỏ để làm | Mang lời dạy ra đời sống |
+| **3 nhiệm vụ chung của cả chùa** (vd: niệm đủ 1.080 hạt, thả 5 đèn nguyện, 10 câu đố đúng, nghe trọn 2 truyện). Tất cả đều miễn phí | Cả phòng cùng hướng tới một mục tiêu. Hoàn thành cả 3 thì ai đang có mặt cũng +54 hạt, và **chuỗi ngày viên mãn của chùa** tăng thêm 1 |
+| **Chuỗi ngày lên chùa** của từng người (bản 3) | Ngại bỏ lỡ một ngày |
+| **Duyên lành** mỗi 15 phút: chọn ngẫu nhiên 1 người đang tương tác, ai cũng có cơ hội như nhau, không liên quan quà. Người được chọn nhận lời chúc riêng của Sư Ông + 108 hạt | Ở lại và tương tác để có cơ hội |
+| **Sổ Truyện & danh hiệu** (comment `!so`) | Muốn sưu tầm đủ bộ |
+
+> Nguyên tắc giữ nguyên: danh hiệu, Duyên lành và nhiệm vụ **không mua được bằng quà**. Quà tặng chỉ tạo hiệu ứng, chỗ ngồi và Bảng Công Đức. Như vậy người không tặng quà vẫn có lý do để ở lại, và không vi phạm quy định cấm hứa lợi ích để đổi lấy quà.
+
+---
+
 ## I. Bố cục màn hình (1080×1920, dọc 9:16)
 
 Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình luận góc dưới trái, nút bên phải). Bấm phím **S** trên màn hình phát để xem vùng an toàn.
@@ -94,6 +137,8 @@ Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình 
 | “Còn mẹ” (mùa Vu Lan) | Cài **hoa hồng đỏ** lên nhân vật | +1 |
 | “Mất mẹ” | Cài **hoa hồng trắng** | +1 |
 | “!hat” / “!cap” | Bong bóng báo cấp, tổng hạt tích lũy, chuỗi ngày | +1 |
+| “!so” | Bong bóng báo số truyện đã nghe / 40 và danh hiệu | +1 |
+| A / B / C (lúc có câu đố) | Trả lời câu đố, đúng được +27 hạt | +1 |
 | “Nguyện …” | Thả đèn nguyện (như “Cầu an”) | +1 |
 | “Tùy hỷ” | Chung vui với đèn nguyện gần nhất của người khác; chủ đèn +2 hạt | +1 |
 

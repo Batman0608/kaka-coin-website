@@ -27,13 +27,27 @@
 
   /* âm nhạc */
   const pl = $('playlist');
-  CBA.playlist.forEach((t, i) => {
-    const li = el('li'); li.dataset.i = i;
-    li.append(el('span', '', t.title), el('em', 'tag' + (t.type === 'file' ? ' file' : ''), t.type === 'file' ? 'FILE' : t.type === 'chant' ? 'GÕ MÕ' : 'TỔNG HỢP'));
-    li.onclick = () => send('play', { index: i });
-    pl.append(li);
-  });
-  ['musicOn', 'sfxOn', 'ttsOn'].forEach(k => $(k).onchange = (e) => send('audio', { [k]: e.target.checked }));
+  const CAT = { thien: 'Thiền', kinh: 'Kinh', niem: 'Niệm', giang: 'Giảng', vulan: 'Vu Lan', hoihuong: 'Hồi hướng' };
+  let plSig = '';
+  function renderPlaylist(items) {
+    const sig = items.map(t => t.title + t.missing).join('|'); if (sig === plSig) return; plSig = sig;
+    pl.innerHTML = '';
+    items.forEach((t, i) => {
+      const li = el('li'); li.dataset.i = i;
+      const kind = t.missing ? 'THIẾU FILE' : t.type === 'file' ? 'FILE · ' + (CAT[t.category] || '') : t.type === 'chant' ? 'GÕ MÕ' : 'TỔNG HỢP';
+      li.append(el('span', '', t.title), el('em', 'tag' + (t.missing ? ' miss' : t.type === 'file' ? ' file' : ''), kind));
+      li.onclick = () => send('play', { index: i });
+      pl.append(li);
+    });
+  }
+  renderPlaylist(CBA.playlist.map(t => ({ title: t.title, type: t.type, category: t.category })));
+  $('pickDir').onchange = (e) => {
+    const files = [...e.target.files].filter(f => /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|wma)$/i.test(f.name));
+    const items = files.map(f => ({ src: URL.createObjectURL(f), title: f.name.replace(/\.[^.]+$/, '').replace(/_/g, ' '), folder: (f.webkitRelativePath || '').split('/').slice(0, -1).join(' ') }));
+    send('addTracks', { items });
+    $('scanMsg').textContent = `Đã thêm ${items.length} file từ thư mục đã chọn (dùng được đến khi đóng trang này).`;
+  };
+  ['musicOn', 'sfxOn', 'ttsOn', 'storyTtsOn'].forEach(k => $(k).onchange = (e) => send('audio', { [k]: e.target.checked }));
   ['musicVol', 'sfxVol'].forEach(k => $(k).oninput = (e) => send('audio', { [k]: +e.target.value }));
   $('mode').onchange = (e) => send('audio', { mode: e.target.value });
 
@@ -47,6 +61,18 @@
   CBA.teachings.forEach(t => { const o = el('option', '', t.title); o.value = t.id; $('teaching').append(o); });
   $('teaching').onchange = (e) => send('teaching', { id: e.target.value || null });
   $('announce').onclick = () => { const t = $('annText').value.trim(); if (t) send('announce', { text: t }); };
+
+  /* kể chuyện */
+  CBA.storySeries.forEach(se => {
+    const g = document.createElement('optgroup'); g.label = `${se.icon} ${se.name}`;
+    CBA.stories.filter(x => x.series === se.id).forEach(x => { const o = el('option', '', x.title); o.value = x.id; g.append(o); });
+    $('storyPick').append(g);
+  });
+  $('storyToday').onclick = () => send('storyStart');
+  $('storyPlayPick').onclick = () => send('storyStart', { id: $('storyPick').value });
+  $('storyNext').onclick = () => send('storyNext');
+  $('storyStop').onclick = () => send('storyStop');
+  $('storyAuto').onchange = (e) => send('storyAuto', { min: +e.target.value });
 
   /* thử hiệu ứng */
   C.giftTiers.forEach((t, i) => {
@@ -73,6 +99,7 @@
     const m = e.data;
     if (m.type === 'state') { st = m; lastState = Date.now(); render(); }
     if (m.type === 'export') downloadCsv(m.users);
+    if (m.type === 'scan') $('scanMsg').textContent = m.n ? `Đã nhận ${m.n} file trong thư mục audio/.` : 'Không thấy file nhạc nào trong audio/ — hãy chép file vào rồi bấm quét lại (cần chạy qua start.bat).';
   };
 
   function render() {
@@ -93,11 +120,26 @@
     if (document.activeElement !== $('musicVol')) $('musicVol').value = a.musicVol;
     if (document.activeElement !== $('sfxVol')) $('sfxVol').value = a.sfxVol;
     $('mode').value = a.mode;
-    [...pl.children].forEach((li, i) => {
-      li.classList.toggle('cur', i === a.index);
-      const tr = CBA.playlist[i]; const tag = li.querySelector('.tag');
-      if (a.missing.includes(tr.id)) { tag.textContent = 'THIẾU FILE'; tag.className = 'tag miss'; }
-    });
+    if (a.playlist) renderPlaylist(a.playlist);
+    $('storyTtsOn').checked = a.storyTtsOn;
+    [...pl.children].forEach((li, i) => li.classList.toggle('cur', i === a.index));
+
+    // kể chuyện & nhiệm vụ
+    const sb = s.storyBook || {};
+    $('storyPill').textContent = s.story ? (s.story.quiz ? 'đang đố vui' : `trang ${s.story.page}/${s.story.pages}`) : 'đang nghỉ';
+    $('storyPill').className = 'pill' + (s.story ? ' ok' : '');
+    $('storyInfo').textContent = (s.story ? `Đang kể: ${s.story.title}. ` : '') + `Cuộc Đời Đức Phật: chương ${(sb.mainIdx || 0) + 1}/12 ${sb.mainDoneToday ? '(hôm nay đã kể chương chính — sẽ kể truyện phụ)' : '(chưa kể hôm nay)'} · Truyện kế tiếp: ${sb.next || '—'}`;
+    if (document.activeElement !== $('storyAuto')) $('storyAuto').value = String(sb.auto ?? 20);
+    if (s.daily) {
+      const ul = $('dailyList'); ul.innerHTML = '';
+      const li0 = el('li', '', `🪷 Hạnh tu hôm nay: ${s.daily.hanh} · Chùa viên mãn ${s.daily.streak || 0} ngày liên tiếp`); ul.append(li0);
+      s.daily.ids.forEach(id => {
+        const m = C.missions.pool.find(x => x.id === id); if (!m) return;
+        const li = el('li', s.daily.done.includes(id) ? 'done' : '');
+        li.append(el('span', '', m.text.replace('{n}', fmt(m.n))), el('b', '', `${fmt(Math.min(m.n, s.daily.c[id] || 0))}/${fmt(m.n)}`));
+        ul.append(li);
+      });
+    }
     if (a.ttsOn && !a.hasVoice) $('ttsOn').parentElement.title = 'Máy chưa có giọng đọc tiếng Việt — cài thêm trong cài đặt Windows (Ngôn ngữ → Tiếng Việt → Giọng nói)';
 
     document.querySelectorAll('#segments button').forEach(b => b.classList.toggle('cur', b.dataset.id === s.segment));

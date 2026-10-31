@@ -83,6 +83,49 @@ CBA.config = {
   /* Tụng trọn một bài kinh có chữ: mọi người đang trong chùa được thưởng */
   chantCompleteBonus: 9,
 
+  /* ---------------- KỂ CHUYỆN PHẬT ----------------
+     Mỗi ngày 1 chương "Cuộc Đời Đức Phật" (kể xong mới sang chương mới vào ngày
+     hôm sau), các buổi khác kể truyện ngắn. Cả phòng thả tim/comment để lật trang. */
+  storyteller: 'Sư Ông Tâm An',
+  story: {
+    autoEveryMin: 20,      // tự kể một truyện mỗi N phút (0 = chỉ kể khi bấm)
+    minSceneSec: 12,       // mỗi trang hiện ít nhất N giây (lâu hơn nếu chữ dài / đang đọc)
+    maxSceneSec: 40,       // quá N giây tự lật trang dù chưa đủ hạt
+    sceneBeads: 54,        // cả phòng góp đủ N hạt thì được lật trang sớm
+    listenBonus: 9,        // nghe trọn truyện: mỗi người tham gia +N hạt
+    quizSec: 35, quizBonus: 27, quizShow: 6,
+    quizTitles: [{ at: 10, name: 'Trí Tuệ Sơ Khai' }, { at: 50, name: 'Đa Văn Quảng Bác' }]
+  },
+
+  /* Duyên lành: cứ N phút chọn ngẫu nhiên 1 người đang tương tác (không phụ thuộc quà) */
+  duyenLanh: { everyMin: 15, activeMin: 10, bonus: 108, cooldownDays: 3, minPresent: 3 },
+
+  /* Nhiệm vụ chung của cả chùa mỗi ngày (3 nhiệm vụ ngẫu nhiên, đều miễn phí) */
+  missions: {
+    perDay: 3, allBonus: 54,
+    pool: [
+      { id: 'beads',   text: 'Cả chùa niệm đủ {n} hạt', n: 1080 },
+      { id: 'mantras', text: '{n} lượt comment niệm Phật', n: 30 },
+      { id: 'wishes',  text: 'Thả {n} đèn nguyện', n: 5 },
+      { id: 'tuyhy',   text: '{n} lượt tùy hỷ', n: 5 },
+      { id: 'quiz',    text: '{n} lượt trả lời đúng câu đố', n: 10 },
+      { id: 'stories', text: 'Nghe trọn {n} câu chuyện Phật', n: 2 },
+      { id: 'follows', text: 'Thêm {n} người theo dõi chùa', n: 5 },
+      { id: 'present', text: '{n} Phật tử cùng có mặt', n: 20 },
+      { id: 'shares',  text: '{n} lượt chia sẻ phiên live', n: 3 }
+    ]
+  },
+
+  /* Hạnh tu mỗi ngày (Lục độ) — luân phiên theo ngày */
+  hanhTu: [
+    { name: 'Bố thí',    tip: 'Gửi một lời chúc tốt đẹp cho người khác trong phòng' },
+    { name: 'Trì giới',  tip: 'Giữ lời nói hòa nhã cả ngày hôm nay' },
+    { name: 'Nhẫn nhục', tip: 'Khi bực bội, thở ba hơi rồi mới nói' },
+    { name: 'Tinh tấn',  tip: 'Niệm đủ 108 câu Phật hiệu' },
+    { name: 'Thiền định', tip: 'Ngồi yên 5 phút theo dõi hơi thở' },
+    { name: 'Trí tuệ',   tip: 'Nghe một câu chuyện và chia sẻ điều mình học được' }
+  ],
+
   /* Cột mốc hạt của cả phòng (đạt bội số sẽ kích hoạt) */
   milestones: [
     { every: 108,   kind: 'vong',  title: 'Viên mãn một vòng tràng hạt', text: 'Cả phòng vừa niệm đủ 108 hạt. Nguyện cho tất cả được an lạc.' },
@@ -131,6 +174,7 @@ CBA.config = {
     { icon: '📿', title: 'Comment "Nam Mô"', desc: '+3 hạt niệm Phật' },
     { icon: '🏮', title: '"Cầu an/Nguyện + điều ước"', desc: 'Thả đèn nguyện' },
     { icon: '🤲', title: 'Comment "Tùy hỷ"', desc: 'Chung vui đèn nguyện' },
+    { icon: '📖', title: 'Nghe truyện · đố vui', desc: 'Comment A/B/C · sưu tầm truyện' },
     { icon: '❤️', title: 'Thả tim', desc: 'Lần hạt · sen bay' },
     { icon: '🌹', title: 'Hoa hồng', desc: 'Thắp nén hương' },
     { icon: '🍩', title: 'Quà 30+ xu', desc: 'Dâng mâm ngũ quả' },
@@ -146,6 +190,7 @@ CBA.config = {
     conMe: ['con me', 'con ca me', 'con cha me'],
     matMe: ['mat me', 'me da mat', 'mo coi me', 'me da di xa'],
     checkHat: ['!hat', 'hat cua toi', 'bao nhieu hat', '!congduc', '!cap'],
+    checkBook: ['!so', '!truyen', 'so truyen', '!danhhieu'],
     nguyen: ['nguyen cho', 'con nguyen', 'xin nguyen', 'nguyen cau', 'uoc nguyen', 'nguyen mong'],   // + mọi comment bắt đầu bằng chữ "Nguyện" (có dấu, để không nhầm họ Nguyễn)
     tuyHy: ['tuy hy', 'tuyhy', 'tuy hi', 'tuy hi cong duc', 'tuy hy cong duc']
   },
@@ -162,6 +207,7 @@ CBA.config = {
     { id: 'khaichuong', title: 'Khai Chuông · Nhập Điện', category: 'thien', note: 'Mời quý Phật tử comment "Bình An" để vào chùa' },
     { id: 'tungkinh',   title: 'Thời Khóa Tụng Kinh',     category: 'kinh',  note: 'Cùng tụng kinh — thả tim để lần hạt' },
     { id: 'niemphat',   title: 'Niệm Phật · Lần Tràng Hạt', category: 'niem', note: 'Comment "Nam Mô A Di Đà Phật" +3 hạt' },
+    { id: 'kechuyen',   title: 'Kể Chuyện Phật',            category: 'thien', note: 'Thả tim để lật trang · cuối truyện có câu đố', story: true },
     { id: 'giangphap',  title: 'Giảng Pháp · Đạo Lý',      category: 'giang', note: 'Lắng nghe lời Phật dạy' },
     { id: 'vulan',      title: 'Mùa Vu Lan Báo Hiếu',      category: 'vulan', note: 'Comment "còn mẹ" cài hoa hồng đỏ · "mất mẹ" cài hoa trắng' },
     { id: 'hoihuong',   title: 'Hồi Hướng Công Đức',       category: 'hoihuong', note: 'Nguyện đem công đức này hướng về khắp tất cả' }

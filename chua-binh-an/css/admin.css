@@ -62,6 +62,10 @@ code { background: #f3e6cc; padding: 1px 5px; border-radius: 4px; }
 .seglist { display: grid; gap: 6px; }
 .seglist button { text-align: left; }
 .seglist button.cur { background: var(--green); color: #fff; border-color: var(--green); }
+.filebtn { display: inline-block; margin: 0; color: var(--ink); font-size: 14px; }
+.daily { list-style: none; padding: 0; margin: 0; }
+.daily li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+.daily li.done { color: var(--green); font-weight: 700; }
 .tiers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 8px 0; }
 .tiers button { text-align: left; }
 .tiers small { display: block; font-weight: 400; color: var(--mut); font-size: 12px; }

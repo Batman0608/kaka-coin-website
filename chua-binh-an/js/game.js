@@ -208,6 +208,7 @@
       saveP();
     }
     const before = S.beads;
+    daily('beads', n);
     S.beads += n; if (u) u.beads += n;
     renderMala();
     const b = $('beadNum'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
@@ -327,7 +328,8 @@
         const t = tierOfUser(p.u, meritRank.indexOf(p.u.id) === -1 ? 99 : meritRank.indexOf(p.u.id));
         p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
         p.fig.querySelector('.robe').setAttribute('fill', ROBE[t]);
-        p.fig.querySelector('.lv').textContent = String(levelOf(prof(p.u).beads) + 1);
+        const prr = prof(p.u);
+        p.fig.querySelector('.lv').textContent = String(levelOf(prr.beads) + 1) + ((prr.titles || []).length ? '✦' : '');
         p.fig.style.zIndex = String(10 + Math.round(s.y / 10));
         p.fig.style.transform = `scale(${s.sc})`;
         renderRose(p);
@@ -560,6 +562,7 @@
   function handle(ev) {
     if (!ev) return;
     lastEventAt = now();
+    if (storyRun && ev.id && ev.type !== 'join') storyUsers.add(ev.id);
     if (ev.sim) simActiveUntil = now() + 30000;
     switch (ev.type) {
       case 'chat': onChat(ev); break;
@@ -584,6 +587,12 @@
       u._cd = now();
       addBeads(u, mantra ? C.scoring.beadsPerMantraComment : C.scoring.beadsPerComment);
     }
+    if (quiz && !quiz.revealed && answerQuiz(u, n)) { say(p, '❓ ' + text.slice(0, 20)); return; }
+    if (has(n, K.checkBook)) {
+      const pr = prof(u), got = (pr.stories || []).length;
+      say(p, `📖 ${got}/${CBA.stories.length} truyện` + ((pr.titles || []).length ? ` · 🏅 ${pr.titles.slice(-2).join(', ')}` : ''));
+      return;
+    }
     if (has(n, K.checkHat)) {
       const pr = prof(u), lv = levelOf(pr.beads);
       say(p, `Cấp ${lv + 1} ${C.levels[lv].name} · ${fmt(pr.beads)} hạt · 🔥${pr.streak} ngày`);
@@ -607,7 +616,7 @@
       return;
     }
     if (mantra) {
-      mantraAt.set(u.id, now());
+      mantraAt.set(u.id, now()); daily('mantras');
       const dn = dongTamCount();
       if (dn < C.dongTam.minPeople) dongTamAnnounced = 0;
       else if ([3, 5, 10, 20, 50].some(t => dn >= t && dongTamAnnounced < t)) {
@@ -649,7 +658,7 @@
   function onSocial(ev) {
     const u = user(ev); const p = present.get(u.id) || join(u);
     const fl = ev.type === 'follow';
-    if (fl) S.follows++; else S.shares++;
+    if (fl) { S.follows++; daily('follows'); } else { S.shares++; daily('shares'); }
     addBeads(u, fl ? C.scoring.beadsPerFollow : C.scoring.beadsPerShare);
     toast(fl ? '➕' : '📤', [{ b: u.name }, fl ? ' đã theo dõi chùa' : ' đã chia sẻ phiên live'], true, u.avatar);
     say(p, fl ? '🙏 Xin theo dõi chùa' : '📤 Đã chia sẻ'); bow(p);
@@ -666,7 +675,7 @@
   let wishes = [], wishIdx = 0, wishShown = null;
   function addWish(u, p, text) {
     const w = { uid: u.id, name: u.name, text, tuy: 0, by: [], t: now() };
-    wishes.unshift(w); wishes = wishes.slice(0, 30);
+    wishes.unshift(w); wishes = wishes.slice(0, 30); daily('wishes');
     const pos = figPos(p); FX.lanternAt(pos.x, pos.y);
     toast('🏮', [{ b: u.name }, ' thả đèn nguyện · comment "Tùy hỷ" để chung vui'], true);
     showWish(w);
@@ -675,7 +684,7 @@
     bow(p);
     const w = wishes.find(x => x.uid !== u.id && now() - x.t < 15 * 60000 && !x.by.includes(u.id));
     if (!w) { say(p, '🤲 Tùy hỷ công đức'); return; }
-    w.by.push(u.id); w.tuy++;
+    w.by.push(u.id); w.tuy++; daily('tuyhy');
     const owner = S.users[w.uid]; if (owner) addBeads(owner, 2, false, true);
     say(p, `🤲 Tùy hỷ cùng ${w.name}`);
     bow(present.get(w.uid));
@@ -735,6 +744,7 @@
     $('cPeople').textContent = fmt(present.size) + (waiting ? ` (${waiting} chờ)` : '');
     $('cViewers').textContent = fmt(viewers);
     $('cMerit').textContent = fmt(S.merit);
+    daily('present', present.size, true);
     $('simBadge').classList.toggle('hidden', !(bot || now() < simActiveUntil));
     const chips = [];
     chips.push(lunar.feast && C.lunarBonus ? `🌕 ${lunar.feast.name} · ×${lunar.mult}` : `🌙 ${lunar.text}`);
@@ -749,7 +759,248 @@
     }
     return seated;
   }
-  setInterval(() => { layoutSeats(); renderBoard(); updateHud(); }, 600);
+  setInterval(() => { layoutSeats(); renderBoard(); updateHud(); checkMissions(); }, 600);
+
+  /* ======================= NHIỆM VỤ HẰNG NGÀY · HẠNH TU · DUYÊN LÀNH ======================= */
+  const DKEY = 'cba_daily_v1';
+  let D = null;
+  function hashStr(t) { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function loadDaily() {
+    const today = dayKey(vnDate());
+    let old = null; try { old = JSON.parse(localStorage.getItem(DKEY) || 'null'); } catch (e) {}
+    if (old && old.day === today) { D = old; return; }
+    // chọn 3 nhiệm vụ theo ngày (cố định trong ngày)
+    const pool = C.missions.pool.slice(); const pick = []; let h = hashStr(today);
+    while (pick.length < C.missions.perDay && pool.length) { h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; pick.push(pool.splice(h % pool.length, 1)[0].id); }
+    const yesterday = dayKey(vnDate(new Date(Date.now() - 86400000)));
+    const ts = old && old.allDone && old.day === yesterday ? (old.templeStreak || 0) : 0;
+    D = { day: today, ids: pick, c: {}, done: [], allDone: false, templeStreak: ts, luck: [] };
+    saveDaily();
+  }
+  function saveDaily() { try { localStorage.setItem(DKEY, JSON.stringify(D)); } catch (e) {} }
+  function daily(k, n = 1, max = false) {
+    if (!D || D.day !== dayKey(vnDate())) loadDaily();
+    D.c[k] = max ? Math.max(D.c[k] || 0, n) : (D.c[k] || 0) + n;
+  }
+  const missionDef = (id) => C.missions.pool.find(m => m.id === id);
+  function checkMissions() {
+    if (!D) return;
+    let changed = false;
+    D.ids.forEach(id => {
+      const m = missionDef(id); if (!m || D.done.includes(id)) return;
+      if ((D.c[id] || 0) >= m.n) {
+        D.done.push(id); changed = true;
+        toast('✅', ['Nhiệm vụ của chùa hoàn thành: ', { b: m.text.replace('{n}', fmt(m.n)) }], true); A.smallBell();
+      }
+    });
+    if (!D.allDone && D.done.length >= D.ids.length) {
+      D.allDone = true; D.templeStreak = (D.templeStreak || 0) + 1; changed = true;
+      for (const pp of present.values()) addBeads(pp.u, C.missions.allBonus, false);
+      A.bigBell(); A.bigBell(2.4); radiant(6); FX.petals(80, false); bowAll();
+      card({ kicker: 'Viên mãn ngày tu', title: 'Cả chùa hoàn thành nhiệm vụ hôm nay!', text: `Mỗi Phật tử đang có mặt +${C.missions.allBonus} hạt · Chùa đã viên mãn ${D.templeStreak} ngày liên tiếp`, ms: 8000, big: true });
+    }
+    if (changed || now() - (checkMissions._s || 0) > 5000) { checkMissions._s = now(); saveDaily(); }
+    renderMissions();
+  }
+  const hanhTuToday = () => C.hanhTu[Math.floor(vnDate().getTime() / 86400000) % C.hanhTu.length];
+  function renderMissions() {
+    if (!D) return;
+    const h = hanhTuToday();
+    $('mHanh').textContent = `Hạnh tu hôm nay: ${h.name}`;
+    $('mTip').textContent = h.tip;
+    const ul = $('missionList'); ul.innerHTML = '';
+    D.ids.forEach(id => {
+      const m = missionDef(id); if (!m) return;
+      const v = Math.min(m.n, D.c[id] || 0), done = D.done.includes(id);
+      const li = el('li', done ? 'done' : '');
+      li.append(el('span', 'mt', (done ? '✅ ' : '◻️ ') + m.text.replace('{n}', fmt(m.n))));
+      const bar = el('span', 'mb'); const fillEl = el('i'); fillEl.style.width = (v / m.n * 100) + '%'; bar.append(fillEl);
+      li.append(bar, el('span', 'mv', `${fmt(v)}/${fmt(m.n)}`));
+      ul.append(li);
+    });
+    $('mStreak').textContent = D.templeStreak ? `🏯 Chùa viên mãn ${D.templeStreak} ngày liên tiếp` : 'Hoàn thành cả 3 để cả chùa nhận thưởng';
+  }
+  // panel trái luân phiên: Cách tham gia ↔ Nhiệm vụ hôm nay
+  let guideFlip = false;
+  setInterval(() => { guideFlip = !guideFlip; $('guide').classList.toggle('flip', guideFlip); }, 12000);
+
+  /* Duyên lành: chọn ngẫu nhiên người đang tham gia — mọi người cơ hội như nhau, không liên quan quà tặng */
+  let lastLuck = now();
+  setInterval(() => {
+    if (!C.duyenLanh.everyMin || now() - lastLuck < C.duyenLanh.everyMin * 60000) return;
+    if (present.size < C.duyenLanh.minPresent || storyRun) return;
+    const cut = now() - C.duyenLanh.activeMin * 60000, cool = now() - C.duyenLanh.cooldownDays * 86400000;
+    const pool = [...present.values()].map(x => x.u).filter(u => u.last > cut && (prof(u).luck || 0) < cool);
+    lastLuck = now();
+    if (!pool.length) return;
+    const u = pickOne(pool), pr = prof(u); pr.luck = now(); saveP();
+    addBeads(u, C.duyenLanh.bonus, false, true);
+    const pp = present.get(u.id); bow(pp); const pos = figPos(pp); FX.sparkle(40, pos.x, pos.y); FX.lanternAt(pos.x, pos.y);
+    A.khanh(); A.smallBell(1);
+    card({ kicker: '✨ Duyên lành hôm nay', title: u.name, text: `${C.storyteller} gửi lời chúc riêng: “${pickOne(CBA.wisdom)}”`, sub: `+${C.duyenLanh.bonus} hạt · Duyên lành chọn ngẫu nhiên người đang tu tập, không phụ thuộc quà tặng`, ms: 8000, big: true });
+  }, 20000);
+
+  /* ======================= KỂ CHUYỆN PHẬT ======================= */
+  const SKEY = 'cba_story_v1';
+  let SB = { mainIdx: 0, mainDay: '', told: {} };
+  try { SB = Object.assign(SB, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) {}
+  const saveSB = () => { try { localStorage.setItem(SKEY, JSON.stringify(SB)); } catch (e) {} };
+  const seriesOf = (id) => CBA.storySeries.find(x => x.id === id) || CBA.storySeries[0];
+  const mainList = () => CBA.stories.filter(x => x.series === 'cuocdoi');
+  let storyRun = null, storyUsers = new Set(), lastStoryEnd = now(), quiz = null;
+
+  function todayStory() {
+    const today = dayKey(vnDate());
+    if (SB.mainDay !== today) return mainList()[SB.mainIdx % mainList().length];
+    // truyện phụ: ưu tiên Vu Lan trong tháng 7 âm, Tam Thế Phật vào ngày lễ; còn lại truyện lâu chưa kể nhất
+    let pool = CBA.stories.filter(x => x.series !== 'cuocdoi');
+    if (lunar.vuLanMonth) { const v = pool.filter(x => x.series === 'vulan'); if (v.some(x => !SB.told[x.id] || now() - SB.told[x.id] > 86400000)) pool = v; }
+    else if (lunar.feast) { const v = pool.filter(x => x.series === 'tamthe'); if (v.length) pool = v; }
+    return pool.slice().sort((a, b) => (SB.told[a.id] || 0) - (SB.told[b.id] || 0))[0];
+  }
+
+  function startStory(id) {
+    if (storyRun) return;
+    const st = (id && CBA.stories.find(x => x.id === id)) || todayStory(); if (!st) return;
+    stopTeaching();
+    const ser = seriesOf(st.series);
+    const pages = st.scenes.map(t => ({ t })).concat([{ t: st.moral, moral: true }]);
+    storyRun = { st, ser, pages, i: -1, t0: 0, b0: 0 };
+    storyUsers = new Set();
+    stage.classList.add('storying');
+    const chap = ser.main ? ` · Chương ${mainList().indexOf(st) + 1}/${mainList().length}` : '';
+    $('stSeries').textContent = `${ser.icon} ${ser.name}${chap}`;
+    $('stTitle').textContent = st.title;
+    $('story').classList.remove('hidden', 'quiz');
+    A.khanh(); A.speak(`${C.storyteller} kể chuyện: ${st.title}.`, 'story');
+    toast('📖', [`${C.storyteller} bắt đầu kể: `, { b: st.title }, ' · thả tim để lật trang'], true);
+    nextPage();
+    broadcast();
+  }
+  function nextPage() {
+    const r = storyRun; if (!r) return;
+    r.i++;
+    if (r.i >= r.pages.length) return startQuiz();
+    const pg = r.pages[r.i];
+    r.t0 = now(); r.b0 = S.beads;
+    r.minMs = Math.max(C.story.minSceneSec * 1000, pg.t.length / 14 * 1000);
+    const tx = $('stText'); tx.className = 'st-text' + (pg.moral ? ' moral' : '');
+    tx.textContent = pg.moral ? '🪷 Lời dạy: ' + pg.t : pg.t;
+    void tx.offsetWidth; tx.classList.add('in');
+    $('stPage').textContent = pg.moral ? 'Lời dạy' : `Trang ${r.i + 1}/${r.pages.length - 1}`;
+    A.mo(0.7);
+    A.speak(pg.t, 'story');
+    if (pg.moral) { FX.petals(30, false); bowAll(); }
+  }
+  function tickStory() {
+    const r = storyRun;
+    if (quiz) return tickQuiz();
+    if (!r) return;
+    const el2 = now() - r.t0, got = S.beads - r.b0;
+    const need = C.story.sceneBeads;
+    $('stBar').style.width = Math.min(100, Math.max(got / need, el2 / (C.story.maxSceneSec * 1000)) * 100) + '%';
+    $('stHint').textContent = got >= need ? '✨ Đủ hạt — sắp lật trang' : `❤️ Thả tim / niệm Phật để lật trang: ${fmt(got)}/${need} hạt`;
+    if ((el2 >= r.minMs && got >= need) || el2 >= C.story.maxSceneSec * 1000) nextPage();
+  }
+
+  function startQuiz() {
+    const r = storyRun; const q = r.st.quiz;
+    if (!q) return endStory();
+    quiz = { q, t0: now(), answers: new Map(), correct: [] };
+    $('story').classList.add('quiz');
+    $('stPage').textContent = '❓ Đố vui';
+    const tx = $('stText'); tx.className = 'st-text in'; tx.innerHTML = '';
+    tx.append(el('div', 'qq', q.q));
+    q.options.forEach((o, i) => {
+      const row = el('div', 'qo'); row.dataset.i = i;
+      row.append(el('b', '', 'ABC'[i]), el('span', '', o), el('em', '', '0'));
+      tx.append(row);
+    });
+    A.smallBell(); A.speak('Câu đố: ' + q.q + ' ' + q.options.map((o, i) => 'ABC'[i] + ', ' + o).join('. '), 'story');
+  }
+  function answerQuiz(u, n) {
+    if (!quiz || quiz.answers.has(u.id)) return false;
+    const m = n.match(/^\s*(?:dap an\s*)?([abc123])(?:[^a-z0-9]|$)/);
+    let idx = m ? ('abc'.indexOf(m[1]) >= 0 ? 'abc'.indexOf(m[1]) : +m[1] - 1) : -1;
+    if (idx < 0) idx = quiz.q.options.findIndex(o => norm(o).length > 3 && n.includes(norm(o)));
+    if (idx < 0) return false;
+    quiz.answers.set(u.id, idx);
+    if (idx === quiz.q.answer) quiz.correct.push(u);
+    const counts = [0, 0, 0]; for (const v of quiz.answers.values()) counts[v]++;
+    document.querySelectorAll('#stText .qo em').forEach((e, i) => { e.textContent = counts[i]; });
+    return true;
+  }
+  function tickQuiz() {
+    if (quiz.revealed) return;
+    const left = C.story.quizSec * 1000 - (now() - quiz.t0);
+    $('stBar').style.width = Math.max(0, left / (C.story.quizSec * 10)) + '%';
+    $('stHint').textContent = `Comment A, B hoặc C · còn ${Math.max(0, Math.ceil(left / 1000))} giây · ${quiz.answers.size} người đã trả lời`;
+    if (left <= 0 && !quiz.revealed) revealQuiz();
+  }
+  function revealQuiz() {
+    quiz.revealed = true;
+    const q = quiz.q;
+    document.querySelectorAll('#stText .qo').forEach((row) => row.classList.add(+row.dataset.i === q.answer ? 'right' : 'wrong'));
+    const win = quiz.correct;
+    win.forEach(u => {
+      addBeads(u, C.story.quizBonus, false);
+      const pr = prof(u); pr.quiz = (pr.quiz || 0) + 1; daily('quiz');
+      C.story.quizTitles.forEach(t => { if (pr.quiz === t.at) giveTitle(u, t.name); });
+    });
+    saveP();
+    const names = win.slice(0, C.story.quizShow).map(u => u.name).join(', ');
+    $('stHint').textContent = win.length ? `🎉 ${win.length} người đúng (+${C.story.quizBonus} hạt): ${names}${win.length > C.story.quizShow ? '…' : ''}` : `Đáp án: ${'ABC'[q.answer]}. ${q.options[q.answer]}`;
+    A.speak(`Đáp án đúng là ${'ABC'[q.answer]}, ${q.options[q.answer]}. ${win.length ? 'Xin chúc mừng ' + win.length + ' Phật tử trả lời đúng.' : ''}`, 'story');
+    if (win.length) { FX.sparkle(40, 540, 1300); A.smallBell(); }
+    setTimeout(endStory, 7000);
+  }
+  function endStory() {
+    const r = storyRun; if (!r) return;
+    quiz = null; storyRun = null; lastStoryEnd = now();
+    SB.told[r.st.id] = now();
+    let teaser = '';
+    if (r.ser.main) {
+      SB.mainDay = dayKey(vnDate()); SB.mainIdx = (mainList().indexOf(r.st) + 1) % mainList().length;
+      const nx = mainList()[SB.mainIdx];
+      teaser = SB.mainIdx === 0 ? 'Đã kể trọn 12 chương Cuộc Đời Đức Phật. Ngày mai bắt đầu lại từ chương 1.' : `Hẹn ngày mai: Chương ${SB.mainIdx + 1} — ${nx.title}`;
+    }
+    saveSB(); daily('stories');
+    // ghi vào sổ truyện của người đã tham gia
+    let n = 0;
+    storyUsers.forEach(id => {
+      const u = S.users[id]; if (!u) return; n++;
+      const pr = prof(u); pr.stories = pr.stories || [];
+      if (!pr.stories.includes(r.st.id)) {
+        pr.stories.push(r.st.id);
+        const all = CBA.stories.filter(x => x.series === r.st.series).every(x => pr.stories.includes(x.id));
+        if (all) giveTitle(u, r.ser.title);
+      }
+      addBeads(u, C.story.listenBonus, false);
+    });
+    saveP();
+    $('story').classList.add('hidden'); stage.classList.remove('storying');
+    card({ kicker: '📖 Viên mãn câu chuyện', title: r.st.title, text: `${n} Phật tử cùng nghe trọn truyện · mỗi người +${C.story.listenBonus} hạt và thêm 1 trang vào Sổ Truyện (comment !so để xem)`, sub: teaser, ms: 8000, big: true });
+    if (teaser) A.speak(teaser, 'story');
+    broadcast();
+  }
+  function stopStory() {
+    if (!storyRun) return;
+    quiz = null; storyRun = null; lastStoryEnd = now();
+    $('story').classList.add('hidden'); stage.classList.remove('storying');
+    A.speak('', 'cancel'); broadcast();
+  }
+  function giveTitle(u, name) {
+    const pr = prof(u); pr.titles = pr.titles || [];
+    if (pr.titles.includes(name)) return;
+    pr.titles.push(name); saveP(); dirtySeats = true;
+    const pp = present.get(u.id); bow(pp); const pos = figPos(pp); FX.sparkle(50, pos.x, pos.y);
+    A.bigBell();
+    card({ kicker: '🏅 Danh hiệu mới', title: u.name, text: `Nhận danh hiệu “${name}”`, sub: 'Danh hiệu chỉ đạt được bằng tu tập, không mua được bằng quà', ms: 7000, big: true });
+  }
+  setInterval(() => {
+    tickStory();
+    if (!storyRun && C.story.autoEveryMin && present.size > 0 && now() - lastStoryEnd > C.story.autoEveryMin * 60000) startStory();
+  }, 500);
 
   /* ============================ CHƯƠNG TRÌNH & KINH ============================ */
   let teaching = null, teachIdx = 0, teachT = null, wisdomIdx = 0, wisdomT = 0;
@@ -757,7 +1008,8 @@
     const seg = C.segments.find(s => s.id === id) || C.segments[0];
     S.segment = seg.id;
     $('segTitle').textContent = seg.title; $('segNote').textContent = seg.note || '';
-    if (autoMusic && seg.category) {
+    if (autoMusic && seg.story) { stopTeaching(); A.playCategory(seg.category); startStory(); }
+    else if (autoMusic && seg.category) {
       if (seg.category === 'giang') startTeaching(CBA.teachings[0].id);
       else { stopTeaching(); A.playCategory(seg.category); }
     }
@@ -852,6 +1104,9 @@
     const top = Object.values(S.users).filter(u => u.merit > 0).sort((a, b) => b.merit - a.merit).slice(0, 10).map(u => ({ name: u.name, merit: u.merit, coins: u.coins, beads: u.beads }));
     ch.postMessage({ type: 'state', conn: connStatus, connMsg, url: T.url(), viewers, present: present.size, seats: slots.length,
       stats: { merit: S.merit, beads: S.beads, coins: S.coins, likes: S.likes, comments: S.comments, gifts: S.gifts, follows: S.follows, shares: S.shares, started: S.started, users: Object.keys(S.users).length },
+      story: storyRun ? { id: storyRun.st.id, title: storyRun.st.title, page: storyRun.i + 1, pages: storyRun.pages.length, quiz: !!quiz } : null,
+      storyBook: { mainIdx: SB.mainIdx, mainDoneToday: SB.mainDay === dayKey(vnDate()), next: (todayStory() || {}).title, auto: C.story.autoEveryMin },
+      daily: D ? { ids: D.ids, c: D.c, done: D.done, streak: D.templeStreak, hanh: hanhTuToday().name } : null,
       top, segment: S.segment, lunar: { text: lunar.text, feast: lunar.feast, vuLanMonth: lunar.vuLanMonth },
       mult: { lunar: lunarMult(), dongTam: dongTamMult(), room: now() < roomBuffUntil }, profiles: Object.keys(P).length, teaching: teaching ? teaching.id : null, bot: !!bot, audio: A.state(), lastEventAt });
   }
@@ -867,6 +1122,8 @@
       case 'next': A.next(); break;
       case 'prev': A.prev(); break;
       case 'audio': A.set(a); break;
+      case 'scanAudio': A.scanFolder().then(n => { ch && ch.postMessage({ type: 'scan', n }); broadcast(); }); break;
+      case 'addTracks': A.addTracks(a.items || []); break;
       case 'category': A.playCategory(a.category); break;
       case 'segment': setSegment(a.id, a.auto !== false); break;
       case 'teaching': a.id ? startTeaching(a.id) : stopTeaching(); break;
@@ -884,6 +1141,11 @@
       case 'hideUi': stage.classList.toggle('hidden-ui'); break;
       case 'buddhaSet': C.buddhaSet = a.set; applyConfig(); break;
       case 'reset': resetSession(); break;
+      case 'storyStart': startStory(a.id); break;
+      case 'storyNext': if (quiz) { if (!quiz.revealed) revealQuiz(); } else nextPage(); break;
+      case 'storyStop': stopStory(); break;
+      case 'storyAuto': C.story.autoEveryMin = +a.min || 0; break;
+      case 'luckNow': lastLuck = 0; break;
       case 'resetProfiles': P = {}; try { localStorage.removeItem(PKEY); } catch (e) {} dirtySeats = true; break;
       case 'clearYard': for (const id of [...present.keys()]) leave(id); break;
       case 'export': ch && ch.postMessage({ type: 'export', users: Object.values(S.users).sort((x, y) => (y.merit - x.merit) || (y.beads - x.beads))
@@ -927,11 +1189,14 @@
       case 'b': setBot(!bot); break;
       case 's': $('safe').classList.toggle('hidden'); break;
       case 'h': $('quick').classList.toggle('hidden'); break;
+      case 't': storyRun ? stopStory() : startStory(); break;
       case 'f': document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); break;
     }
   });
 
   /* ============================ KHỞI ĐỘNG ============================ */
+  loadDaily();
+  A.scanFolder().then(n => { if (n) toast('🎵', [`Đã nhận ${n} file nhạc/kinh trong thư mục audio`], true); });
   applyConfig();
   FX.init($('fx'));
   renderMala(); renderCandles(); renderOfferings(); renderSticks(); renderBoard(); updateHud();

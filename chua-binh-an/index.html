@@ -70,6 +70,7 @@
           <label class="sw"><input type="checkbox" id="musicOn" checked> Nhạc</label>
           <label class="sw"><input type="checkbox" id="sfxOn" checked> Mõ & chuông</label>
           <label class="sw"><input type="checkbox" id="ttsOn"> Đọc lời cảm ơn</label>
+          <label class="sw"><input type="checkbox" id="storyTtsOn" checked> Đọc truyện</label>
         </div>
         <label>Âm lượng nhạc <input type="range" id="musicVol" min="0" max="1" step="0.05" value="0.55"></label>
         <label>Âm lượng mõ/chuông <input type="range" id="sfxVol" min="0" max="1" step="0.05" value="0.8"></label>
@@ -84,7 +85,11 @@
       </div>
       <div>
         <ol id="playlist" class="playlist"></ol>
-        <p class="hint">Bài có nhãn <b>FILE</b> cần chép mp3 vào thư mục <code>audio/</code>. Thiếu file sẽ tự chuyển sang gõ mõ + chữ kinh.</p>
+        <div class="row">
+          <button class="btn" data-cmd="scanAudio">🔄 Quét lại thư mục audio/</button>
+          <label class="btn filebtn">📁 Chọn thư mục nhạc trên máy…<input type="file" id="pickDir" webkitdirectory directory multiple hidden></label>
+        </div>
+        <p class="hint" id="scanMsg">Chép file nhạc/kinh (mp3, m4a, wav…) vào thư mục <code>audio/</code> của game — kể cả thư mục con — game tự nhận khi mở màn hình phát. “Chọn thư mục” dùng tạm cho buổi live hiện tại (mất khi đóng bảng điều khiển).</p>
       </div>
     </div>
   </section>
@@ -100,6 +105,27 @@
     <h3>Thông báo lên màn hình</h3>
     <textarea id="annText" rows="2" placeholder="VD: 20h tối nay tụng Kinh Vu Lan, mời quý Phật tử cùng tham dự"></textarea>
     <button class="btn" id="announce">Hiện thông báo</button>
+  </section>
+
+  <!-- 4b. Kể chuyện -->
+  <section class="card accent">
+    <h2>📖 Kể chuyện Phật <span class="pill" id="storyPill">đang nghỉ</span></h2>
+    <p class="hint" id="storyInfo">—</p>
+    <div class="row">
+      <button class="btn gold" id="storyToday">▶ Kể truyện hôm nay</button>
+      <button class="btn" id="storyNext">⏭ Lật trang / hiện đáp án</button>
+      <button class="btn" id="storyStop">⏹ Dừng</button>
+    </div>
+    <label>Chọn truyện khác
+      <select id="storyPick"></select>
+    </label>
+    <button class="btn" id="storyPlayPick">Kể truyện đã chọn</button>
+    <label>Tự kể mỗi
+      <select id="storyAuto"><option value="0">Tắt (chỉ kể khi bấm)</option><option value="10">10 phút</option><option value="20" selected>20 phút</option><option value="30">30 phút</option><option value="45">45 phút</option></select>
+    </label>
+    <h3>Nhiệm vụ hôm nay của chùa</h3>
+    <ul id="dailyList" class="daily"></ul>
+    <button class="btn" data-cmd="luckNow">✨ Trao Duyên lành ngay</button>
   </section>
 
   <!-- 5. Thử hiệu ứng -->
@@ -161,6 +187,7 @@
 
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
+<script src="js/stories.js"></script>
 <script src="js/admin.js"></script>
 </body>
 </html>

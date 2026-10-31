@@ -11,6 +11,8 @@ chua-binh-an/
 ├── index.html      Bảng điều khiển (kết nối, nhạc, chương trình, thử hiệu ứng, thống kê)
 ├── live.html       Màn hình phát 9:16 — đưa vào TikTok LIVE Studio / OBS
 ├── start.bat       Chạy máy chủ nội bộ trên Windows (bấm đúp)
+├── lien-ket-thu-muc-nhac.bat  Liên kết thư mục nhạc có sẵn (F:\I.Kinh,DanThien) vào audio/
+├── js/stories.js   📖 40 truyện Phật + câu đố
 ├── js/config.js    ⚙️ Tên chùa, bậc quà, từ khóa, cách tính điểm, chương trình
 ├── js/content.js   📜 Kinh, bài giảng, lời chúc, danh sách phát
 ├── js/game.js      Lõi game
@@ -40,6 +42,20 @@ chua-binh-an/
 5. Nhờ một người bạn comment “Bình An” và tặng một bông hồng để kiểm tra.
 
 Tự kết nối khi mở màn hình phát: `live.html?autoconnect=1` (đổi địa chỉ bằng `&ws=ws://...`).
+
+## Thêm nhạc, kinh của bạn (ví dụ thư mục `F:\I.Kinh,DanThien`)
+
+Game **tự nhận mọi file âm thanh** (mp3, m4a, wav, ogg, flac…) trong thư mục `audio/`, kể cả thư mục con. Tên file dùng làm tên bài. Loại bài (Kinh, Niệm Phật, Giảng pháp, Vu Lan, Thiền) được đoán theo tên file hoặc tên thư mục: có chữ “kinh”, “chú”, “đại bi” → Kinh; “đàn”, “thiền”, “không lời” → Thiền… Có 3 cách:
+
+1. **Liên kết, không cần chép (khuyên dùng):** chuột phải `lien-ket-thu-muc-nhac.bat` → *Run as administrator*. File đã ghi sẵn đường dẫn `F:\I.Kinh,DanThien` (sửa bằng Notepad nếu khác). Game sẽ thấy thư mục đó ở `audio\ThuVienNhac`.
+2. **Chép file:** chép toàn bộ nội dung `F:\I.Kinh,DanThien` vào `chua-binh-an\audio\`.
+3. **Dùng tạm:** trên bảng điều khiển bấm *📁 Chọn thư mục nhạc trên máy…* rồi chọn thư mục đó. Chỉ dùng được đến khi đóng bảng điều khiển.
+
+Sau cách 1 hoặc 2, mở lại màn hình phát (hoặc bấm *🔄 Quét lại thư mục audio/*). Cần chạy game qua `start.bat` thì mới quét được thư mục.
+
+## Kể chuyện Phật
+
+40 truyện trong `js/stories.js`. Bảng điều khiển có mục **📖 Kể chuyện Phật**: kể truyện hôm nay, chọn truyện, lật trang hoặc hiện đáp án, tự kể mỗi N phút, xem nhiệm vụ hôm nay. Phím **T** trên màn hình phát để bắt đầu hoặc dừng. Muốn thêm truyện thì chép một khối `{ id, series, title, scenes, moral, quiz }` theo mẫu.
 
 ## Đưa lên TikTok LIVE Studio / OBS
 

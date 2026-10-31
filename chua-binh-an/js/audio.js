@@ -13,7 +13,7 @@ CBA.Audio = (() => {
   el.preload = 'auto';
 
   const st = {
-    musicOn: true, sfxOn: true, ttsOn: false,
+    musicOn: true, sfxOn: true, ttsOn: false, storyTtsOn: true,
     musicVol: 0.55, sfxVol: 0.8,
     index: 0, playing: false, mode: 'next',   // next | loop | shuffle
     lineIdx: -1, missing: {},
@@ -251,15 +251,85 @@ CBA.Audio = (() => {
     viVoice = vs.find(v => /^vi/i.test(v.lang)) || null;
   }
   if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-  function speak(text) {
-    if (!st.ttsOn || !window.speechSynthesis) return;
-    if (speechSynthesis.pending) return;        // tránh dồn hàng đợi khi quà dồn dập
+  function speak(text, kind) {
+    if (!window.speechSynthesis) return;
+    if (kind === 'cancel') { speechSynthesis.cancel(); return; }
+    if (kind === 'story') {                      // đọc truyện: bật/tắt riêng, đọc nối tiếp
+      if (!st.storyTtsOn) return;
+      if (/^Câu đố|^Trang|^Sư/.test(text) === false && speechSynthesis.speaking && text.length > 40) { /* để đọc nối */ }
+    } else {
+      if (!st.ttsOn) return;
+      if (speechSynthesis.pending) return;       // tránh dồn hàng đợi khi quà dồn dập
+    }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'vi-VN'; if (viVoice) u.voice = viVoice;
     u.rate = 0.95; u.pitch = 1;
     u.onstart = () => { st.duck = 0.35; applyVolume(); };
     u.onend = () => { st.duck = 1; applyVolume(); };
     speechSynthesis.speak(u);
+  }
+
+  /* ---------- tự nhận file nhạc trong thư mục audio/ ----------
+     Máy chủ nội bộ (start.bat) liệt kê được nội dung thư mục, nên chỉ cần chép
+     file (mp3, m4a, wav, ogg, flac…) vào audio/ — kể cả thư mục con — là game
+     tự thêm vào danh sách phát, tự đoán loại bài theo tên file / tên thư mục. */
+  const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|wma)$/i;
+  const noMark = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  async function listDir(path, depth) {
+    let html;
+    try { const r = await fetch(path, { cache: 'no-store' }); if (!r.ok) return []; html = await r.text(); } catch (e) { return []; }
+    const out = [], re = /href="([^"?#]+)"/gi; let m;
+    while ((m = re.exec(html))) {
+      let h = m[1];
+      if (/^(https?:|\.\.|mailto:)/i.test(h)) continue;
+      if (h.startsWith('/')) { if (h.startsWith('/' + path)) h = h.slice(path.length + 1); else continue; }
+      if (!h || h === './') continue;
+      if (h.endsWith('/')) { if (depth < 3) out.push(...await listDir(path + h, depth + 1)); }
+      else if (AUDIO_EXT.test(h)) out.push(path + h);
+    }
+    return [...new Set(out)];
+  }
+  function guessCategory(t) {
+    const n = noMark(t);
+    if (/vu lan|bao hieu|cha me|on me|long me|hieu/.test(n)) return 'vulan';
+    if (/hoi huong/.test(n)) return 'hoihuong';
+    if (/giang|phap thoai|bai giang|thuyet/.test(n)) return 'giang';
+    if (/niem phat|a di da|adida|nam mo|hong danh/.test(n)) return 'niem';
+    if (/kinh|chu |chu$|dai bi|duoc su|bat nha|tung|sam|pho mon|lang nghiem|vang sanh/.test(n)) return 'kinh';
+    return 'thien';
+  }
+  function niceTitle(file) {
+    let t = decodeURIComponent(file.split('/').pop()).replace(AUDIO_EXT, '');
+    t = t.replace(/[_]+/g, ' ').replace(/\s*-\s*/g, ' - ').replace(/^\s*\d{1,3}\s*[-._)]\s*/, '').trim();
+    return t || file;
+  }
+  function addTracks(items) {   // items: [{ src, title?, folder? }]
+    const have = new Set(list().map(t => t.src));
+    let added = 0;
+    items.forEach(it => {
+      if (have.has(it.src)) return;
+      const title = it.title || niceTitle(it.src);
+      const folder = it.folder || decodeURIComponent(it.src.split('/').slice(1, -1).join(' '));
+      list().push({ id: 'auto_' + list().length + '_' + noMark(title).replace(/[^a-z0-9]+/g, '_'), title, type: 'file', src: it.src, category: guessCategory(folder + ' ' + title), auto: true });
+      added++;
+    });
+    if (added) onChange();
+    return added;
+  }
+  async function scanFolder() {
+    const files = await listDir('audio/', 0);
+    if (!files.length) return 0;
+    const found = new Set(files);
+    // bỏ các bài mẫu trỏ tới file không có thật
+    for (let i = list().length - 1; i >= 0; i--) {
+      const t = list()[i];
+      if (t.type === 'file' && !t.auto && !found.has(t.src) && i !== st.index) list().splice(i, 1);
+    }
+    st.index = Math.min(st.index, list().length - 1);
+    const n = addTracks(files.filter(f => !list().some(t => t.src === f)).map(src => ({ src })));
+    console.info('[Âm thanh] Đã nhận', files.length, 'file trong audio/ (thêm mới', n, ')');
+    onChange();
+    return files.length;
   }
 
   /* ---------- cài đặt ---------- */
@@ -273,13 +343,14 @@ CBA.Audio = (() => {
   function state() {
     const tr = cur(); const lines = textOf(tr);
     return {
-      musicOn: st.musicOn, sfxOn: st.sfxOn, ttsOn: st.ttsOn, musicVol: st.musicVol, sfxVol: st.sfxVol,
+      musicOn: st.musicOn, sfxOn: st.sfxOn, ttsOn: st.ttsOn, storyTtsOn: st.storyTtsOn, musicVol: st.musicVol, sfxVol: st.sfxVol,
       mode: st.mode, playing: st.playing, index: st.index,
       title: tr ? tr.title : '', category: tr ? tr.category : '', type: tr ? tr.type : '',
       fallback: !!(tr && st.missing[tr.id]),
       line: st.lineIdx >= 0 ? lines[st.lineIdx] : '', lineIdx: st.lineIdx, lineCount: lines.length,
       nextLine: st.lineIdx >= 0 && st.lineIdx + 1 < lines.length ? lines[st.lineIdx + 1] : '',
       missing: Object.keys(st.missing), unlocked: unlocked(),
+      playlist: list().map(t => ({ title: t.title, type: t.type, category: t.category, missing: !!st.missing[t.id] })),
       hasVoice: !!viVoice
     };
   }
@@ -287,7 +358,7 @@ CBA.Audio = (() => {
   return {
     ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
-    set, state,
+    set, state, scanFolder, addTracks,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();
