@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chùa Bình An · Màn hình phát 9:16</title>
+<link rel="stylesheet" href="css/live.css">
+</head>
+<body>
+<div id="stage">
+  <!-- ===== NỀN ĐIỆN THỜ ===== -->
+  <div id="bg">
+    <div class="bg-img"></div>
+    <div class="beam"></div>
+    <div class="pillar l"><span>慈悲喜捨</span></div>
+    <div class="pillar r"><span>清淨莊嚴</span></div>
+    <div class="lantern" style="left:70px;top:330px"></div>
+    <div class="lantern" style="right:70px;top:330px"></div>
+    <div class="lantern sm" style="left:190px;top:250px"></div>
+    <div class="lantern sm" style="right:190px;top:250px"></div>
+    <div class="floor"></div>
+    <div class="carpet"></div>
+  </div>
+
+  <!-- ===== TAM THẾ PHẬT ===== -->
+  <svg id="altar" viewBox="0 0 1080 1000" width="1080" height="1000">
+    <defs>
+      <radialGradient id="gHalo" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/>
+        <stop offset=".45" stop-color="#ffcf5a" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#ff9a1f" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffeaa0"/><stop offset=".35" stop-color="#f3c047"/>
+        <stop offset=".7" stop-color="#c98a1c"/><stop offset="1" stop-color="#8c5a0e"/>
+      </linearGradient>
+      <linearGradient id="gRobe" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#e2a632"/><stop offset="1" stop-color="#a86d14"/>
+      </linearGradient>
+      <linearGradient id="gWood" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#8a2a12"/><stop offset="1" stop-color="#4a1206"/>
+      </linearGradient>
+      <linearGradient id="gLotusSeat" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd2dc"/><stop offset="1" stop-color="#d9607e"/>
+      </linearGradient>
+      <!-- Tượng Phật ngồi kiết già -->
+      <symbol id="buddha" viewBox="0 0 300 420">
+        <!-- tòa sen -->
+        <g fill="url(#gLotusSeat)" stroke="#a8435c" stroke-width="2">
+          <path d="M20 380 Q40 330 90 345 Q100 300 150 330 Q200 300 210 345 Q260 330 280 380 Z"/>
+          <path d="M40 395 Q60 360 110 370 Q150 345 190 370 Q240 360 260 395 Z" opacity=".9"/>
+        </g>
+        <rect x="30" y="392" width="240" height="22" rx="8" fill="url(#gGold)"/>
+        <!-- thân & y -->
+        <path d="M150 140 C95 150 78 200 80 250 C60 280 40 310 38 345 C90 368 210 368 262 345 C260 310 240 280 220 250 C222 200 205 150 150 140 Z" fill="url(#gRobe)" stroke="#8c5a0e" stroke-width="2"/>
+        <path d="M150 150 C130 200 120 260 110 330" stroke="#a86d14" stroke-width="3" fill="none" opacity=".6"/>
+        <path d="M168 160 C200 210 210 260 222 300" stroke="#a86d14" stroke-width="3" fill="none" opacity=".5"/>
+        <!-- tay ấn thiền định -->
+        <ellipse cx="150" cy="300" rx="52" ry="20" fill="url(#gGold)" stroke="#8c5a0e" stroke-width="2"/>
+        <!-- cổ & đầu -->
+        <rect x="134" y="122" width="32" height="26" rx="10" fill="url(#gGold)"/>
+        <ellipse cx="150" cy="92" rx="44" ry="50" fill="url(#gGold)" stroke="#8c5a0e" stroke-width="2"/>
+        <ellipse cx="104" cy="100" rx="9" ry="24" fill="url(#gGold)" stroke="#8c5a0e" stroke-width="1.5"/>
+        <ellipse cx="196" cy="100" rx="9" ry="24" fill="url(#gGold)" stroke="#8c5a0e" stroke-width="1.5"/>
+        <!-- tóc xoắn ốc & nhục kế -->
+        <path d="M108 78 Q150 20 192 78 Q170 60 150 60 Q130 60 108 78 Z" fill="#6b3f0b"/>
+        <ellipse cx="150" cy="40" rx="18" ry="16" fill="#6b3f0b"/>
+        <circle cx="150" cy="22" r="6" fill="#ffd36b"/>
+        <!-- mặt -->
+        <path d="M128 92 Q136 88 144 92" stroke="#6b3f0b" stroke-width="2.5" fill="none"/>
+        <path d="M156 92 Q164 88 172 92" stroke="#6b3f0b" stroke-width="2.5" fill="none"/>
+        <circle cx="150" cy="80" r="2.5" fill="#c0392b"/>
+        <path d="M143 118 Q150 122 157 118" stroke="#8c3a12" stroke-width="2" fill="none"/>
+      </symbol>
+      <symbol id="lotusIcon" viewBox="0 0 100 70">
+        <g stroke="#b85a00" stroke-width="1.5">
+          <path d="M50 66 Q20 50 8 22 Q34 30 50 66Z" fill="#ffd56a"/>
+          <path d="M50 66 Q80 50 92 22 Q66 30 50 66Z" fill="#ffd56a"/>
+          <path d="M50 66 Q26 40 30 6 Q48 26 50 66Z" fill="#ffe7a0"/>
+          <path d="M50 66 Q74 40 70 6 Q52 26 50 66Z" fill="#ffe7a0"/>
+          <path d="M50 66 Q38 30 50 0 Q62 30 50 66Z" fill="#fff4cf"/>
+        </g>
+      </symbol>
+    </defs>
+
+    <!-- hào quang -->
+    <g id="halos">
+      <circle class="halo h0" cx="325" cy="520" r="115" fill="url(#gHalo)"/>
+      <circle class="halo h1" cx="540" cy="430" r="190" fill="url(#gHalo)"/>
+      <circle class="halo h2" cx="755" cy="520" r="115" fill="url(#gHalo)"/>
+    </g>
+    <g id="buddhas">
+      <use href="#buddha" x="250" y="420" width="150" height="210"/>
+      <use href="#buddha" x="410" y="290" width="260" height="364"/>
+      <use href="#buddha" x="680" y="420" width="150" height="210"/>
+    </g>
+    <g id="buddhaNames" font-family="'Noto Serif', Georgia, serif" text-anchor="middle">
+      <text x="325" y="652" class="bn"></text><text x="325" y="672" class="bs"></text>
+      <text x="540" y="690" class="bn"></text><text x="540" y="712" class="bs"></text>
+      <text x="755" y="652" class="bn"></text><text x="755" y="672" class="bs"></text>
+    </g>
+    <!-- bàn thờ -->
+    <rect x="160" y="770" width="760" height="22" rx="6" fill="url(#gGold)"/>
+    <rect x="180" y="792" width="720" height="80" fill="url(#gWood)" stroke="#c98a1c" stroke-width="3"/>
+    <g stroke="#e0b04a" stroke-width="2" fill="none" opacity=".7">
+      <path d="M220 812 h120 v40 h-120z"/><path d="M480 812 h120 v40 h-120z"/><path d="M740 812 h120 v40 h-120z"/>
+    </g>
+    <!-- lễ vật trên bàn thờ -->
+    <g id="offerings"></g>
+    <g id="candles"></g>
+  </svg>
+
+  <!-- ===== VÒNG TRÀNG HẠT + LƯ HƯƠNG ===== -->
+  <div id="mala">
+    <svg id="malaSvg" viewBox="-160 -160 320 340" width="320" height="340"></svg>
+    <div id="burner">
+      <div id="sticks"></div>
+      <svg viewBox="0 0 140 100" width="140" height="100">
+        <path d="M10 30 h120 l-8 10 h-104z" fill="url(#gGold)" stroke="#6b3f0b"/>
+        <path d="M18 40 Q20 85 70 88 Q120 85 122 40z" fill="url(#gGold)" stroke="#6b3f0b" stroke-width="2"/>
+        <path d="M40 55 Q70 70 100 55" stroke="#8c5a0e" stroke-width="3" fill="none"/>
+        <circle cx="70" cy="62" r="7" fill="#b3261e" stroke="#ffd36b" stroke-width="2"/>
+        <path d="M30 86 l-8 12 M110 86 l8 12 M70 90 v10" stroke="#8c5a0e" stroke-width="5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div id="malaCount"><b id="beadNum">0</b><span id="beadSub">hạt · vòng 0</span></div>
+  </div>
+
+  <!-- ===== SÂN CHÙA ===== -->
+  <div id="yard"></div>
+
+  <!-- ===== HIỆU ỨNG ===== -->
+  <canvas id="fx" width="1080" height="1920"></canvas>
+
+  <!-- ===== HUD ===== -->
+  <header id="top">
+    <div class="plaque">
+      <div class="pl-title" id="templeName">Chùa Bình An</div>
+      <div class="pl-sub" id="templeSub">Một khoảng lặng giữa dòng live</div>
+    </div>
+    <div class="chips">
+      <span class="chip live" id="chipConn"><i></i><em>CHƯA KẾT NỐI</em></span>
+      <span class="chip">🙏 <b id="cPeople">0</b> trong chùa</span>
+      <span class="chip">👁 <b id="cViewers">0</b> xem</span>
+      <span class="chip">✨ Công đức <b id="cMerit">0</b></span>
+    </div>
+    <div id="segment"><span id="segTitle">Khai Chuông · Nhập Điện</span><small id="segNote"></small></div>
+  </header>
+
+  <aside id="guide" class="panel">
+    <h3>Cách tham gia</h3>
+    <ul id="guideList"></ul>
+  </aside>
+
+  <aside id="board" class="panel">
+    <h3>Bảng Công Đức</h3>
+    <ol id="topMerit"><li class="empty">Hãy là người đầu tiên</li></ol>
+    <h4>📿 Tinh Tấn (hạt)</h4>
+    <ol id="topBeads" class="small"><li class="empty">—</li></ol>
+  </aside>
+
+  <div id="blessing" class="hidden">
+    <div class="bl-kicker" id="blKicker">Lời chúc dành cho</div>
+    <div class="bl-title" id="blTitle"></div>
+    <div class="bl-text" id="blText"></div>
+    <div class="bl-sub" id="blSub"></div>
+  </div>
+
+  <div id="milestone" class="hidden"><div id="msTitle"></div><div id="msText"></div></div>
+
+  <div id="toasts"></div>
+
+  <div id="scripture" class="hidden">
+    <div class="sc-head"><span class="eq"><i></i><i></i><i></i></span><span id="scTitle"></span></div>
+    <div class="sc-line" id="scLine"></div>
+    <div class="sc-next" id="scNext"></div>
+  </div>
+
+  <div id="simBadge" class="hidden">MÔ PHỎNG · không phải sự kiện TikTok thật</div>
+  <div id="safe" class="hidden">
+    <div class="sz top">Vùng tên kênh / người xem của TikTok</div>
+    <div class="sz cm">Vùng bình luận</div>
+    <div class="sz bt">Nút TikTok</div>
+    <div class="sz bot">Ô nhập bình luận</div>
+  </div>
+</div>
+
+<!-- Bấm để bật âm thanh (trình duyệt chặn tự phát) -->
+<div id="unlock"><div><b>🔔 Bấm để khai chuông</b><span>Trình duyệt cần một cú bấm để bật âm thanh.<br>Phím tắt: H = trợ giúp</span></div></div>
+
+<!-- Bảng điều khiển nhanh ngay trên màn hình phát (phím H) -->
+<div id="quick" class="hidden">
+  <b>Phím tắt màn hình phát</b>
+  <p>M bật/tắt nhạc · N bài kế · P phát/dừng · K kết nối TikFinity<br>
+     1–6 thử quà theo bậc · C thử comment · L thử thả tim<br>
+     B bot mô phỏng · S vùng an toàn TikTok · F toàn màn hình · H ẩn</p>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/content.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/tiktok.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

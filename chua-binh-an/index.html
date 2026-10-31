@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chùa Bình An · Bảng điều khiển</title>
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+<header class="hero">
+  <div>
+    <small>TIKTOK LIVE STUDIO</small>
+    <h1>Chùa Bình An · Bảng điều khiển</h1>
+    <p>Kết nối sự kiện thật từ TikTok LIVE qua TikFinity, điều khiển nhạc kinh, giảng pháp và thử hiệu ứng quà.</p>
+  </div>
+  <div class="live-state" id="liveState">Màn hình phát: <b>chưa mở</b></div>
+</header>
+
+<main>
+  <!-- 1. Màn hình phát -->
+  <section class="card accent">
+    <h2>① Màn hình phát 9:16</h2>
+    <button class="btn gold big" id="openLive">Mở màn hình phát dọc 9:16</button>
+    <div class="row">
+      <button class="btn" data-cmd="safe">Vùng an toàn TikTok</button>
+      <button class="btn" data-cmd="hideUi">Ẩn/hiện bảng hai bên</button>
+      <button class="btn" data-cmd="bowAll">Cả chùa cùng lạy</button>
+    </div>
+    <label>Bộ Tam Thế Phật
+      <select id="buddhaSet">
+        <option value="hoanh">Hoành Tam Thế: Dược Sư · Thích Ca · A Di Đà</option>
+        <option value="thu">Thụ Tam Thế: A Di Đà · Thích Ca · Di Lặc</option>
+      </select>
+    </label>
+    <p class="hint">Đưa vào TikTok LIVE Studio / OBS bằng <b>Window Capture</b> cửa sổ màn hình phát (giữ cửa sổ mở, không thu nhỏ). Bấm vào cửa sổ đó một lần để bật âm thanh.</p>
+  </section>
+
+  <!-- 2. Kết nối -->
+  <section class="card">
+    <h2>② Kết nối TikTok LIVE (TikFinity) <span class="pill" id="connPill">chưa kết nối</span></h2>
+    <label>Địa chỉ WebSocket của TikFinity
+      <input id="wsUrl" value="ws://localhost:21213/">
+    </label>
+    <div class="row">
+      <button class="btn green big" id="connect">Kết nối LIVE</button>
+      <button class="btn" id="disconnect">Ngắt</button>
+    </div>
+    <p class="hint" id="connMsg">Mở TikFinity Desktop → đăng nhập TikTok → bắt đầu LIVE → bấm Kết nối.</p>
+    <div class="stats3">
+      <div><small>Người xem</small><b id="sViewers">0</b></div>
+      <div><small>Trong chùa</small><b id="sPresent">0</b></div>
+      <div><small>Sự kiện cuối</small><b id="sLast">—</b></div>
+    </div>
+  </section>
+
+  <!-- 3. Âm nhạc -->
+  <section class="card wide">
+    <h2>③ Nhạc Phật · Tụng kinh · Giảng pháp</h2>
+    <div class="now">
+      <div><small>Đang phát</small><b id="nowTitle">—</b><em id="nowLine"></em></div>
+      <div class="row">
+        <button class="btn" data-cmd="prev">⏮</button>
+        <button class="btn gold" data-cmd="toggle" id="playBtn">▶ Phát</button>
+        <button class="btn" data-cmd="next">⏭</button>
+      </div>
+    </div>
+    <div class="grid2">
+      <div>
+        <div class="row toggles">
+          <label class="sw"><input type="checkbox" id="musicOn" checked> Nhạc</label>
+          <label class="sw"><input type="checkbox" id="sfxOn" checked> Mõ & chuông</label>
+          <label class="sw"><input type="checkbox" id="ttsOn"> Đọc lời cảm ơn</label>
+        </div>
+        <label>Âm lượng nhạc <input type="range" id="musicVol" min="0" max="1" step="0.05" value="0.55"></label>
+        <label>Âm lượng mõ/chuông <input type="range" id="sfxVol" min="0" max="1" step="0.05" value="0.8"></label>
+        <label>Chế độ phát
+          <select id="mode"><option value="next">Lần lượt</option><option value="loop">Lặp 1 bài</option><option value="shuffle">Ngẫu nhiên</option></select>
+        </label>
+        <div class="row">
+          <button class="btn" data-cmd="bell" data-args='{"big":true}'>🔔 Đại hồng chung</button>
+          <button class="btn" data-cmd="bell">🛎 Chuông nhỏ</button>
+          <button class="btn" data-cmd="mo">🪵 Gõ mõ</button>
+        </div>
+      </div>
+      <div>
+        <ol id="playlist" class="playlist"></ol>
+        <p class="hint">Bài có nhãn <b>FILE</b> cần chép mp3 vào thư mục <code>audio/</code>. Thiếu file sẽ tự chuyển sang gõ mõ + chữ kinh.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Chương trình -->
+  <section class="card">
+    <h2>④ Chương trình buổi live</h2>
+    <div id="segments" class="seglist"></div>
+    <label class="sw"><input type="checkbox" id="segAuto" checked> Tự đổi nhạc theo chương trình</label>
+    <h3>Bài giảng hiển thị</h3>
+    <select id="teaching"><option value="">— Không hiển thị bài giảng —</option></select>
+    <h3>Thông báo lên màn hình</h3>
+    <textarea id="annText" rows="2" placeholder="VD: 20h tối nay tụng Kinh Vu Lan, mời quý Phật tử cùng tham dự"></textarea>
+    <button class="btn" id="announce">Hiện thông báo</button>
+  </section>
+
+  <!-- 5. Thử hiệu ứng -->
+  <section class="card">
+    <h2>⑤ Thử hiệu ứng</h2>
+    <label>Tên người thử <input id="testName" value="Ngọc Hà"></label>
+    <div id="tierBtns" class="tiers"></div>
+    <div class="row">
+      <button class="btn" data-test="chat">💬 Comment ngẫu nhiên</button>
+      <button class="btn" data-test="like">❤️ Thả tim</button>
+      <button class="btn" data-test="follow">➕ Follow</button>
+      <button class="btn" data-test="share">📤 Share</button>
+    </div>
+    <div class="row">
+      <input id="testText" placeholder="Nhập comment để thử, VD: Cầu an cho mẹ con">
+      <button class="btn" id="sendText">Gửi</button>
+    </div>
+    <div class="row">
+      <button class="btn" data-ms="vong">Mốc 108 hạt</button>
+      <button class="btn" data-ms="cauan">Mốc 1.080 · Cầu an</button>
+      <button class="btn" data-ms="rong">Mốc 10.800 · Rồng</button>
+    </div>
+  </section>
+
+  <!-- 6. Bot -->
+  <section class="card warn">
+    <h2>⑥ Bot mô phỏng <span class="pill" id="botPill">tắt</span></h2>
+    <p class="hint"><b>Chỉ dùng để thử trước khi lên sóng.</b> Bot tạo người xem giả trên màn hình — màn hình phát sẽ hiện dòng “MÔ PHỎNG”. Không bật khi đang LIVE thật: tạo tương tác giả vi phạm quy định TikTok và làm mất lòng tin người xem.</p>
+    <div class="row">
+      <select id="botRate"><option value="cham">Chậm</option><option value="vua" selected>Vừa</option><option value="nhanh">Nhanh</option></select>
+      <button class="btn" id="botBtn">Bật bot</button>
+    </div>
+  </section>
+
+  <!-- 7. Phiên -->
+  <section class="card wide">
+    <h2>⑦ Thống kê phiên & Bảng Công Đức</h2>
+    <div class="stats">
+      <div><small>Công đức</small><b id="tMerit">0</b></div>
+      <div><small>Tổng hạt</small><b id="tBeads">0</b></div>
+      <div><small>Xu nhận (ước tính)</small><b id="tCoins">0</b></div>
+      <div><small>Quà</small><b id="tGifts">0</b></div>
+      <div><small>Comment</small><b id="tComments">0</b></div>
+      <div><small>Tim</small><b id="tLikes">0</b></div>
+      <div><small>Follow / Share</small><b id="tSocial">0</b></div>
+      <div><small>Phật tử ghi nhận</small><b id="tUsers">0</b></div>
+    </div>
+    <table class="top"><thead><tr><th>#</th><th>Tên</th><th>Công đức</th><th>Xu</th><th>Hạt</th></tr></thead><tbody id="topTable"></tbody></table>
+    <div class="row">
+      <button class="btn" id="export">Xuất danh sách (CSV) để hồi hướng / cảm ơn</button>
+      <button class="btn" data-cmd="clearYard">Dọn sân chùa</button>
+      <button class="btn danger" id="reset">Bắt đầu phiên mới (xóa điểm)</button>
+    </div>
+  </section>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/content.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
