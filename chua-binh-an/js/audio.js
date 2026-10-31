@@ -107,9 +107,14 @@ CBA.Audio = (() => {
   }
 
   /* ---------- nhạc thiền tổng hợp ---------- */
+  let tone = { root: 73.42, scale: [293.66, 329.63, 440, 493.88, 587.33] };
+  function setTone(t) {   // mỗi chùa một âm điệu riêng
+    if (!t) return; tone = t;
+    if (pad) { stopPad(); setTimeout(startPad, 300); }
+  }
   function startPad() {
     if (!ensure() || pad) return;
-    const notes = [73.42, 110, 146.83, 220, 293.66];   // Rê – La ngũ cung
+    const r = tone.root, notes = [r, r * 1.5, r * 2, r * 3, r * 4];   // nền ngũ cung theo âm chủ của chùa
     const out = ctx.createGain(); out.gain.value = 0;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
     out.connect(lp).connect(padGain);
@@ -127,7 +132,7 @@ CBA.Audio = (() => {
     });
     out.gain.setTargetAtTime(1, ctx.currentTime, 2);
     // thỉnh khánh nhẹ ngẫu nhiên
-    const scale = [293.66, 329.63, 440, 493.88, 587.33, 659.25];
+    const scale = tone.scale;
     const sparkle = setInterval(() => {
       if (!st.musicOn || !pad) return;
       const f = scale[Math.floor(Math.random() * scale.length)];
@@ -236,11 +241,25 @@ CBA.Audio = (() => {
     if (st.playing) { stopAll(); onChange(); }
     else play();
   }
-  function playCategory(cat) {
-    const ok = list().map((t, i) => ({ t, i })).filter(x => x.t.category === cat && !st.missing[x.t.id]);
-    // ưu tiên file thật nếu có, nếu không thì bài tổng hợp
-    const pick = ok.find(x => x.t.type === 'file') || ok[0];
+  function playCategory(cat, temple) {
+    const all = list().map((t, i) => ({ t, i })).filter(x => !st.missing[x.t.id]);
+    const ok = all.filter(x => x.t.category === cat);
+    // ưu tiên: file riêng của chùa → bài riêng của chùa → file chung → bài tổng hợp
+    const pick = (temple && all.find(x => x.t.temple === temple && x.t.type === 'file' && x.t.category === cat))
+      || (temple && cat === 'niem' && all.find(x => x.t.temple === temple))
+      || ok.find(x => x.t.type === 'file' && !x.t.temple) || ok.find(x => !x.t.temple) || ok[0];
     if (pick) play(pick.i);
+  }
+  function playTemple(temple) {
+    const all = list().map((t, i) => ({ t, i })).filter(x => !st.missing[x.t.id] && x.t.temple === temple);
+    const pick = all.find(x => x.t.type === 'file') || all[0];
+    if (pick) play(pick.i);
+  }
+  function setTempleTrack(t) {   // bài niệm riêng của chùa (không cần file)
+    const i = list().findIndex(x => x.id === 'temple_chant');
+    const tr = { id: 'temple_chant', title: `Niệm tại ${t.name}`, category: 'niem', type: 'chant', bpm: 64, beatsPerLine: 8, text: t.chant, temple: t.id };
+    if (i >= 0) list()[i] = tr; else list().splice(1, 0, tr);
+    onChange();
   }
 
   /* ---------- đọc giọng nói ---------- */
@@ -310,7 +329,9 @@ CBA.Audio = (() => {
       if (have.has(it.src)) return;
       const title = it.title || niceTitle(it.src);
       const folder = it.folder || decodeURIComponent(it.src.split('/').slice(1, -1).join(' '));
-      list().push({ id: 'auto_' + list().length + '_' + noMark(title).replace(/[^a-z0-9]+/g, '_'), title, type: 'file', src: it.src, category: guessCategory(folder + ' ' + title), auto: true });
+      const slug = noMark(folder).replace(/[^a-z0-9]+/g, '-');
+      const tp = (CBA.temples || []).find(x => x.id !== 'binh-an' && slug.includes(x.id));
+      list().push({ id: 'auto_' + list().length + '_' + noMark(title).replace(/[^a-z0-9]+/g, '_'), title: tp ? `${title} · ${tp.name}` : title, type: 'file', src: it.src, category: guessCategory(folder + ' ' + title), auto: true, temple: tp ? tp.id : undefined });
       added++;
     });
     if (added) onChange();
@@ -358,7 +379,7 @@ CBA.Audio = (() => {
   return {
     ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
-    set, state, scanFolder, addTracks,
+    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();

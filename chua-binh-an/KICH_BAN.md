@@ -120,6 +120,43 @@
 
 ---
 
+## 0e. Hành hương 10 chùa, bản đồ 3D, đệm ngồi, nhân vật tự chọn (bản 6)
+
+### 10 ngôi chùa nổi tiếng (`js/temples.js`)
+| Miền | Chùa | Đặc trưng dựng trong mô hình 3D | Sự tích kể trên live |
+|---|---|---|---|
+| Bắc | **Bái Đính** (Ninh Bình) | Điện lớn hai tầng mái trên nền cao, gác chuông, bảo tháp 13 tầng, núi đá phía sau | Thiền sư Minh Không chữa bệnh cho vua Lý Thần Tông |
+| Bắc | **Một Cột** (Hà Nội) | Đài sen vuông trên một cột đá giữa hồ sen vuông, cầu thang đá | Giấc mộng của vua Lý Thái Tông |
+| Bắc | **Chùa Hương** (Hà Nội) | Núi đá vôi, cửa động Hương Tích, bậc đá, cổng tam quan, suối Yến có thuyền | Nam Thiên Đệ Nhất Động |
+| Bắc | **Yên Tử – Chùa Đồng** (Quảng Ninh) | Chùa đồng trên đỉnh núi, rừng tùng, mây trôi quanh núi | Suối Giải Oan |
+| Trung | **Thiên Mụ** (Huế) | Tháp Phước Duyên bát giác 7 tầng, chánh điện, sông Hương | Bà lão trên đồi Hà Khê |
+| Trung | **Linh Ứng Bãi Bụt** (Đà Nẵng) | Tượng Quán Âm trắng cao lớn nhìn ra biển, chánh điện mái xanh | Phật Bà nhìn ra biển |
+| Trung | **Long Sơn** (Nha Trang) | Đồi Trại Thủy, bậc đá, tượng Kim Thân Phật Tổ trắng ngồi trên đỉnh | Kim Thân Phật Tổ trên đồi Trại Thủy |
+| Nam | **Vĩnh Nghiêm** (TP.HCM) | Chánh điện lớn kiểu Bắc, tháp Quán Âm vuông 7 tầng | Từ tổ đình Bắc Giang vào Sài Gòn |
+| Nam | **Giác Lâm** (TP.HCM) | Chánh điện cổ mái thấp, bảo tháp lục giác 7 tầng, cây Bồ Đề lớn | Rừng giác ngộ trên gò Cẩm Sơn |
+| Nam | **Chùa Dơi – Mahatup** (Sóc Trăng) | Mái Khmer nhọn nhiều tầng màu cam đỏ, đầu rắn Naga vàng, tháp chuông trắng, cây cổ thụ, **đàn dơi bay** | Đàn dơi giữ chùa |
+
+Mỗi chùa trên live có: tên và địa danh trên bảng hiệu, câu đối chữ Hán trên cột, màu cột và màu nền riêng, bộ tượng, **bài niệm riêng** (vd: Quán Âm ở Một Cột, Chùa Hương, Linh Ứng; *Cư trần lạc đạo* ở Yên Tử; Bát Nhã ở Thiên Mụ), và **âm điệu nhạc nền riêng**. Đặt mp3 vào `audio/<mã-chùa>/` (vd `audio/huong/`) hoặc thư mục có tên chùa thì chùa đó phát bài riêng.
+
+**Chùa duyên mỗi ngày:** chế độ tự động đổi chùa mỗi ngày. Khi đổi chùa, live hiện thẻ *“🏯 Hành hương · Miền Trung — Chùa Thiên Mụ”* kèm **mô hình 3D xoay**, đánh 2 hồi chuông, cả chùa lạy, 14 giây sau Sư Ông kể sự tích chùa đó. **Ấn hành hương:** ai tương tác khi đang ở chùa nào thì nhận ấn chùa đó. Đủ 5 ấn được danh hiệu *Người Hành Hương*, đủ tất cả được *Hành Giả Thập Phương*.
+
+### Bản đồ hành hương (`map.html`)
+- Bản đồ Việt Nam (Natural Earth), có **QĐ. Hoàng Sa** và **QĐ. Trường Sa** ghi rõ *(Việt Nam)*, kèm Biển Đông và tuyến hành hương Bắc → Nam.
+- Lọc theo **Miền Bắc 4 · Miền Trung 3 · Miền Nam 3**: bản đồ tự phóng to vào miền đã chọn.
+- Bấm một chùa → bên phải hiện **mô hình 3D** (kéo để xoay, cuộn để phóng to) hoặc **ảnh thật** (Wikimedia Commons, có ghi nguồn), thông tin, các điểm nổi bật và sự tích đầy đủ.
+- Nút **“Hành hương đến chùa này trên live”** và **“Kể sự tích trên live”**. Chùa đang phát trên live có vòng xanh nhấp nháy trên bản đồ.
+
+### Đệm ngồi & nhân vật
+- 40 **đệm vuông** xếp thành hàng trên sân. Hai hàng đầu là **đệm vàng** dành cho Top công đức, còn lại là đệm đỏ viền vàng. Người xem quỳ trên đệm nghe giảng.
+- Người xem **tự chọn nhân vật bằng comment**:
+  - `!nam` / `!nu`: dáng vai khác nhau; nữ có trâm cài tóc khi búi.
+  - `!toc bui` · `!toc dai` · `!toc ngan` · `!troc`: kiểu tóc.
+  - `!ao lam` · `!ao nau` · `!ao xam` · `!ao trang`: màu áo tràng. Top 3 công đức tự mặc áo vàng.
+  - `!di`: đi kinh hành quanh sân. `!lay`: lạy 3 lạy. `!vai`: lên trước điện vái Phật. `!chua`: xem chùa đang ở và số ấn.
+- Lựa chọn được lưu, lần sau quay lại vẫn giữ. Khung trái màn hình phát luân phiên 3 trang: Cách tham gia → Nhiệm vụ hôm nay → Nhân vật của bạn.
+
+---
+
 ## I. Bố cục màn hình (1080×1920, dọc 9:16)
 
 Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình luận góc dưới trái, nút bên phải). Bấm phím **S** trên màn hình phát để xem vùng an toàn.

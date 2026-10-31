@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;900&family=Be+Vietnam+Pro:wght@400;600;800&display=swap');
+:root { --bg: #0f2a33; --sea: #12343f; --land: #6f8f55; --land2: #5c7a46; --ink: #fff4dc; --card: #fffaf0; --cink: #3a1c0e; --gold: #e9b949;
+  --bac: #e5533a; --trung: #f0a23a; --nam: #3aa6e5; --mut: #8a6a50; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif; min-height: 100vh; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; background: #0b1f26; border-bottom: 1px solid #23434e; }
+.top h1 { margin: 0; font: 900 22px 'Noto Serif', Georgia, serif; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.chips button { border: 1px solid #2f5662; background: #133640; color: var(--ink); border-radius: 18px; padding: 5px 12px; font: 600 13px inherit; font-family: inherit; cursor: pointer; }
+.chips button.on { background: var(--gold); color: #2a1406; border-color: var(--gold); }
+.live { font-size: 13px; padding: 5px 12px; border-radius: 16px; background: #133640; }
+.live b { color: #7de0a0; }
+.btn { border: 1px solid #d9c49a; background: #fff; color: var(--cink); padding: 10px 14px; border-radius: 10px; font: 700 14px inherit; font-family: inherit; cursor: pointer; text-decoration: none; }
+.btn.gold { background: linear-gradient(#ffe08a, #e9b949); border-color: #c98a1c; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: #2f5662; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); gap: 16px; padding: 16px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.mapwrap { position: relative; background: var(--sea); border-radius: 16px; border: 1px solid #23434e; overflow: hidden; min-height: 420px; }
+#map { width: 100%; height: calc(100vh - 120px); min-height: 460px; display: block; }
+@media (max-width: 900px) { #map { height: 70vh; } }
+#map .land { fill: var(--land); stroke: #c8d8a8; stroke-width: .8; vector-effect: non-scaling-stroke; }
+#map .route { fill: none; stroke: rgba(255, 244, 220, .45); stroke-width: 1.6; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+#map .isl { fill: #d8c890; }
+#map .lbl { fill: #cfe6ec; font: italic 600 11px 'Noto Serif', serif; }
+#map .lbl.sov { fill: #ffe08a; font: 700 10.5px 'Be Vietnam Pro', sans-serif; font-style: normal; }
+#map .sea { fill: rgba(207, 230, 236, .55); font: italic 15px 'Noto Serif', serif; letter-spacing: 4px; }
+.pin { cursor: pointer; }
+.pin circle.o { stroke: #fff; stroke-width: 1.6; transition: r .2s; }
+.pin text.ic { font-size: 9px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.pin .nm { font: 700 10px 'Be Vietnam Pro', sans-serif; fill: #fff; paint-order: stroke; stroke: rgba(0, 0, 0, .7); stroke-width: 3px; pointer-events: none; }
+.pin.sel circle.o { stroke: var(--gold); stroke-width: 3; }
+.pin.live circle.ring { fill: none; stroke: #7de0a0; stroke-width: 2; animation: pulse 1.6s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 50% { transform: scale(1.5); opacity: .3; } }
+.pin.dim { opacity: .25; }
+.legend { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; background: rgba(11, 31, 38, .8); padding: 6px 10px; border-radius: 10px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.dot.bac { background: var(--bac); } .dot.trung { background: var(--trung); } .dot.nam { background: var(--nam); } .dot.live { background: #7de0a0; }
+.info { background: var(--card); color: var(--cink); border-radius: 16px; padding: 12px 14px 16px; align-self: start; }
+.viewer { position: relative; border-radius: 12px; overflow: hidden; background: #e8d9b8; }
+.tabs { position: absolute; z-index: 2; left: 8px; top: 8px; display: flex; gap: 4px; }
+.tabs button { border: 0; padding: 5px 10px; border-radius: 12px; background: rgba(0, 0, 0, .45); color: #fff; font: 700 12px inherit; font-family: inherit; cursor: pointer; }
+.tabs button.on { background: var(--gold); color: #2a1406; }
+.v { height: 280px; } .v.hidden { display: none; }
+#view3d canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; }
+#viewPhoto { position: relative; }
+#photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.credit { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: #fff; background: rgba(0, 0, 0, .5); padding: 1px 6px; border-radius: 6px; max-width: 95%; }
+.credit a { color: #ffe08a; }
+.nophoto { position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 20px; color: var(--mut); }
+#viewPhoto.empty .nophoto { display: grid; } #viewPhoto.empty img, #viewPhoto.empty .credit { display: none; }
+.hint3d { font-size: 11px; color: var(--mut); padding: 4px 8px; background: #f3e6cc; }
+.head { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.head > div { flex: 1; text-align: center; }
+.head h2 { margin: 0; font: 900 22px 'Noto Serif', Georgia, serif; }
+.meta { font-size: 13px; color: var(--mut); }
+.meta .rg { display: inline-block; padding: 1px 8px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 11px; margin-right: 4px; }
+.nav { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #d9c49a; background: #fff; cursor: pointer; font-size: 16px; }
+#tFacts { margin: 6px 0 10px; padding-left: 18px; font-size: 14px; }
+#tFacts li { margin: 3px 0; }
+.actions { display: grid; gap: 6px; }
+details { margin-top: 10px; background: #f8efdc; border-radius: 10px; padding: 8px 12px; }
+summary { cursor: pointer; font-weight: 800; }
+#legendText p { margin: 6px 0; font: 500 14px/1.5 'Noto Serif', serif; }
+code { background: #f3e6cc; padding: 0 4px; border-radius: 4px; }

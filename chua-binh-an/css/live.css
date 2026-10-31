@@ -363,3 +363,36 @@ body { font-family: var(--sans); color: var(--cream); }
 #altar.no-buddha #aura { display: none; }
 #buddhaNames .bn { font-size: 17px; fill: #ffe9a8; stroke-width: 4px; }
 #buddhaNames .bs { font-size: 12.5px; fill: #ffd36b; }
+
+/* ---------- bản 6: đệm vuông, theme theo chùa ---------- */
+#mats { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.mat { position: absolute; width: 84px; height: 40px; margin: -30px 0 0 -42px; transform: scale(var(--sc, 1)); transform-origin: 50% 70%;
+  clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+  background:
+    radial-gradient(ellipse 22% 38% at 50% 50%, rgba(255, 215, 120, .55), transparent 70%),
+    linear-gradient(#b3261e, #7a1410);
+  box-shadow: inset 0 0 0 3px #e0a93a, inset 0 0 0 6px rgba(90, 14, 6, .9), inset 0 -6px 10px rgba(0, 0, 0, .35); }
+.mat::after { content: ''; position: absolute; left: 50%; top: 50%; width: 20px; height: 9px; margin: -4.5px 0 0 -10px; border-radius: 50%;
+  border: 1.5px solid rgba(255, 220, 140, .7); }
+.mat.front { background:
+    radial-gradient(ellipse 22% 38% at 50% 50%, rgba(255, 255, 220, .7), transparent 70%),
+    linear-gradient(#f3c047, #b07a14); box-shadow: inset 0 0 0 3px #fff1c2, inset 0 0 0 6px rgba(140, 90, 14, .9), inset 0 -6px 10px rgba(0, 0, 0, .3); }
+#bg .pillar { background: linear-gradient(90deg, rgba(0,0,0,.55), var(--pillar, #b3261e) 35%, color-mix(in srgb, var(--pillar, #b3261e) 75%, #fff 25%) 50%, var(--pillar, #b3261e) 70%, rgba(0,0,0,.6)); }
+#bg .floor { background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .18) 0 2px, transparent 2px 120px),
+    linear-gradient(color-mix(in srgb, var(--floor, #a85a22) 80%, #000 20%), var(--floor, #a85a22) 25%, color-mix(in srgb, var(--floor, #a85a22) 60%, #000 40%) 100%); }
+#bg { transition: filter 1s; }
+.pt .tag { bottom: 128px; }
+#blImg { display: none; width: 100%; height: 190px; object-fit: cover; border-radius: 12px; margin: 4px 0 10px; border: 2px solid var(--gold2); }
+#blessing.has-img #blImg { display: block; }
+#blessing.has-img { top: 960px; }
+#blCredit { font-size: 10px; opacity: .6; margin-top: 4px; }
+#guide .gc { display: none; } #guide.flip2 .ga, #guide.flip2 .gb { display: none; } #guide.flip2 .gc { display: block; }
+#guide .gc li { grid-template-columns: 1fr; }
+#lookList { list-style: none; margin: 0; padding: 0; }
+#lookList li { padding: 6px 0; border-bottom: 1px dashed rgba(255, 211, 107, .18); }
+#lookList .gt { display: block; font: 800 14px var(--sans); color: var(--gold); }
+#lookList .gd { font-size: 12.5px; color: #ffe6b0; }
+#bl3d { display: none; height: 300px; border-radius: 12px; overflow: hidden; margin: 4px 0 10px; border: 2px solid var(--gold2); }
+#blessing.has-3d #bl3d { display: block; }
+#blessing.has-3d { top: 900px; }

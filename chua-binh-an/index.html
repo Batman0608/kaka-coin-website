@@ -107,6 +107,17 @@
     <button class="btn" id="announce">Hiện thông báo</button>
   </section>
 
+  <!-- 4a. Hành hương -->
+  <section class="card accent">
+    <h2>🏯 Hành hương các chùa <span class="pill ok" id="templePill">—</span></h2>
+    <label>Chế độ
+      <select id="templeMode"><option value="daily">Tự động: mỗi ngày một chùa duyên</option><option value="manual">Tự chọn chùa</option></select>
+    </label>
+    <a class="btn gold big" href="map.html" target="cba_map" style="display:block;text-align:center;text-decoration:none;margin:6px 0">🗺 Mở bản đồ hành hương (xem 3D)</a>
+    <div id="templeList" class="seglist"></div>
+    <p class="hint">Đổi chùa: tên chùa, câu đối, màu điện, âm điệu và bài niệm đổi theo; Sư Ông kể sự tích chùa. Mỗi chùa phát nhạc riêng nếu bạn đặt file vào <code>audio/&lt;mã-chùa&gt;/</code> (vd <code>audio/huong/</code>) hoặc thư mục có tên chùa (vd <code>Chua Huong</code>). Người xem tương tác ở chùa nào thì nhận ấn chùa đó.</p>
+  </section>
+
   <!-- 4b. Kể chuyện -->
   <section class="card accent">
     <h2>📖 Kể chuyện Phật <span class="pill" id="storyPill">đang nghỉ</span></h2>
@@ -188,6 +199,7 @@
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
 <script src="js/stories.js"></script>
+<script src="js/temples.js"></script>
 <script src="js/admin.js"></script>
 </body>
 </html>

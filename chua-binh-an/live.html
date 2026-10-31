@@ -129,6 +129,7 @@
   </div>
 
   <!-- ===== SÂN CHÙA ===== -->
+  <div id="mats"></div>
   <div id="yard"></div>
 
   <!-- ===== HIỆU ỨNG ===== -->
@@ -156,6 +157,18 @@
       <ul id="guideList"></ul>
       <p class="note">Điểm trong game chỉ để khích lệ tu tập, không phải công đức thật.</p>
     </div>
+    <div class="gc">
+      <h3>Nhân vật của bạn</h3>
+      <ul id="lookList">
+        <li><span class="gt">!nam · !nu</span><span class="gd">Chọn nam / nữ</span></li>
+        <li><span class="gt">!toc bui · dai · ngan · troc</span><span class="gd">Kiểu tóc</span></li>
+        <li><span class="gt">!ao lam · nau · xam · trang</span><span class="gd">Màu áo tràng</span></li>
+        <li><span class="gt">!di</span><span class="gd">Đi kinh hành quanh sân</span></li>
+        <li><span class="gt">!lay · !vai</span><span class="gd">Lạy Phật / lên điện vái</span></li>
+        <li><span class="gt">!chua</span><span class="gd">Xem chùa & ấn hành hương</span></li>
+      </ul>
+      <p class="note">Top 3 công đức mặc áo vàng · ngồi hàng đệm vàng phía trước</p>
+    </div>
     <div class="gb">
       <h3>Nhiệm vụ hôm nay</h3>
       <div class="mh" id="mHanh"></div><div class="mtip" id="mTip"></div>
@@ -178,6 +191,8 @@
 
   <div id="blessing" class="hidden">
     <div class="bl-kicker" id="blKicker">Lời chúc dành cho</div>
+    <img id="blImg" alt="">
+    <div id="bl3d"></div>
     <div class="bl-title" id="blTitle"></div>
     <div class="bl-text" id="blText"></div>
     <div class="bl-sub" id="blSub"></div>
@@ -229,11 +244,13 @@
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
 <script src="js/stories.js"></script>
+<script src="js/temples.js"></script>
 <script src="js/lunar.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/tiktok.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/aura.js"></script>
 <script src="js/game.js"></script>
+<script type="module">import { mount } from './js/temple3d.js'; window.CBA.Temple3D = { mount };</script>
 </body>
 </html>

@@ -321,38 +321,59 @@
   const scaleAt = (y) => Math.max(0.72, Math.min(1.25, 0.84 + (y - 1062) / 115 * 0.07));
   const AISLE = 540, BURNER_SPOT = { x: 540, y: 1186 };
 
-  /* ---------- hình nhân vật (nhìn từ phía sau, hướng lên điện Phật) ---------- */
-  function makeFigure(u) {
-    const f = el('div', 'pt');
-    const tag = el('div', 'tag');
-    if (u.avatar) {
-      const im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = u.avatar; im.onerror = () => im.replaceWith(el('span', 'av'));
-      tag.append(im);
-    } else tag.append(el('span', 'av'));
-    tag.append(el('b', 'lv', '1'), document.createTextNode(u.name));
-    const h = hashStr(u.id);
-    const hair = ['bun', 'bun', 'short', 'long', 'long', 'shaved'][h % 6];
+  /* ---------- hình nhân vật (nhìn từ phía sau, hướng lên điện Phật) ----------
+     Người xem tự chọn bằng comment: !nam / !nu · !toc bui|dai|ngan|troc · !ao lam|nau|xam|trang */
+  /* ---------- đệm ngồi vuông (bồ đoàn) xếp hàng dưới sân ---------- */
+  (function buildMats() {
+    const box = $('mats');
+    slots.forEach((sl, i) => {
+      const m = el('div', 'mat' + (i < C.seats.perSide * 2 ? ' front' : ''));
+      m.style.left = sl.x + 'px'; m.style.top = sl.y + 'px'; m.style.setProperty('--sc', (0.84 + (sl.y - 1062) / 115 * 0.07).toFixed(3));
+      box.append(m);
+    });
+  })();
+
+  const ROBES = { lam: ['#7f93b6', '#6a7ea0'], nau: ['#9c6b45', '#845a39'], xam: ['#8d8f98', '#74767f'], trang: ['#e6e6ee', '#c9c9d4'], vang: ['#f0b93a', '#d39a22'] };
+  const HAIRS = ['bui', 'dai', 'ngan', 'troc'];
+  function lookOf(u) {
+    const pr = prof(u);
+    if (!pr.look) {
+      const h = hashStr(u.id), g = h % 2 ? 'nu' : 'nam';
+      pr.look = { g, hair: g === 'nu' ? ['bui', 'dai', 'dai', 'bui'][(h >> 2) % 4] : ['ngan', 'ngan', 'bui', 'troc'][(h >> 2) % 4], robe: 'lam' };
+    }
+    return pr.look;
+  }
+  function figSvg(u, robeKey) {
+    const L = lookOf(u), h = hashStr(u.id);
     const skin = ['#e8b88a', '#dca77a', '#f0c9a0', '#c99668'][(h >> 3) % 4];
     const hairC = ['#1d120c', '#2a1810', '#3b2414'][(h >> 5) % 3];
-    const hairSvg = {
-      bun: `<circle cx="40" cy="29" r="14.5" fill="${hairC}"/><circle cx="40" cy="15.5" r="6.5" fill="${hairC}"/><path d="M33 13 q7 -4 14 0" stroke="#7a5a3a" stroke-width="1.2" fill="none"/>`,
-      short: `<circle cx="40" cy="29" r="14.5" fill="${hairC}"/><path d="M29 22 q11 -9 22 0" stroke="rgba(255,255,255,.12)" stroke-width="2" fill="none"/>`,
-      long: `<path d="M26 30 Q25 56 31 64 L49 64 Q55 56 54 30 Z" fill="${hairC}"/><circle cx="40" cy="29" r="14.5" fill="${hairC}"/>`,
-      shaved: `<circle cx="40" cy="29" r="14" fill="${skin}"/><circle cx="40" cy="29" r="14" fill="rgba(60,40,30,.18)"/>`
-    }[hair];
-    f.innerHTML = `<div class="hring"></div><svg viewBox="0 0 80 140">
-      <ellipse class="shadow" cx="40" cy="136" rx="27" ry="5" fill="rgba(0,0,0,.35)"/>
+    const [R1, R2] = ROBES[robeKey] || ROBES.lam;
+    const nu = L.g === 'nu';
+    // vai nam rộng hơn, nữ thon hơn
+    const body = nu ? 'M26 51 Q40 45 54 51 L62 129 Q40 135 18 129 Z' : 'M21 50 Q40 42 59 50 L65 129 Q40 135 15 129 Z';
+    const sl = nu ? ['M26 53 Q14 72 16 104 Q22 108 28 103 Q26 82 30 64 Z', 'M54 53 Q66 72 64 104 Q58 108 52 103 Q54 82 50 64 Z']
+                  : ['M21 52 Q8 72 10 104 Q18 108 25 103 Q23 82 27 64 Z', 'M59 52 Q72 72 70 104 Q62 108 55 103 Q57 82 53 64 Z'];
+    const kneel = nu ? 'M11 136 C9 113 17 93 40 86 C63 93 71 113 69 136 Z' : 'M6 136 C4 111 14 90 40 83 C66 90 76 111 74 136 Z';
+    const headR = nu ? 13.5 : 14.5;
+    const hair = {
+      bui: `<circle cx="40" cy="29" r="${headR}" fill="${hairC}"/>` + (nu
+        ? `<ellipse cx="40" cy="41" rx="8" ry="6.5" fill="${hairC}"/><circle cx="45" cy="38" r="2" fill="#e9b949"/><path d="M46 37 l8 -5" stroke="#e9b949" stroke-width="1.6"/>`
+        : `<circle cx="40" cy="15.5" r="6" fill="${hairC}"/>`),
+      dai: `<path d="M27 30 Q25 58 31 ${nu ? 72 : 60} L49 ${nu ? 72 : 60} Q55 58 53 30 Z" fill="${hairC}"/><circle cx="40" cy="29" r="${headR}" fill="${hairC}"/>`,
+      ngan: `<circle cx="40" cy="29" r="${headR}" fill="${hairC}"/><path d="M29 22 q11 -9 22 0" stroke="rgba(255,255,255,.12)" stroke-width="2" fill="none"/>`,
+      troc: `<circle cx="40" cy="29" r="${headR - 0.5}" fill="${skin}"/><circle cx="40" cy="29" r="${headR - 0.5}" fill="rgba(60,40,30,.18)"/>`
+    }[L.hair] || '';
+    return `<ellipse class="shadow" cx="40" cy="136" rx="27" ry="5" fill="rgba(0,0,0,.35)"/>
       <g class="feet"><ellipse class="fl" cx="32" cy="133" rx="6.5" ry="3.5" fill="#2a1a12"/><ellipse class="fr" cx="48" cy="133" rx="6.5" ry="3.5" fill="#2a1a12"/></g>
       <g class="st">
-        <path class="robe2" d="M24 52 Q11 72 13 104 Q20 108 27 103 Q25 82 29 64 Z" fill="${ROBE2[0]}"/>
-        <path class="robe2" d="M56 52 Q69 72 67 104 Q60 108 53 103 Q55 82 51 64 Z" fill="${ROBE2[0]}"/>
-        <path class="robe" d="M24 50 Q40 43 56 50 L63 129 Q40 135 17 129 Z" fill="${ROBE[0]}" stroke="rgba(0,0,0,.3)" stroke-width="1.2"/>
+        <path d="${sl[0]}" fill="${R2}"/><path d="${sl[1]}" fill="${R2}"/>
+        <path d="${body}" fill="${R1}" stroke="rgba(0,0,0,.3)" stroke-width="1.2"/>
         <path d="M40 50 V132" stroke="rgba(0,0,0,.2)" stroke-width="1.6"/>
         <path d="M30 70 L26 128 M50 70 L54 128" stroke="rgba(0,0,0,.08)" stroke-width="2"/>
         <path d="M31 50 Q40 56 49 50" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/>
       </g>
       <g class="kn">
-        <path class="robe" d="M8 136 C6 112 15 91 40 84 C65 91 74 112 72 136 Z" fill="${ROBE[0]}" stroke="rgba(0,0,0,.32)" stroke-width="1.4"/>
+        <path d="${kneel}" fill="${R1}" stroke="rgba(0,0,0,.32)" stroke-width="1.4"/>
         <path d="M40 88 V136" stroke="rgba(0,0,0,.2)" stroke-width="1.8"/>
         <path d="M14 122 Q21 104 28 98 M66 122 Q59 104 52 98" stroke="rgba(0,0,0,.16)" stroke-width="2" fill="none"/>
         <path d="M30 86 Q40 92 50 86" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/>
@@ -361,16 +382,27 @@
         <g class="inc"><path d="M36 -2 L37.5 20 M44 -2 L42.5 20" stroke="#b3261e" stroke-width="2"/><circle cx="36" cy="-3" r="2.6" fill="#ffd36b"/><circle cx="44" cy="-3" r="2.6" fill="#ffd36b"/></g>
         <rect x="35" y="39" width="10" height="11" rx="3" fill="${skin}"/>
         <ellipse cx="25.5" cy="31" rx="3" ry="5" fill="${skin}"/><ellipse cx="54.5" cy="31" rx="3" ry="5" fill="${skin}"/>
-        ${hairSvg}
-      </g></svg>`;
+        ${hair}
+      </g>`;
+  }
+  function makeFigure(u) {
+    const f = el('div', 'pt');
+    const tag = el('div', 'tag');
+    if (u.avatar) {
+      const im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = u.avatar; im.onerror = () => im.replaceWith(el('span', 'av'));
+      tag.append(im);
+    } else tag.append(el('span', 'av'));
+    tag.append(el('b', 'lv', '1'), document.createTextNode(u.name));
+    f.innerHTML = `<div class="hring"></div><svg viewBox="0 0 80 140">${figSvg(u, lookOf(u).robe)}</svg>`;
     f.prepend(tag);
     $('yard').append(f);
     return f;
   }
   function setFigTier(p, t) {
     p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
-    p.fig.querySelectorAll('.robe').forEach(e => e.setAttribute('fill', ROBE[t]));
-    p.fig.querySelectorAll('.robe2').forEach(e => e.setAttribute('fill', ROBE2[t]));
+    const robe = t === 3 ? 'vang' : lookOf(p.u).robe;      // Top 3 công đức mặc áo vàng
+    const key = robe + '|' + JSON.stringify(lookOf(p.u));
+    if (p.figKey !== key) { p.figKey = key; p.fig.querySelector('svg').innerHTML = figSvg(p.u, robe); }
   }
 
   /* ---------- di chuyển theo lối đi ---------- */
@@ -629,6 +661,10 @@
     $('blTitle').textContent = c.title || '';
     $('blText').textContent = c.text || '';
     $('blSub').textContent = c.sub || '';
+    const bi = $('blImg'); box.classList.remove('has-img', 'has-3d');
+    if (nextCard.v3d) { nextCard.v3d.dispose(); nextCard.v3d = null; }
+    if (c.model && CBA.Temple3D) { box.classList.add('has-3d'); nextCard.v3d = CBA.Temple3D.mount($('bl3d'), c.model, { interactive: false }); }
+    else if (c.img) { bi.onload = () => box.classList.add('has-img'); bi.onerror = () => box.classList.remove('has-img'); bi.src = c.img; }
     setTimeout(() => { box.classList.add('hidden'); setTimeout(nextCard, 550); }, c.ms || 5200);
   }
 
@@ -731,6 +767,7 @@
     if (!ev) return;
     lastEventAt = now();
     if (storyRun && ev.id && ev.type !== 'join') storyUsers.add(ev.id);
+    if (ev.id && ev.type !== 'join' && ev.type !== 'viewers') setTimeout(() => { const u = S.users[ev.id]; if (u) stamp(u); }, 0);
     if (ev.sim) simActiveUntil = now() + 30000;
     switch (ev.type) {
       case 'chat': onChat(ev); break;
@@ -756,6 +793,7 @@
       addBeads(u, mantra ? C.scoring.beadsPerMantraComment : C.scoring.beadsPerComment);
     }
     if (quiz && !quiz.revealed && answerQuiz(u, n)) { say(p, '❓ ' + text.slice(0, 20)); return; }
+    if (n.startsWith('!') && charCommand(u, p, n)) return;
     if (has(n, K.checkBook)) {
       const pr = prof(u), got = (pr.stories || []).length;
       say(p, `📖 ${got}/${CBA.stories.length} truyện` + ((pr.titles || []).length ? ` · 🏅 ${pr.titles.slice(-2).join(', ')}` : ''));
@@ -931,6 +969,84 @@
   }
   setInterval(() => { layoutSeats(); renderBoard(); updateHud(); checkMissions(); }, 600);
 
+  /* ======================= HÀNH HƯƠNG CÁC CHÙA ======================= */
+  const TKEY = 'cba_temple_v1';
+  let TS = { id: 'binh-an', mode: 'daily', day: '' };
+  try { TS = Object.assign(TS, JSON.parse(localStorage.getItem(TKEY) || '{}')); } catch (e) {}
+  const saveTS = () => { try { localStorage.setItem(TKEY, JSON.stringify(TS)); } catch (e) {} };
+  const templeOf = (id) => CBA.temples.find(t => t.id === id) || CBA.temples[0];
+  const curTemple = () => templeOf(TS.id);
+  function templeOfDay() { const n = Math.floor(vnDate().getTime() / 86400000); return CBA.temples[n % CBA.temples.length]; }
+  function applyTemple(t) {
+    $('templeName').textContent = t.name;
+    $('templeSub').textContent = t.place;
+    document.title = t.name + ' · Màn hình phát 9:16';
+    const pil = document.querySelectorAll('#bg .pillar span');
+    if (pil[0]) pil[0].textContent = t.couplet[0]; if (pil[1]) pil[1].textContent = t.couplet[1];
+    stage.style.setProperty('--pillar', t.theme.pillar); stage.style.setProperty('--floor', t.theme.floor);
+    if (C.buddhaSet !== t.buddhaSet) { C.buddhaSet = t.buddhaSet; placeBuddhas(buddhaSet()); const tx = document.querySelectorAll('#buddhaNames text'); buddhaSet().forEach((b, i) => { tx[i * 2].textContent = b.name; tx[i * 2 + 1].textContent = b.sub; }); }
+    A.setTone(t.tone); A.setTempleTrack(t);
+  }
+  function setTemple(id, announce = true) {
+    const t = templeOf(id); TS.id = t.id; saveTS();
+    applyTemple(t);
+    if (!announce) return;
+    const img = `assets/temples/${t.id}.jpg`;
+    card({ kicker: '🏯 Hành hương · ' + (CBA.regions[t.region] || 'Trực tuyến'), title: t.name, text: t.intro, sub: t.place + (t.year ? ` · dựng năm ${t.year}` : ''), img, model: t.id, ms: 12000, big: true });
+    A.bigBell(); A.bigBell(2.6); bowAll(); FX.petals(40, false);
+    A.speak(`Chúng ta đã hành hương đến ${t.name}, ${t.place}.`);
+    if (A.unlocked()) A.playTemple(t.id);
+    // kể sự tích của chùa sau khi giới thiệu
+    const lg = t.legendStory || (t.legend ? 'chua_' + t.id : null);
+    clearTimeout(setTemple._t);
+    if (storyRun && storyRun.st.temple && storyRun.st.temple !== t.id) stopStory();   // đang kể sự tích chùa cũ thì dừng
+    if (lg) setTemple._t = setTimeout(() => { if (!storyRun && TS.id === t.id) startStory(lg); }, 14000);
+    broadcast();
+  }
+  setInterval(() => {   // chùa duyên mỗi ngày (chế độ tự động)
+    const today = dayKey(vnDate());
+    if (TS.mode === 'daily' && TS.day !== today) { TS.day = today; setTemple(templeOfDay().id, present.size > 0); }
+  }, 30000);
+
+  /* ấn hành hương: ai tương tác khi đang ở chùa nào thì nhận ấn chùa đó */
+  let lastStampToast = 0;
+  function stamp(u) {
+    const pr = prof(u), t = curTemple(); pr.temples = pr.temples || [];
+    if (pr.temples.includes(t.id)) return;
+    pr.temples.push(t.id); saveP();
+    if (now() - lastStampToast > 3000) { lastStampToast = now(); toast('📜', [{ b: u.name }, ` nhận ấn ${t.name} (${pr.temples.length}/${CBA.temples.length})`], true, u.avatar); }
+    if (pr.temples.length === 5) giveTitle(u, 'Người Hành Hương');
+    if (pr.temples.length === CBA.temples.length) giveTitle(u, 'Hành Giả Thập Phương');
+  }
+
+  /* ======================= LỆNH ĐIỀU KHIỂN NHÂN VẬT (comment) ======================= */
+  function charCommand(u, p, n) {
+    const m = n.match(/^!\s*(.+)$/); if (!m || !p) return false;
+    const c = m[1].trim(); const L = lookOf(u);
+    if (now() - (u._cmd || 0) < 2500) return true; u._cmd = now();
+    let msg = '';
+    if (/^(nam|trai)$/.test(c)) { L.g = 'nam'; msg = '✨ Đổi thành nam'; }
+    else if (/^(nu|gai)$/.test(c)) { L.g = 'nu'; msg = '✨ Đổi thành nữ'; }
+    else if (/^(toc\s*)?(bui|dai|ngan|troc|cao dau)$/.test(c)) { const k = c.replace(/^toc\s*/, '').replace('cao dau', 'troc'); L.hair = k; msg = '✨ Tóc ' + { bui: 'búi', dai: 'dài', ngan: 'ngắn', troc: 'cạo' }[k]; }
+    else if (/^toc$/.test(c)) { L.hair = HAIRS[(HAIRS.indexOf(L.hair) + 1) % HAIRS.length]; msg = '✨ Đổi kiểu tóc'; }
+    else if (/^ao\s*(lam|nau|xam|trang)$/.test(c)) { L.robe = c.replace(/^ao\s*/, ''); msg = '✨ Áo ' + { lam: 'lam', nau: 'nâu', xam: 'xám', trang: 'trắng' }[L.robe]; }
+    else if (/^(di|kinh hanh|dao|di dao)$/.test(c)) { kinhHanh(p); say(p, '🚶 Kinh hành'); return true; }
+    else if (/^(lay|lay phat)$/.test(c)) { bow(p); setTimeout(() => bow(p), 2300); setTimeout(() => bow(p), 4600); say(p, '🙏 Lạy Phật ba lạy'); return true; }
+    else if (/^(vai|len dien)$/.test(c)) { visitFront(p); say(p, '🙏 Lên điện vái Phật'); return true; }
+    else if (/^chua$/.test(c)) { const t = curTemple(), pr = prof(u); say(p, `🏯 ${t.name} · ấn ${(pr.temples || []).length}/${CBA.temples.length}`); return true; }
+    else return false;
+    saveP(); p.figKey = ''; dirtySeats = true; layoutSeats();
+    say(p, msg); return true;
+  }
+  function visitFront(p) {   // lên trước điện vái rồi về chỗ (không cắm hương)
+    if (!p || !p.fig || p.busy) return;
+    p.busy = true;
+    walkPath(p, routeTo(p, BURNER_SPOT.x + jit(), BURNER_SPOT.y), () => {
+      p.fig.classList.add('faceUp'); bow(p); setTimeout(() => bow(p), 2300);
+      setTimeout(() => { if (!p.fig) return; p.fig.classList.remove('faceUp'); p.busy = false; goSeat(p); }, 4600);
+    });
+  }
+
   /* ======================= NHIỆM VỤ HẰNG NGÀY · HẠNH TU · DUYÊN LÀNH ======================= */
   const DKEY = 'cba_daily_v1';
   let D = null;
@@ -992,7 +1108,8 @@
   }
   // panel trái luân phiên: Cách tham gia ↔ Nhiệm vụ hôm nay
   let guideFlip = false;
-  setInterval(() => { guideFlip = !guideFlip; $('guide').classList.toggle('flip', guideFlip); }, 12000);
+  let guidePage = 0;
+  setInterval(() => { guidePage = (guidePage + 1) % 3; const g = $('guide'); g.classList.toggle('flip', guidePage === 1); g.classList.toggle('flip2', guidePage === 2); }, 12000);
 
   /* Duyên lành: chọn ngẫu nhiên người đang tham gia — mọi người cơ hội như nhau, không liên quan quà tặng */
   let lastLuck = now();
@@ -1021,6 +1138,8 @@
 
   function todayStory() {
     const today = dayKey(vnDate());
+    const t = curTemple(), lg = t.legendStory || (t.legend ? 'chua_' + t.id : null);
+    if (lg && now() - (SB.told[lg] || 0) > 12 * 3600000) return CBA.stories.find(x => x.id === lg);
     if (SB.mainDay !== today) return mainList()[SB.mainIdx % mainList().length];
     // truyện phụ: ưu tiên Vu Lan trong tháng 7 âm, Tam Thế Phật vào ngày lễ; còn lại truyện lâu chưa kể nhất
     let pool = CBA.stories.filter(x => x.series !== 'cuocdoi');
@@ -1178,10 +1297,10 @@
     const seg = C.segments.find(s => s.id === id) || C.segments[0];
     S.segment = seg.id;
     $('segTitle').textContent = seg.title; $('segNote').textContent = seg.note || '';
-    if (autoMusic && seg.story) { stopTeaching(); A.playCategory(seg.category); startStory(); }
+    if (autoMusic && seg.story) { stopTeaching(); A.playCategory(seg.category, TS.id); startStory(); }
     else if (autoMusic && seg.category) {
       if (seg.category === 'giang') startTeaching(CBA.teachings[0].id);
-      else { stopTeaching(); A.playCategory(seg.category); }
+      else { stopTeaching(); A.playCategory(seg.category, TS.id); }
     }
     save(); broadcast();
   }
@@ -1277,6 +1396,7 @@
       story: storyRun ? { id: storyRun.st.id, title: storyRun.st.title, page: storyRun.i + 1, pages: storyRun.pages.length, quiz: !!quiz } : null,
       storyBook: { mainIdx: SB.mainIdx, mainDoneToday: SB.mainDay === dayKey(vnDate()), next: (todayStory() || {}).title, auto: C.story.autoEveryMin },
       daily: D ? { ids: D.ids, c: D.c, done: D.done, streak: D.templeStreak, hanh: hanhTuToday().name } : null,
+      temple: { id: TS.id, mode: TS.mode, today: templeOfDay().id },
       top, segment: S.segment, lunar: { text: lunar.text, feast: lunar.feast, vuLanMonth: lunar.vuLanMonth },
       mult: { lunar: lunarMult(), dongTam: dongTamMult(), room: now() < roomBuffUntil }, profiles: Object.keys(P).length, teaching: teaching ? teaching.id : null, bot: !!bot, audio: A.state(), lastEventAt });
   }
@@ -1317,6 +1437,8 @@
       case 'storyAuto': C.story.autoEveryMin = +a.min || 0; break;
       case 'luckNow': lastLuck = 0; break;
       case 'phatQuang': phatQuang(); break;
+      case 'temple': TS.mode = 'manual'; setTemple(a.id); break;
+      case 'templeMode': TS.mode = a.mode; TS.day = ''; saveTS(); break;
       case 'resetProfiles': P = {}; try { localStorage.removeItem(PKEY); } catch (e) {} dirtySeats = true; break;
       case 'clearYard': for (const id of [...present.keys()]) leave(id); break;
       case 'export': ch && ch.postMessage({ type: 'export', users: Object.values(S.users).sort((x, y) => (y.merit - x.merit) || (y.beads - x.beads))
@@ -1368,6 +1490,7 @@
 
   /* ============================ KHỞI ĐỘNG ============================ */
   loadDaily();
+  setTimeout(() => applyTemple(curTemple()), 0);
   A.scanFolder().then(n => { if (n) toast('🎵', [`Đã nhận ${n} file nhạc/kinh trong thư mục audio`], true); });
   applyConfig();
   FX.init($('fx'));

@@ -14,6 +14,11 @@ chua-binh-an/
 ├── lien-ket-thu-muc-nhac.bat  Liên kết thư mục nhạc có sẵn (F:\I.Kinh,DanThien) vào audio/
 ├── js/stories.js   📖 40 truyện Phật + câu đố
 ├── js/aura.js      Hào quang sau tượng Phật
+├── map.html        🗺 Bản đồ hành hương: 10 chùa 3 miền, mô hình 3D, ảnh thật
+├── js/temples.js   Dữ liệu 10 chùa: sự tích, câu đối, âm điệu, bài niệm
+├── js/temple3d.js  Dựng mô hình 3D từng chùa (Three.js)
+├── vendor/three/   Thư viện Three.js (MIT)
+├── assets/temples/ Ảnh thật các chùa (nguồn & giấy phép: CREDITS.md)
 ├── assets/buddha/  Ảnh tượng Tam Thế Phật (nguồn & giấy phép: CREDITS.md)
 ├── js/config.js    ⚙️ Tên chùa, bậc quà, từ khóa, cách tính điểm, chương trình
 ├── js/content.js   📜 Kinh, bài giảng, lời chúc, danh sách phát
@@ -54,6 +59,10 @@ Game **tự nhận mọi file âm thanh** (mp3, m4a, wav, ogg, flac…) trong th
 3. **Dùng tạm:** trên bảng điều khiển bấm *📁 Chọn thư mục nhạc trên máy…* rồi chọn thư mục đó. Chỉ dùng được đến khi đóng bảng điều khiển.
 
 Sau cách 1 hoặc 2, mở lại màn hình phát (hoặc bấm *🔄 Quét lại thư mục audio/*). Cần chạy game qua `start.bat` thì mới quét được thư mục.
+
+## Hành hương các chùa & bản đồ 3D
+
+Bảng điều khiển → *🏯 Hành hương các chùa* để đổi chùa (hoặc để tự động mỗi ngày một chùa), và nút *🗺 Mở bản đồ hành hương* để xem mô hình 3D và ảnh thật. Nhạc riêng từng chùa: đặt file vào `audio/<mã-chùa>/` (mã: `bai-dinh`, `mot-cot`, `huong`, `yen-tu`, `thien-mu`, `linh-ung`, `long-son`, `vinh-nghiem`, `giac-lam`, `doi`).
 
 ## Tượng Phật & Phật Quang
 

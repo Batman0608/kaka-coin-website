@@ -62,6 +62,15 @@
   $('teaching').onchange = (e) => send('teaching', { id: e.target.value || null });
   $('announce').onclick = () => { const t = $('annText').value.trim(); if (t) send('announce', { text: t }); };
 
+  /* hành hương */
+  CBA.temples.forEach(t => {
+    const b = el('button', 'btn'); b.dataset.id = t.id;
+    b.append(el('b', '', t.name), el('div', 'hint', `${t.place}${t.legend || t.legendStory ? ' · có sự tích' : ''}`));
+    b.onclick = () => { send('temple', { id: t.id }); $('templeMode').value = 'manual'; };
+    $('templeList').append(b);
+  });
+  $('templeMode').onchange = (e) => send('templeMode', { mode: e.target.value });
+
   /* kể chuyện */
   CBA.storySeries.forEach(se => {
     const g = document.createElement('optgroup'); g.label = `${se.icon} ${se.name}`;
@@ -124,6 +133,12 @@
     $('storyTtsOn').checked = a.storyTtsOn;
     [...pl.children].forEach((li, i) => li.classList.toggle('cur', i === a.index));
 
+    if (s.temple) {
+      const t = CBA.temples.find(x => x.id === s.temple.id);
+      $('templePill').textContent = t ? t.name : s.temple.id;
+      if (document.activeElement !== $('templeMode')) $('templeMode').value = s.temple.mode;
+      document.querySelectorAll('#templeList button').forEach(b => { b.classList.toggle('cur', b.dataset.id === s.temple.id); });
+    }
     // kể chuyện & nhiệm vụ
     const sb = s.storyBook || {};
     $('storyPill').textContent = s.story ? (s.story.quiz ? 'đang đố vui' : `trang ${s.story.page}/${s.story.pages}`) : 'đang nghỉ';

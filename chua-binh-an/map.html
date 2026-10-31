@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bản đồ hành hương · Chùa Bình An</title>
+<link rel="stylesheet" href="css/map.css">
+</head>
+<body>
+<header class="top">
+  <h1>🗺 Bản đồ hành hương</h1>
+  <div class="chips" id="regionChips"></div>
+  <div class="live" id="liveInfo">Màn hình phát: chưa mở</div>
+  <a class="btn ghost" href="index.html">← Bảng điều khiển</a>
+</header>
+
+<main>
+  <section class="mapwrap">
+    <svg id="map" role="img" aria-label="Bản đồ Việt Nam với các ngôi chùa"></svg>
+    <div class="legend">
+      <span><i class="dot bac"></i>Miền Bắc</span><span><i class="dot trung"></i>Miền Trung</span><span><i class="dot nam"></i>Miền Nam</span><span><i class="dot live"></i>Đang phát trên live</span>
+    </div>
+  </section>
+
+  <aside class="info" id="info">
+    <div class="viewer">
+      <div class="tabs"><button data-v="3d" class="on">Mô hình 3D</button><button data-v="photo">Ảnh thật</button></div>
+      <div id="view3d" class="v"></div>
+      <div id="viewPhoto" class="v hidden"><img id="photo" alt=""><div class="credit" id="photoCredit"></div><div class="nophoto" id="noPhoto">Chưa có ảnh chụp — đặt ảnh vào <code>assets/temples/</code></div></div>
+      <div class="hint3d">Kéo để xoay · cuộn / chụm để phóng to · mô hình minh họa theo kiến trúc thật</div>
+    </div>
+    <div class="head">
+      <button class="nav" id="prev" aria-label="Chùa trước">←</button>
+      <div><h2 id="tName">—</h2><div class="meta" id="tMeta"></div></div>
+      <button class="nav" id="next" aria-label="Chùa sau">→</button>
+    </div>
+    <p id="tIntro"></p>
+    <ul id="tFacts"></ul>
+    <div class="actions">
+      <button class="btn gold" id="goLive">🏯 Hành hương đến chùa này trên live</button>
+      <button class="btn" id="tellLive">📖 Kể sự tích trên live</button>
+    </div>
+    <details id="legendBox"><summary id="legendTitle">Sự tích chùa</summary><div id="legendText"></div></details>
+  </aside>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/content.js"></script>
+<script src="js/stories.js"></script>
+<script src="js/temples.js"></script>
+<script src="js/vn-shape.js"></script>
+<script src="assets/temples/credits.js"></script>
+<script type="module" src="js/map.js"></script>
+</body>
+</html>
