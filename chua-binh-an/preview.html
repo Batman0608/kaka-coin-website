@@ -1,0 +1,136 @@
+<title>Chùa Bình An</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;900&family=Be+Vietnam+Pro:wght@400;600;800&display=swap">
+<style>
+  /* Bố cục: khung điện thoại 9:16 bên trái (màn hình phát thật), bảng thử nhanh bên phải; một giao diện tối sơn son thếp vàng */
+  :root {
+    --bg: #1a0c07; --panel: #2a130b; --line: #5a3218; --fg: #fbeed6; --mut: #c9a888; --gold: #e9b949; --red: #a3231a; --ok: #6fd39a;
+    --display: 'Noto Serif', Georgia, 'Times New Roman', serif; --body: 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body { font: 15px/1.5 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 28px; }
+  .wrap { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } }
+  header { max-width: 1180px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: baseline; }
+  h1 { margin: 0; font: 900 clamp(24px, 4vw, 34px)/1.1 var(--display); color: var(--gold); text-wrap: balance; }
+  header p { margin: 0; color: var(--mut); max-width: 60ch; }
+  .phone { width: min(100%, calc((100vh - 120px) * 9 / 16), 440px); aspect-ratio: 9 / 16; border-radius: 28px; padding: 10px; background: #0b0503;
+    border: 1px solid var(--line); box-shadow: 0 0 0 4px #24110a, 0 20px 50px rgba(0, 0, 0, .55); justify-self: center; }
+  .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 20px; display: block; background: #000; }
+  .side { display: grid; gap: 14px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 10px; }
+  .card h2 { margin: 0; font: 800 17px var(--display); color: var(--gold); }
+  .note { margin: 0; color: var(--mut); font-size: 13px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, select, input, a.btn { font: 600 14px var(--body); color: var(--fg); background: #3a1c0e; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; cursor: pointer; text-decoration: none; }
+  button:hover, a.btn:hover { border-color: var(--gold); }
+  button:focus-visible, select:focus-visible, input:focus-visible, a.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  button.gold, a.btn.gold { background: linear-gradient(#ffe08a, #e9b949); color: #2a1406; border-color: #c98a1c; }
+  button.on { background: var(--red); border-color: #e05a40; }
+  .tiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .tiers button { text-align: left; display: grid; gap: 2px; }
+  .tiers small { color: var(--mut); font-weight: 400; font-size: 12px; }
+  input { flex: 1; min-width: 0; background: #12080a; }
+  select { min-width: 0; flex: 1; }
+  .cmds { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cmds code { font: 600 12.5px ui-monospace, Menlo, Consolas, monospace; background: #12080a; border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; cursor: pointer; color: var(--gold); }
+  .status { font-size: 13px; color: var(--mut); }
+  .status b { color: var(--ok); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header>
+  <h1>Chùa Bình An · xem trước</h1>
+  <p>Màn hình phát 9:16 chạy thật, nhưng chưa nối TikTok: mọi sự kiện ở đây là mô phỏng. Chạm vào màn hình phát một lần để bật mõ, chuông và nhạc thiền.</p>
+</header>
+
+<div class="wrap">
+  <div class="phone"><iframe id="live" src="live.html" title="Màn hình phát Chùa Bình An"></iframe></div>
+
+  <div class="side">
+    <section class="card">
+      <h2>Người xem mô phỏng</h2>
+      <div class="row">
+        <button class="on" id="bot">Tắt bot</button>
+        <select id="rate" aria-label="Nhịp tương tác"><option value="cham">Chậm</option><option value="vua" selected>Vừa</option><option value="nhanh">Nhanh</option></select>
+      </div>
+      <p class="status" id="stat">Đang khởi động màn hình phát…</p>
+    </section>
+
+    <section class="card">
+      <h2>Thử quà tặng</h2>
+      <div class="tiers" id="tiers"></div>
+    </section>
+
+    <section class="card">
+      <h2>Thử comment</h2>
+      <div class="row"><input id="txt" value="Cầu an cho mẹ con mau khỏe" aria-label="Nội dung comment"><button id="send">Gửi</button></div>
+      <div class="cmds" id="cmds"></div>
+    </section>
+
+    <section class="card">
+      <h2>Phật Quang · Kể chuyện · Hành hương</h2>
+      <div class="row">
+        <button class="gold" id="pq">☀️ Phật Quang ngay</button>
+        <button id="story">📖 Kể truyện hôm nay</button>
+        <button id="next">⏭ Lật trang / đáp án</button>
+      </div>
+      <div class="row"><select id="temple" aria-label="Chọn chùa"></select><button id="go">Hành hương</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Trang khác</h2>
+      <div class="row">
+        <a class="btn gold" href="map.html" target="_blank">🗺 Bản đồ hành hương 3D</a>
+        <a class="btn" href="admin.html" target="_blank">Bảng điều khiển đầy đủ</a>
+      </div>
+      <p class="note">Bảng điều khiển đầy đủ chỉ điều khiển được màn hình phát nằm trong cùng cửa sổ trình duyệt.</p>
+    </section>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/content.js"></script>
+<script src="js/stories.js"></script>
+<script src="js/temples.js"></script>
+<script>
+  const ch = new BroadcastChannel('chua-binh-an');
+  const send = (cmd, args) => ch.postMessage({ type: 'cmd', cmd, args: args || {} });
+  const $ = (id) => document.getElementById(id);
+  let botOn = true, lastState = null;
+
+  CBA.config.giftTiers.forEach(t => {
+    const b = document.createElement('button');
+    const s = document.createElement('small'); s.textContent = `${t.min}+ xu`;
+    b.append(document.createTextNode(`${t.icon} ${t.label}`), s);
+    b.onclick = () => send('test', { kind: 'tier', tier: t.id });
+    $('tiers').append(b);
+  });
+  ['Nam Mô A Di Đà Phật', 'Tùy hỷ', 'còn mẹ', '!nu', '!toc dai', '!ao nau', '!di', '!lay', '!vai', '!so', 'A', 'B'].forEach(c => {
+    const k = document.createElement('code'); k.textContent = c; k.tabIndex = 0; k.setAttribute('role', 'button');
+    const go = () => send('test', { kind: 'chat', text: c, name: 'Bạn' });
+    k.onclick = go; k.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    $('cmds').append(k);
+  });
+  $('send').onclick = () => { const t = $('txt').value.trim(); if (t) send('test', { kind: 'chat', text: t, name: 'Bạn' }); };
+  $('txt').onkeydown = (e) => { if (e.key === 'Enter') $('send').click(); };
+  $('pq').onclick = () => send('phatQuang');
+  $('story').onclick = () => send('storyStart');
+  $('next').onclick = () => send('storyNext');
+  CBA.temples.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = `${t.name}${t.region && CBA.regions[t.region] ? ' · ' + CBA.regions[t.region] : ''}`; $('temple').append(o); });
+  $('go').onclick = () => send('temple', { id: $('temple').value });
+  const setBot = (on) => { botOn = on; send('bot', { on, rate: $('rate').value }); $('bot').textContent = on ? 'Tắt bot' : 'Bật bot'; $('bot').classList.toggle('on', on); };
+  $('bot').onclick = () => setBot(!botOn);
+  $('rate').onchange = () => { if (botOn) setBot(true); };
+
+  ch.onmessage = (e) => { if (e.data && e.data.type === 'state') lastState = e.data; };
+  let started = false;
+  setInterval(() => {
+    if (!lastState) return;
+    if (!started) { started = true; setBot(true); }
+    const s = lastState, t = CBA.temples.find(x => s.temple && x.id === s.temple.id);
+    $('stat').innerHTML = `Màn hình phát: <b>đang chạy</b> · ${s.present} người trong chùa · ${s.stats.beads.toLocaleString('vi-VN')} hạt · ${t ? t.name : ''}`;
+  }, 1000);
+</script>
