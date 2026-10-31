@@ -41,27 +41,67 @@ function roof(w, d, h, color = null, gold = true) {
     c.rotation.z = -sx * 0.9; c.rotation.x = sz * 0.9; g.add(c);
   });
   [-1, 1].forEach(sx => { const c = mesh(new THREE.ConeGeometry(h * 0.08, h * 0.5, 6), GOLD()); c.position.set(sx * w * 0.17, h * 1.15, 0); c.rotation.z = -sx * 0.5; g.add(c); });
+  g.traverse(o => { o.userData.noCollide = true; });   // mái không chặn đường đi
   return g;
 }
 /* điện thờ: nền đá, cột đỏ, tường, 1–2 tầng mái */
+let INTERIOR = null;   // game 3D: { set: 'hoanh'|'thu'|'nam' } → chánh điện mở cửa, có bàn thờ & đệm
+export const HALLS = [];
+function altarFigures(g, w, d, base, set) {
+  const z = -d / 2 + 0.9;
+  g.add(box(w * 0.7, 0.9, 1.1, mat('altar', 0x7a1a0e), 0, base + 0.45, z));
+  g.add(box(w * 0.72, 0.08, 1.2, GOLD(), 0, base + 0.92, z));
+  const figs = set === 'nam' ? [['thich', 0, 1]] : set === 'thu' ? [['adida', -1, 0.75], ['thich', 0, 0.95], ['dilac', 1, 0.75]] : [['duoc', -1, 0.75], ['thich', 0, 0.95], ['adida', 1, 0.75]];
+  figs.forEach(([k, xi, sc]) => {
+    const f = k === 'dilac' ? maitreya(sc, GOLD()) : seatedBuddha(sc, GOLD());
+    f.position.set(xi * w * 0.22, base + 0.96, z - 0.05); g.add(f);
+    const halo = mesh(new THREE.TorusGeometry(sc * 0.42, sc * 0.03, 8, 32), GOLD(), xi * w * 0.22, base + 0.96 + sc * 2, z - 0.35); g.add(halo);
+  });
+  [-1, 1].forEach(sx => { const c = cyl(0.05, 0.05, 0.35, 8, mat('candle', 0xc0392b), sx * w * 0.32, base + 1.13, z + 0.35); g.add(c);
+    const fl = mesh(new THREE.ConeGeometry(0.04, 0.12, 8), mat('flame', 0xffd36b, { emissive: 0xffa020, emissiveIntensity: 2 }), sx * w * 0.32, base + 1.36, z + 0.35, false); g.add(fl); });
+  const lamp = new THREE.PointLight(0xffc070, 1.6, w * 1.6, 1.5); lamp.position.set(0, base + 2.4, z + 1.5); g.add(lamp);
+  return z;
+}
 function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null, base = 0.8 } = {}) {
   const g = new THREE.Group();
   g.add(box(w + 1.6, base, d + 1.6, STONE(), 0, base / 2, 0));
-  g.add(box(w, h, d, wall || WALL(), 0, base + h / 2, 0));
+  if (INTERIOR && w >= 9) {   // chánh điện vào được: tường sau + 2 bên, mặt trước mở
+    const wm = wall || WALL();
+    g.add(box(w, h, 0.3, wm, 0, base + h / 2, -d / 2 + 0.15));
+    [-1, 1].forEach(sx => g.add(box(0.3, h, d, wm, sx * (w / 2 - 0.15), base + h / 2, 0)));
+    const fl = box(w - 0.6, 0.06, d - 0.3, mat('floor', 0x6a3a1e), 0, base + 0.03, 0.1); fl.userData.floor = true; g.add(fl);
+    g.add(box(w, 0.4, 0.3, DRED(), 0, base + h - 0.2, d / 2 - 0.15));   // xà ngang trước
+    const az = altarFigures(g, w, d, base, INTERIOR.set);
+    const cushions = [];
+    const cols = Math.max(3, Math.floor((w - 2) / 1.5)), rows = Math.max(2, Math.floor((d - 2.6) / 1.3));
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const x = (c - (cols - 1) / 2) * 1.5, z = az + 2.2 + r * 1.3;
+      if (z > d / 2 - 0.6) continue;
+      const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, base + 0.11, z); cu.userData.cushion = true; g.add(cu);
+      g.add(box(0.5, 0.02, 0.5, mat('cushg', 0xe0a93a), x, base + 0.17, z));
+      cushions.push(new THREE.Vector3(x, base + 0.16, z));
+    }
+    g.userData.mainHall = { w, d, base, altar: new THREE.Vector3(0, base, az + 1.2), cushions };
+    HALLS.push(g);
+    // đèn lồng đỏ dưới hiên
+    [-1, 1].forEach(sx => { const l = mesh(new THREE.SphereGeometry(0.28, 12, 10), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), sx * w * 0.3, base + h - 0.7, d / 2 + 0.6, false); l.scale.y = 1.2; g.add(l); });
+  } else g.add(box(w, h, d, wall || WALL(), 0, base + h / 2, 0));
   const n = Math.max(4, Math.round(w / 1.8));
   for (let i = 0; i <= n; i++) {
     const x = -w / 2 + (w / n) * i;
     g.add(cyl(0.18, 0.2, h, 10, RED(), x, base + h / 2, d / 2 + 0.55));
   }
-  g.add(box(w * 0.22, h * 0.7, 0.1, DRED(), 0, base + h * 0.35, d / 2 + 0.05));
-  [-1, 1].forEach(s => g.add(box(w * 0.12, h * 0.55, 0.1, DRED(), s * w * 0.3, base + h * 0.4, d / 2 + 0.05)));
+  if (!(INTERIOR && w >= 9)) {
+    g.add(box(w * 0.22, h * 0.7, 0.1, DRED(), 0, base + h * 0.35, d / 2 + 0.05));
+    [-1, 1].forEach(s => g.add(box(w * 0.12, h * 0.55, 0.1, DRED(), s * w * 0.3, base + h * 0.4, d / 2 + 0.05)));
+  }
   const r1 = roof(w + 2.2, d + 2.4, h * 0.75, roofColor); r1.position.y = base + h; g.add(r1);
   if (tiers > 1) {
-    g.add(box(w * 0.6, h * 0.45, d * 0.6, wall || WALL(), 0, base + h + h * 0.75 * 0.5 + h * 0.2, 0));
+    const band = box(w * 0.6, h * 0.45, d * 0.6, wall || WALL(), 0, base + h + h * 0.75 * 0.5 + h * 0.2, 0); band.userData.noCollide = true; g.add(band);
     const r2 = roof(w * 0.75 + 1.4, d * 0.75 + 1.4, h * 0.65, roofColor); r2.position.y = base + h + h * 0.62; g.add(r2);
   }
   // bậc thềm
-  for (let i = 0; i < 4; i++) g.add(box(w * 0.3, base / 4, 0.4, STONE(), 0, base / 8 + i * base / 4 - 0.0, d / 2 + 0.8 + 1.6 - i * 0.4));
+  for (let i = 0; i < 4; i++) g.add(box(w * 0.3, (i + 1) * base / 4, 0.4, STONE(), 0, (i + 1) * base / 8, d / 2 + 0.8 + 1.6 - i * 0.4));
   return g;
 }
 /* tháp nhiều tầng: sides 4 = vuông, 6 = lục giác, 8 = bát giác */
@@ -130,6 +170,26 @@ function standingGuanyin(h, m = WHITE()) {
   const vase = cyl(h * 0.008, h * 0.018, h * 0.06, 10, m, h * 0.06, y0 + h * 0.6, h * 0.07); g.add(vase);
   return g;
 }
+/* Phật Di Lặc: bụng tròn, cười hoan hỷ, đầu tròn, tai dài, túi vải bên cạnh */
+function maitreya(s, m = GOLD()) {
+  const g = new THREE.Group();
+  const base = lotusBase(s * 0.85, m); g.add(base);
+  const y0 = s * 0.6;
+  const legs = mesh(new THREE.SphereGeometry(s * 0.75, 28, 16), m, 0, y0 + s * 0.14, s * 0.05); legs.scale.set(1.05, 0.32, 0.62); g.add(legs);
+  const knee = mesh(new THREE.SphereGeometry(s * 0.22, 14, 10), m, s * 0.42, y0 + s * 0.42, s * 0.25); knee.scale.set(1, 1.3, 1); g.add(knee);   // gối phải dựng
+  const body = mesh(new THREE.SphereGeometry(s * 0.5, 28, 20), m, 0, y0 + s * 0.65, -s * 0.05); body.scale.set(1.05, 1.05, 0.9); g.add(body);
+  const belly = mesh(new THREE.SphereGeometry(s * 0.4, 28, 20), m, 0, y0 + s * 0.55, s * 0.18); g.add(belly);   // bụng to
+  g.add(mesh(new THREE.SphereGeometry(s * 0.04, 10, 8), mat('navel', 0x7a5214), 0, y0 + s * 0.58, s * 0.57));
+  const robe = mesh(new THREE.TorusGeometry(s * 0.47, s * 0.07, 10, 30, Math.PI * 1.2), m, 0, y0 + s * 0.68, -s * 0.02); robe.rotation.set(Math.PI / 2, 0, Math.PI * 0.9); g.add(robe);
+  [-1, 1].forEach(x => { const a = mesh(new THREE.CapsuleGeometry(s * 0.12, s * 0.38, 6, 10), m, x * s * 0.52, y0 + s * 0.7, s * 0.1); a.rotation.z = x * 0.6; g.add(a); });
+  g.add(mesh(new THREE.SphereGeometry(s * 0.1, 10, 8), m, s * 0.72, y0 + s * 0.5, s * 0.25));   // tay cầm chuỗi
+  const head = mesh(new THREE.SphereGeometry(s * 0.3, 26, 20), m, 0, y0 + s * 1.3, 0); g.add(head);
+  [-1, 1].forEach(x => { const e = mesh(new THREE.SphereGeometry(s * 0.07, 8, 6), m, x * s * 0.3, y0 + s * 1.22, 0); e.scale.set(0.5, 1.9, 0.7); g.add(e); });
+  const smile = mesh(new THREE.TorusGeometry(s * 0.12, s * 0.025, 8, 20, Math.PI), mat('smile', 0x6a3a10), 0, y0 + s * 1.2, s * 0.27); smile.rotation.z = Math.PI; g.add(smile);
+  [-1, 1].forEach(x => { const ey = mesh(new THREE.TorusGeometry(s * 0.045, s * 0.015, 6, 12, Math.PI), mat('smile', 0x6a3a10), x * s * 0.11, y0 + s * 1.35, s * 0.26); g.add(ey); });
+  const sack = mesh(new THREE.SphereGeometry(s * 0.32, 18, 14), mat('sack', 0xcdb38a), -s * 0.72, y0 + s * 0.05, s * 0.05); sack.scale.set(1, 0.85, 1); g.add(sack);
+  return g;
+}
 function tree(h, m = LEAF(), x = 0, z = 0, kind = 'round') {
   const g = new THREE.Group(); g.position.set(x, 0, z);
   g.add(cyl(h * 0.05, h * 0.08, h * 0.5, 8, WOOD(), 0, h * 0.25, 0));
@@ -182,9 +242,10 @@ function bats(g, n, center, r) {
   }
   return (t) => list.forEach(b => { const u = b.userData, a = u.a + t * u.s; b.position.set(center.x + Math.cos(a) * u.r, u.y + Math.sin(t * 3 + u.a) * 0.4, center.z + Math.sin(a) * u.r); b.rotation.y = -a; b.scale.y = 0.6 + 0.4 * Math.abs(Math.sin(t * 12 + u.a)); });
 }
-function ground(g, size = 120, color = null) { const o = mesh(new THREE.PlaneGeometry(size, size), color ? mat('gr' + color, color) : GRASS(), 0, 0, 0, false); o.rotation.x = -Math.PI / 2; g.add(o); }
+let NO_GROUND = false;
+function ground(g, size = 120, color = null) { if (NO_GROUND) return; const o = mesh(new THREE.PlaneGeometry(size, size), color ? mat('gr' + color, color) : GRASS(), 0, 0, 0, false); o.rotation.x = -Math.PI / 2; g.add(o); }
 function courtyard(g, w, d, z = 4) { const o = mesh(new THREE.PlaneGeometry(w, d), mat('court', 0xc9b48a), 0, 0.02, z, false); o.rotation.x = -Math.PI / 2; g.add(o); }
-function burner(x, z) { const g = new THREE.Group(); g.position.set(x, 0, z); g.add(cyl(0.6, 0.45, 0.7, 12, BRONZE(), 0, 0.75, 0)); g.add(cyl(0.12, 0.12, 0.4, 8, BRONZE(), 0, 0.2, 0)); g.add(cyl(0.7, 0.6, 0.1, 12, BRONZE(), 0, 1.1, 0)); return g; }
+function burner(x, z) { const g = new THREE.Group(); g.position.set(x, 0, z); g.userData.burner = true; g.add(cyl(0.6, 0.45, 0.7, 12, BRONZE(), 0, 0.75, 0)); g.add(cyl(0.12, 0.12, 0.4, 8, BRONZE(), 0, 0.2, 0)); g.add(cyl(0.7, 0.6, 0.1, 12, BRONZE(), 0, 1.1, 0)); return g; }
 
 /* ---------------- cảnh của từng chùa ---------------- */
 const SCENES = {
@@ -229,7 +290,7 @@ const SCENES = {
     const st = stairs(2.4, 26, 0.31, 0.3); st.position.set(0, 0, 10.5); g.add(st);
     // tam quan
     const gate = new THREE.Group(); gate.position.set(0, 0, 12.5);
-    [-2.6, 0, 2.6].forEach((x, i) => { gate.add(box(i === 1 ? 2.4 : 1.8, i === 1 ? 3.2 : 2.6, 0.8, WALL(), x, i === 1 ? 1.6 : 1.3, 0)); const r = roof(i === 1 ? 3.2 : 2.4, 1.6, 0.9); r.position.set(x, i === 1 ? 3.2 : 2.6, 0); gate.add(r); });
+    [-2.6, 0, 2.6].forEach((x, i) => { if (i === 1) { [-1, 1].forEach(sx => gate.add(box(0.4, 3.2, 0.8, WALL(), sx * 1.0, 1.6, 0))); gate.add(box(2.4, 0.6, 0.8, WALL(), 0, 2.9, 0)); } else gate.add(box(1.8, 2.6, 0.8, WALL(), x, 1.3, 0)); const r = roof(i === 1 ? 3.2 : 2.4, 1.6, 0.9); r.position.set(x, i === 1 ? 3.2 : 2.6, 0); gate.add(r); });
     g.add(gate);
     g.add(water(80, 9, 0, 19)); g.add(boat(-6, 18, 0.3)); g.add(boat(6, 20, -0.2)); lotusPads(g, 20, 60, 6, 0, 19);
     [-9, 9, -14, 14].forEach((x, i) => g.add(tree(4.5, LEAF(), x, 9 + (i % 2) * 2)));
@@ -293,7 +354,15 @@ const SCENES = {
     ground(g, 140, 0x5f8a45); courtyard(g, 24, 12, 8);
     const hg = new THREE.Group(); g.add(hg);
     hg.add(box(16, 2, 10, mat('kbase', 0xe8d8a8), 0, 1, -2));
-    hg.add(box(13, 3.6, 7.5, mat('kwall', 0xf0d080), 0, 3.8, -2));
+    if (INTERIOR) {
+      const km = mat('kwall', 0xf0d080);
+      hg.add(box(13, 3.6, 0.3, km, 0, 3.8, -5.6)); [-1, 1].forEach(sx => hg.add(box(0.3, 3.6, 7.5, km, sx * 6.35, 3.8, -2)));
+      const sub = new THREE.Group(); sub.position.set(0, 0, -2); hg.add(sub);
+      const az = altarFigures(sub, 13, 7.5, 2, 'nam');
+      const cushions = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 6; c++) { const x = (c - 2.5) * 1.6, z = az + 2.3 + r * 1.3; const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, 2.11, z); cu.userData.cushion = true; sub.add(cu); cushions.push(new THREE.Vector3(x, 2.16, z)); }
+      sub.userData.mainHall = { w: 13, d: 7.5, base: 2, altar: new THREE.Vector3(0, 2, az + 1.2), cushions }; HALLS.push(sub);
+      for (let i = 0; i < 7; i++) hg.add(box(4, 0.3 * (i + 1), 0.45, mat('kbase', 0xe8d8a8), 0, 0.15 * (i + 1), 5.2 - i * 0.45 + 0.2));
+    } else hg.add(box(13, 3.6, 7.5, mat('kwall', 0xf0d080), 0, 3.8, -2));
     for (let i = 0; i < 7; i++) hg.add(cyl(0.2, 0.22, 3.6, 10, mat('kcol', 0xf6e7b0), -6 + i * 2, 3.8, 2));
     const gable = (w, h, d, y, z, color) => { const sh = new THREE.Shape(); sh.moveTo(-w / 2, 0); sh.lineTo(0, h); sh.lineTo(w / 2, 0); sh.lineTo(-w / 2, 0);
       const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false }); geo.translate(0, 0, -d / 2); const m = mesh(geo, mat('kr' + color, color), 0, y, z); m.rotation.y = Math.PI / 2; hg.add(m);
@@ -349,3 +418,12 @@ export function mount(el, templeId, opts = {}) {
 
 window.CBA = window.CBA || {};
 CBA.Temple3D = { mount };
+
+/* dùng lại cho game 3D (js/g3d) */
+export function buildLandmark(g, model, opts = {}) {
+  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh' } : null; HALLS.length = 0;
+  try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; }
+}
+export function interiorHall(opts, set) { INTERIOR = { set }; try { return hall(opts); } finally { INTERIOR = null; } }
+export { THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
+  RED, DRED, WALL, YWALL, ROOF, STONE, GOLD, WHITE, BRONZE, WOOD, LEAF, LEAF2, GRASS, DARK, WATER };

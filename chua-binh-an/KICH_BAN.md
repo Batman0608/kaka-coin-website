@@ -120,6 +120,27 @@
 
 ---
 
+## 0f. Game 3D hành hương (bản 7) — chơi trên điện thoại & máy tính
+
+**Vòng chơi:** tạo nhân vật → chọn chùa trên bản đồ → đến cổng chùa → hoàn thành **Sổ hành hương** của chùa đó:
+1. **Lễ Phật:** vào chánh điện, ngồi lên đệm, lạy 3 lạy trước Tam Thế Phật.
+2. **Khám phá địa danh:** đi tới 3–4 địa danh có thật của chùa. Ví dụ: Thiên Mụ có tháp Phước Duyên, điện Đại Hùng, bến sông Hương, lầu chuông; Chùa Hương phải **lên thuyền** ở bến Đục, qua cổng tam quan, leo bậc đá tới động Hương Tích; Yên Tử có thể **leo núi** lên chùa Đồng. Mỗi địa danh hiện thẻ giới thiệu.
+3. **Gặp sư trụ trì** ở sân chùa, nghe kể sự tích chùa rồi trả lời câu đố.
+
+→ Nhận **Ấn hành hương** (+108 hạt). Hồ sơ hiện 10 con dấu; đủ ấn thì được danh hiệu.
+
+**Nhân vật:** đủ tay chân có khớp. Biết đi (vung tay, bước chân), chạy (Shift), chắp tay, quỳ, lạy sát đất, ngồi thiền kiết già, cầm hương. Đầu, tóc, áo thay theo lựa chọn.
+
+**Trong chùa:** chánh điện vào được, có bàn thờ Tam Thế Phật (chùa thờ Thụ Tam Thế có Phật Di Lặc mới; Chùa Dơi Nam tông thờ Đức Thích Ca), nến, đèn lồng đỏ dưới hiên, các hàng đệm ngồi; lư hương có khói; gác chuông thỉnh được; Phật tử khác đi lại, ngồi lạy (mô phỏng, **không phát tiếng mõ**).
+
+**Âm thanh:** không gian chùa gồm tiếng đại chúng tụng "Nam mô A Di Đà Phật", mõ đều và đại hồng chung xa. Âm lượng to dần khi lại gần chánh điện. Khi bạn tự lần hạt, tụng kinh hay thiền, tiếng nền tự nhỏ lại để **chỉ còn một tiếng mõ của bạn**. Bấm "Gõ mõ" khi tụng thì mõ tự động tắt.
+
+**Giọng đọc:** chỉ dùng giọng tiếng Việt, ưu tiên giọng Bắc: HoaiMy hoặc NamMinh trên trình duyệt Edge, Google tiếng Việt trên Android, Microsoft An trên Windows. Máy không có giọng Việt thì không đọc (không còn giọng tiếng Anh). Chọn giọng và nghe thử trong Cài đặt.
+
+**TikTok LIVE:** nằm trong ⚙️ Cài đặt → mở bảng điều khiển livestream và màn hình phát 9:16.
+
+---
+
 ## 0e. Hành hương 10 chùa, bản đồ 3D, đệm ngồi, nhân vật tự chọn (bản 6)
 
 ### 10 ngôi chùa nổi tiếng (`js/temples.js`)

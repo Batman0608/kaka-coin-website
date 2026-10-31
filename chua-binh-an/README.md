@@ -10,7 +10,9 @@ Kịch bản đầy đủ: [`KICH_BAN.md`](KICH_BAN.md)
 chua-binh-an/
 ├── index.html      Bảng điều khiển (kết nối, nhạc, chương trình, thử hiệu ứng, thống kê)
 ├── live.html       Màn hình phát 9:16 — đưa vào TikTok LIVE Studio / OBS
-├── choi.html       Chơi bình thường (không cần TikTok)
+├── game.html       🎮 Game 3D chơi trên điện thoại & máy tính
+├── js/g3d/         Game 3D: main.js (điều khiển, giao diện, hành động), world.js (cảnh, va chạm, địa danh), avatar.js (nhân vật có khớp)
+├── choi.html       Chơi 2D trên màn hình 9:16 (bản cũ)
 ├── js/play.js      Chế độ chơi: tạo nhân vật, thanh hành động, tràng hạt, thiền…
 ├── preview.html    Trang xem trước: màn hình phát + nút thử nhanh
 ├── start.bat       Chạy máy chủ nội bộ trên Windows (bấm đúp)
@@ -32,6 +34,12 @@ chua-binh-an/
 ├── audio/          Chép file mp3 kinh / nhạc của bạn vào đây
 └── assets/         Ảnh nền riêng (tùy chọn)
 ```
+
+## Ba cách chơi
+
+- **Game 3D (chính) — `game.html`**: chơi trên điện thoại và máy tính. Tạo nhân vật (pháp danh, nam/nữ, tóc, áo) → chọn chùa → đi lại trong khuôn viên chùa 3D (cần điều khiển ảo trên điện thoại, WASD trên máy tính, kéo để xoay góc nhìn), vào chánh điện ngồi đệm, lạy Phật, lần tràng hạt, tụng kinh gõ mõ, thiền, dâng lễ, thả đèn nguyện, gặp sư trụ trì nghe sự tích, khám phá địa danh và nhận ấn hành hương. Bản đồ nhỏ ở góc để đổi chùa. Kết nối TikTok LIVE nằm trong ⚙️ Cài đặt.
+- **Livestream TikTok**: `index.html` (bảng điều khiển) + `live.html` (màn hình phát 9:16).
+- `choi.html`: bản chơi 2D cũ trên màn hình 9:16.
 
 ## Hai chế độ
 

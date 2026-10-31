@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#2a0f06">
+<title>Chùa Bình An · Hành hương 3D</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div id="view"></div>
+<div id="labels" aria-hidden="true"></div>
+<div id="fade"></div>
+
+<!-- trên cùng -->
+<button id="pChip" class="chip-p" aria-label="Hồ sơ tu tập">
+  <span id="pInit" class="av">🙏</span>
+  <span class="pt"><b id="pName">—</b><small id="pLv"></small><span class="bar"><i id="pBar"></i></span><small id="pBeads"></small></span>
+</button>
+<div class="tbox"><b id="tName">Chùa Bình An</b><small id="tPlace"></small><div id="obj" class="obj"></div></div>
+<div class="tr">
+  <button id="miniBtn" class="mini" aria-label="Bản đồ – chọn chùa"><canvas id="mini" width="120" height="120"></canvas><span>Bản đồ</span></button>
+  <div class="trow"><span id="pq" class="pq" title="Phật Quang">☀️</span><button id="setBtn" class="round" aria-label="Cài đặt">⚙️</button></div>
+</div>
+<div id="banner" class="banner"></div>
+<div id="toasts" class="toasts"></div>
+
+<!-- dưới -->
+<div id="joy" class="joy" aria-hidden="true"><div id="joyKnob"></div></div>
+<div class="keyhint">WASD / ← ↑ ↓ → đi · Shift chạy · kéo chuột xoay · E tương tác · B lạy · T tràng hạt · M bản đồ</div>
+<button id="ctx" class="ctx" hidden>Tương tác</button>
+<nav id="acts" class="acts" aria-label="Hành động"></nav>
+
+<!-- tụng kinh -->
+<div id="chant" class="chant" hidden>
+  <small id="chantTitle"></small><b id="chantLine"></b><span id="chantNext"></span>
+  <div class="row"><button id="moBtn" class="mo">🪵 Gõ mõ</button><button id="chantStop" class="btn sm">Dừng tụng</button></div>
+</div>
+<!-- thiền -->
+<div id="med" class="med" hidden><div id="breath" class="breath"></div><b id="medLabel">Hít vào…</b><span id="medTime">00:00</span><button id="medStop" class="btn">Xả thiền</button></div>
+<!-- kể chuyện -->
+<div id="story" class="story" hidden>
+  <div class="shead"><div><small id="sSeries"></small><b id="sTitle"></b></div><span id="sPage"></span><button id="sClose" class="x" aria-label="Đóng">✕</button></div>
+  <p id="sText"></p><div id="sOpts" class="opts"></div><button id="sNext" class="btn gold">Trang sau ›</button>
+</div>
+
+<div id="veil" class="veil" hidden></div>
+<div id="loading" class="loading">Đang thắp đèn chánh điện…</div>
+
+<script src="js/config.js"></script>
+<script src="js/content.js"></script>
+<script src="js/stories.js"></script>
+<script src="js/temples.js"></script>
+<script src="js/audio.js"></script>
+<script type="module" src="js/g3d/main.js"></script>
+</body>
+</html>

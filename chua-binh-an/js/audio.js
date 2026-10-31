@@ -174,7 +174,7 @@ CBA.Audio = (() => {
     setLine(lines.length ? 0 : -1);
     metroTimer = setInterval(() => {
       if (!st.playing) return;
-      mo(beat % 4 === 0 ? 1 : 0.65);
+      if (st.autoMo !== false) mo(beat % 4 === 0 ? 1 : 0.65);
       onBeat();
       beat++;
       if (lines.length && beat % (tr.beatsPerLine || 8) === 0) {
@@ -263,16 +263,23 @@ CBA.Audio = (() => {
   }
 
   /* ---------- đọc giọng nói ---------- */
-  let viVoice = null;
+  /* Giọng đọc: CHỈ dùng giọng tiếng Việt, ưu tiên giọng Bắc (Hà Nội).
+     Edge: "Microsoft HoaiMy / NamMinh Online (Natural)"; Windows: "Microsoft An";
+     Android/Chrome: "Google tiếng Việt". Không có giọng Việt thì KHÔNG đọc (tránh giọng tiếng Anh). */
+  let viVoice = null, viVoices = [];
+  const NORTH = [/hoaimy/i, /namminh/i, /google.*(vi|việt)/i, /\ban\b|microsoft an/i, /linh/i];
   function pickVoice() {
     if (!window.speechSynthesis) return;
-    const vs = speechSynthesis.getVoices();
-    viVoice = vs.find(v => /^vi/i.test(v.lang)) || null;
+    viVoices = speechSynthesis.getVoices().filter(v => /^vi/i.test(v.lang) || /vietnam|việt/i.test(v.name));
+    let want = null; try { want = localStorage.getItem('cba_voice'); } catch (e) {}
+    viVoice = viVoices.find(v => v.name === want) || NORTH.map(r => viVoices.find(v => r.test(v.name))).find(Boolean) || viVoices[0] || null;
   }
   if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
   function speak(text, kind) {
     if (!window.speechSynthesis) return;
     if (kind === 'cancel') { speechSynthesis.cancel(); return; }
+    if (!viVoice) pickVoice();
+    if (!viVoice) return;                         // không có giọng tiếng Việt: không đọc bằng giọng tiếng Anh
     if (kind === 'story') {                      // đọc truyện: bật/tắt riêng, đọc nối tiếp
       if (!st.storyTtsOn) return;
       if (/^Câu đố|^Trang|^Sư/.test(text) === false && speechSynthesis.speaking && text.length > 40) { /* để đọc nối */ }
@@ -281,7 +288,7 @@ CBA.Audio = (() => {
       if (speechSynthesis.pending) return;       // tránh dồn hàng đợi khi quà dồn dập
     }
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'vi-VN'; if (viVoice) u.voice = viVoice;
+    u.lang = viVoice.lang || 'vi-VN'; u.voice = viVoice;
     u.rate = 0.95; u.pitch = 1;
     u.onstart = () => { st.duck = 0.35; applyVolume(); };
     u.onend = () => { st.duck = 1; applyVolume(); };
@@ -353,6 +360,62 @@ CBA.Audio = (() => {
     return files.length;
   }
 
+  /* ---------- KHÔNG GIAN CHÙA: đại chúng tụng niệm + mõ xa + chuông xa ----------
+     Tổng hợp bằng Web Audio: hợp xướng giọng trầm đọc "Nam mô A Di Đà Phật"
+     (6 âm tiết, mỗi âm tiết một nguyên âm qua bộ lọc formant), mõ đều, đại hồng chung mỗi ~75 giây.
+     ambience.level(0..1) theo khoảng cách tới chánh điện; ambience.duck(true) khi người chơi tự gõ mõ / lần hạt. */
+  const ambience = (() => {
+    let on = false, out = null, timer = null, bellT = null, lvl = 0, ducked = false;
+    const VOW = { a: [800, 1150], o: [450, 800], u: [350, 650], i: [300, 2200], e: [400, 2000] };
+    const SYL = [['a', 0], ['o', 0], ['a', 2], ['i', 0], ['a', -2], ['a', 0]];   // Nam · Mô · A · Di · Đà · Phật
+    function voice(t, f0, vow, dur, gainV) {
+      const [f1, f2] = VOW[vow];
+      [-4, 0, 3, 7].forEach((det, k) => {
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f0 * (k === 3 ? 0.5 : 1); o.detune.value = det * 3;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gainV, t + 0.08); g.gain.setValueAtTime(gainV, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        const b1 = ctx.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = f1; b1.Q.value = 6;
+        const b2 = ctx.createBiquadFilter(); b2.type = 'bandpass'; b2.frequency.value = f2; b2.Q.value = 8;
+        const m = ctx.createGain(); m.gain.value = 0.6;
+        o.connect(g); g.connect(b1).connect(out); g.connect(b2).connect(m).connect(out);
+        o.start(t); o.stop(t + dur + 0.05);
+      });
+    }
+    function woodTap(t, v) {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+      o.frequency.setValueAtTime(700, t); o.frequency.exponentialRampToValueAtTime(500, t + 0.08);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.connect(g).connect(out); o.start(t); o.stop(t + 0.22);
+    }
+    function phrase() {
+      if (!on) return;
+      const t0 = ctx.currentTime + 0.05, beat = 0.62, base = 110;
+      SYL.forEach(([v, st], i) => { const t = t0 + i * beat; voice(t, base * Math.pow(2, st / 12), v, beat * (i === 5 ? 1.6 : 0.95), 0.05); woodTap(t, 0.35); });
+      timer = setTimeout(phrase, (SYL.length * beat + 1.0) * 1000);
+    }
+    function distantBell() {
+      if (!on) return;
+      const prev = sfxGain; sfxGain = out; bell(92, 9, 0.6); sfxGain = prev;
+      bellT = setTimeout(distantBell, 60000 + Math.random() * 30000);
+    }
+    const apply = () => { if (out) out.gain.setTargetAtTime(on ? lvl * (ducked ? 0.18 : 1) * 0.9 : 0, ctx.currentTime, 0.4); };
+    return {
+      start() {
+        if (on || !ensure()) return; on = true;
+        out = ctx.createGain(); out.gain.value = 0;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+        const dl = ctx.createDelay(1); dl.delayTime.value = 0.23; const fb = ctx.createGain(); fb.gain.value = 0.35;   // vang trong điện
+        out.connect(lp).connect(master); lp.connect(dl); dl.connect(fb).connect(dl); dl.connect(master);
+        phrase(); bellT = setTimeout(distantBell, 8000); apply();
+      },
+      stop() { on = false; clearTimeout(timer); clearTimeout(bellT); apply(); },
+      level(v) { lvl = Math.max(0, Math.min(1, v)); apply(); },
+      duck(d) { ducked = !!d; apply(); },
+      get on() { return on; }
+    };
+  })();
+  function voices() { pickVoice(); return viVoices.map(v => v.name); }
+  function setVoice(name) { try { localStorage.setItem('cba_voice', name); } catch (e) {} pickVoice(); }
+
   /* ---------- cài đặt ---------- */
   function set(opts) {
     Object.assign(st, opts);
@@ -379,7 +442,7 @@ CBA.Audio = (() => {
   return {
     ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
-    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack,
+    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '',
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();

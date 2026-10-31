@@ -28,7 +28,7 @@ CBA.config = {
     thu: [
       { name: 'Phật A Di Đà', sub: 'Quá Khứ', aura: '#ff9f6b', mantra: 'Nam Mô A Di Đà Phật', img: 'assets/buddha/adida.webp', kind: 'adida', headFrac: 0.12, bodyFrac: 0.5 },
       { name: 'Phật Thích Ca', sub: 'Hiện Tại', aura: '#ffd36b', mantra: 'Nam Mô Bổn Sư Thích Ca Mâu Ni Phật', img: 'assets/buddha/thichca.webp', kind: 'thichca', headFrac: 0.14, bodyFrac: 0.48 },
-      { name: 'Phật Di Lặc', sub: 'Vị Lai', aura: '#ffe9a8', mantra: 'Nam Mô Đương Lai Hạ Sanh Di Lặc Tôn Phật', img: 'assets/buddha/dilac.webp', kind: 'dilac', headFrac: 0.15, bodyFrac: 0.5 }   // chưa có ảnh Di Lặc: đặt file assets/buddha/dilac.webp, thiếu thì dùng hình vẽ
+      { name: 'Phật Di Lặc', sub: 'Vị Lai', aura: '#ffe9a8', mantra: 'Nam Mô Đương Lai Hạ Sanh Di Lặc Tôn Phật', img: 'assets/buddha/dilac.webp', kind: 'dilac', headFrac: 0.15, bodyFrac: 0.5 }
     ]
   },
 

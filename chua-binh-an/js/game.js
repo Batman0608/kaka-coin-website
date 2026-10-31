@@ -273,7 +273,10 @@
     S.beads += n; if (u) u.beads += n;
     renderMala();
     const b = $('beadNum'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
-    if (withSound && now() - lastMo > 320) { lastMo = now(); A.mo(0.55); }
+    // chỉ một tiếng mõ: không gõ khi bài tụng đang gõ nhịp; chế độ chơi chỉ gõ cho chính người chơi
+    const chantMo = (() => { const st = A.state(); return st.playing && st.type === 'chant'; })();
+    const playMode = document.body.classList.contains('play');
+    if (withSound && !chantMo && (!playMode || (u && u.id === 'me_local')) && now() - lastMo > 320) { lastMo = now(); A.mo(0.55); }
     checkMilestones(before, S.beads);
     dirtyBoard = true; save();
   }
