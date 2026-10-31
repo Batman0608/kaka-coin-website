@@ -88,6 +88,38 @@
 
 ---
 
+## 0d. Tượng Phật thật, hào quang, nhân vật chuyển động & Phật Quang (bản 5)
+
+**Tượng Tam Thế Phật bằng ảnh tượng thật** (Wikimedia Commons, giấy phép mở, đã tách nền và chỉnh cùng tông vàng; nguồn ghi trong `assets/buddha/CREDITS.md`):
+- **Phật Dược Sư** (trái): tượng đồng mạ vàng Tây Tạng thế kỷ 15, tay cầm bát thuốc.
+- **Phật Thích Ca** (giữa): tượng đồng mạ vàng ngồi tòa sen, tay phải bắt ấn chạm đất (ấn lúc thành đạo).
+- **Phật A Di Đà** (phải): tượng ngồi kiết già, hai tay bắt ấn thiền định.
+- Tên các vị được khắc trên ba bảng ở mặt trước bàn thờ, như trong chùa thật.
+
+**Hào quang sống phía sau mỗi vị** (`js/aura.js`), luôn chuyển động nhẹ:
+- Vầng sáng thân, vầng sáng đầu và tia sáng xoay chậm.
+- Mỗi vị có dấu ấn riêng: Dược Sư có tinh thể lưu ly xanh bay lên; Thích Ca có bánh xe pháp 8 nan xoay sau đầu; A Di Đà có cánh sen hồng rơi.
+
+**Nhân vật mới:** áo tràng dài, 4 kiểu tóc (búi, ngắn, dài, cạo), nhiều màu da. Màu áo theo công đức: lam, nâu, trắng, vàng.
+
+| Tư thế / hành động | Khi nào |
+|---|---|
+| **Đi bộ** (bước chân, tà áo đung đưa, đi theo lối thảm đỏ rồi rẽ vào chỗ) | Mới vào chùa, đổi chỗ khi xếp hạng thay đổi, ra về |
+| **Quỳ** và **lạy sát đất** | Ngồi tại chỗ; người ngẫu nhiên lạy, cả chùa lạy ở các cột mốc |
+| **Lên lư hương** (cầm 2 nén hương có đốm lửa, đứng vái 2 lần, cắm hương rồi về chỗ) | Khi tặng quà bậc Thắp hương (hoa hồng…) |
+| **Kinh hành** (đi chậm vòng quanh sân rồi về chỗ) | Thỉnh thoảng; nhiều người hơn khi đang ở chương trình Niệm Phật |
+| **Vầng sáng trên đầu, thân phát sáng** | Được Phật Quang chiếu (3 phút) |
+
+**☀️ Phật Quang (theo yêu cầu: mỗi 10 phút, tỉ lệ may mắn 50%):**
+- Màn hình luôn đếm ngược: *“☀️ Phật Quang sau 7:12”*.
+- Đến giờ, lần lượt một vị trong Tam Thế Phật tỏa hào quang rực rỡ.
+- **Mỗi người** đang trong chùa và có tương tác trong 10 phút gần nhất được tung một lần, **50% trúng**.
+- Người trúng nhận một **tia hào quang** chiếu từ tượng Phật xuống nhân vật của mình, phát sáng 3 phút, được +54 hạt, và có tên trên thẻ *“Phật Quang phổ chiếu · Phật Dược Sư — 8/24 Phật tử được hào quang chiếu đến”*.
+- Hoàn toàn ngẫu nhiên, **không phụ thuộc quà**, nên không vi phạm quy định cấm bán cơ hội may rủi của TikTok.
+- Chỉnh trong `config.js` → `phatQuang` (`everyMin`, `chance`, `bonus`). Thử ngay bằng phím **Q** hoặc nút “☀️ Phật Quang ngay”.
+
+---
+
 ## I. Bố cục màn hình (1080×1920, dọc 9:16)
 
 Bố cục đã tránh các vùng TikTok che (tên kênh ở trên cùng, bình luận góc dưới trái, nút bên phải). Bấm phím **S** trên màn hình phát để xem vùng an toàn.

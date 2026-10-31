@@ -57,6 +57,9 @@ CBA.FX = (() => {
     parts.push({ k: 'lantern', x, y, vx: rnd(-8, 8), vy: -70, s: 34, life: 0, max: 11, ph: rnd(0, 6) });
     sparkle(12, x, y, 30);
   }
+  function beam(x1, y1, x2, y2, color = '#ffd36b') {   // tia hào quang từ tượng Phật tới người được chiếu
+    parts.push({ k: 'beam', x: x1, y: y1, x2, y2, col: color, life: 0, max: 4.5 });
+  }
   function goldenLotus(fromX = 540, fromY = 1700) {
     parts.push({ k: 'goldLotus', x: fromX, y: fromY, x0: fromX, y0: fromY, tx: 540, ty: 760, life: 0, max: 4.5 });
     sparkle(30, fromX, fromY);
@@ -194,6 +197,21 @@ CBA.FX = (() => {
           p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; p.vx *= .98;
           glowDot(p.x, p.y, p.r * 3, 'rgba(255,240,180,1)', 1 - t);
           break;
+        case 'beam': {
+          const grow = Math.min(1, t * 4), fade = Math.min(1, (1 - t) * 3);
+          const ex = p.x + (p.x2 - p.x) * grow, ey = p.y + (p.y2 - p.y) * grow;
+          const n = parseInt(p.col.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
+          c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+          [[26, .12], [12, .28], [4, .9]].forEach(([w, a]) => {
+            const g = c.createLinearGradient(p.x, p.y, ex, ey);
+            g.addColorStop(0, `rgba(255,250,220,${a * fade})`); g.addColorStop(1, `rgba(${rgb},${a * fade})`);
+            c.strokeStyle = g; c.lineWidth = w; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(ex, ey); c.stroke();
+          });
+          c.restore();
+          glowDot(ex, ey, 40, `rgba(${rgb},1)`, 0.8 * fade);
+          if (Math.random() < .5) { const f = Math.random() * grow; parts.push({ k: 'spark', x: p.x + (p.x2 - p.x) * f, y: p.y + (p.y2 - p.y) * f, vx: (Math.random() - .5) * 40, vy: -20, r: 2.5, life: 0, max: 1 }); }
+          break;
+        }
         case 'ring':
           p.r += 420 * dt;
           c.save(); c.strokeStyle = p.col + (0.8 * (1 - t)) + ')'; c.lineWidth = 6 * (1 - t) + 1;
@@ -209,5 +227,5 @@ CBA.FX = (() => {
     requestAnimationFrame(loop);
   }
 
-  return { init, smoke, petals, lotusUp, lanternAt, goldenLotus, lanterns, sparkle, ring, halo, dragon, boostSmoke, BURNER };
+  return { init, smoke, petals, lotusUp, lanternAt, beam, goldenLotus, lanterns, sparkle, ring, halo, dragon, boostSmoke, BURNER };
 })();

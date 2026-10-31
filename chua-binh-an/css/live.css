@@ -305,3 +305,61 @@ body { font-family: var(--sans); color: var(--cream); }
 .storying #blessing.hidden { transform: translateY(-20px) scale(.8); }
 .storying #milestone { top: 600px; }
 .storying #toasts .toast:nth-last-child(n+3) { display: none; }
+
+/* ---------- bản 5: nhân vật mới (đi, đứng vái, quỳ, lạy, cầm hương, kinh hành) ---------- */
+.pt { width: 80px; height: 140px; margin: -140px 0 0 -40px; transform-origin: 50% 100%;
+  transform: scale(var(--sc, 1)); transition-property: left, top, transform, opacity; transition-timing-function: linear; transition-duration: 0s; }
+.pt svg { width: 80px; height: 140px; overflow: visible; }
+.pt svg g { transform-box: view-box; }
+.pt .kn { display: none; }
+.pt.kneel .st, .pt.kneel .feet { display: none; }
+.pt.kneel .kn { display: inline; }
+.pt .head { transform-origin: 40px 40px; transition: transform .45s ease; }
+.pt.kneel .head { transform: translateY(40px); }
+.pt .inc { display: none; }
+.pt.holding .inc { display: inline; }
+.pt.holding .inc circle { filter: drop-shadow(0 0 3px #ff8a1c); animation: ember 1s ease-in-out infinite alternate; }
+/* bước đi */
+.pt.walk .fl { animation: stepA .56s ease-in-out infinite; }
+.pt.walk .fr { animation: stepB .56s ease-in-out infinite; }
+.pt.walk .st { animation: robeSway .56s ease-in-out infinite; transform-origin: 40px 130px; }
+.pt.walk .head { animation: headBob .28s ease-in-out infinite alternate; }
+@keyframes stepA { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes stepB { 0%, 100% { transform: translateY(-5px); } 50% { transform: translateY(0); } }
+@keyframes robeSway { 0%, 100% { transform: rotate(-1.6deg); } 50% { transform: rotate(1.6deg); } }
+@keyframes headBob { to { transform: translateY(-2px); } }
+.pt.faceL .head { transform: translateX(-3px); } .pt.faceR .head { transform: translateX(3px); }
+.pt.faceL .st { transform: skewX(4deg); } .pt.faceR .st { transform: skewX(-4deg); }
+/* đứng vái */
+.pt.bow:not(.kneel) .head { animation: standBowHead 2.2s ease-in-out; }
+.pt.bow:not(.kneel) .st { animation: standBowBody 2.2s ease-in-out; transform-origin: 40px 130px; }
+@keyframes standBowHead { 35%, 60% { transform: translateY(12px) scaleY(.92); } }
+@keyframes standBowBody { 35%, 60% { transform: scaleY(.94); } }
+/* quỳ lạy sát đất (ngũ thể đầu địa) */
+.pt.kneel.bow .head { animation: prostHead 2.2s ease-in-out; }
+.pt.kneel.bow .kn { animation: prostBody 2.2s ease-in-out; transform-origin: 40px 136px; }
+@keyframes prostHead { 0%, 100% { transform: translateY(40px); } 40%, 62% { transform: translateY(70px) scale(.93); } }
+@keyframes prostBody { 40%, 62% { transform: scaleY(.8) scaleX(1.05); } }
+/* bảng tên & bong bóng theo tư thế */
+.pt .tag { bottom: 128px; transition: bottom .45s; }
+.pt.kneel .tag { bottom: 88px; }
+.bubble { bottom: 152px; }
+.pt.kneel .bubble { bottom: 112px; }
+.pt .rose { top: 56px; transform: translateX(4px); } .pt.kneel .rose { top: 92px; }
+/* được Phật Quang chiếu */
+.pt .hring { position: absolute; left: 50%; top: 2px; width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; display: none;
+  background: radial-gradient(circle, rgba(255, 245, 190, .95) 0 30%, rgba(255, 200, 80, .55) 55%, transparent 72%); transition: top .45s; }
+.pt.kneel .hring { top: 42px; }
+.pt.blessed .hring { display: block; animation: hring 2s ease-in-out infinite; }
+.pt.blessed svg { filter: drop-shadow(0 0 10px rgba(255, 220, 120, .95)); }
+@keyframes hring { 50% { transform: scale(1.25); opacity: .75; } }
+
+/* tượng thật + hào quang */
+#aura { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
+#halos { display: none; }
+#buddhas .bimg { filter: drop-shadow(0 6px 14px rgba(40, 8, 0, .55)) drop-shadow(0 0 22px rgba(255, 200, 90, .35)); }
+#buddhas use { filter: none; }
+#altar.radiant #buddhas .bimg { filter: drop-shadow(0 0 30px rgba(255, 240, 170, .95)) brightness(1.15); }
+#altar.no-buddha #aura { display: none; }
+#buddhaNames .bn { font-size: 17px; fill: #ffe9a8; stroke-width: 4px; }
+#buddhaNames .bs { font-size: 12.5px; fill: #ffd36b; }

@@ -13,6 +13,8 @@ chua-binh-an/
 ├── start.bat       Chạy máy chủ nội bộ trên Windows (bấm đúp)
 ├── lien-ket-thu-muc-nhac.bat  Liên kết thư mục nhạc có sẵn (F:\I.Kinh,DanThien) vào audio/
 ├── js/stories.js   📖 40 truyện Phật + câu đố
+├── js/aura.js      Hào quang sau tượng Phật
+├── assets/buddha/  Ảnh tượng Tam Thế Phật (nguồn & giấy phép: CREDITS.md)
 ├── js/config.js    ⚙️ Tên chùa, bậc quà, từ khóa, cách tính điểm, chương trình
 ├── js/content.js   📜 Kinh, bài giảng, lời chúc, danh sách phát
 ├── js/game.js      Lõi game
@@ -52,6 +54,10 @@ Game **tự nhận mọi file âm thanh** (mp3, m4a, wav, ogg, flac…) trong th
 3. **Dùng tạm:** trên bảng điều khiển bấm *📁 Chọn thư mục nhạc trên máy…* rồi chọn thư mục đó. Chỉ dùng được đến khi đóng bảng điều khiển.
 
 Sau cách 1 hoặc 2, mở lại màn hình phát (hoặc bấm *🔄 Quét lại thư mục audio/*). Cần chạy game qua `start.bat` thì mới quét được thư mục.
+
+## Tượng Phật & Phật Quang
+
+Ảnh tượng nằm trong `assets/buddha/`. Muốn dùng ảnh tượng chùa của bạn: chụp chính diện, tách nền, lưu PNG/WebP nền trong suốt, sửa `img` trong `config.js`. Phật Quang mỗi 10 phút, 50% cho mỗi người đang tu tập: chỉnh ở `phatQuang`.
 
 ## Kể chuyện Phật
 

@@ -21,16 +21,23 @@ CBA.config = {
   buddhaSet: 'hoanh',
   buddhaSets: {
     hoanh: [
-      { name: 'Phật Dược Sư', sub: 'Đông Phương Lưu Ly', aura: '#8fc3ff', mantra: 'Nam Mô Dược Sư Lưu Ly Quang Vương Phật' },
-      { name: 'Phật Thích Ca', sub: 'Ta Bà Giáo Chủ', aura: '#ffd36b', mantra: 'Nam Mô Bổn Sư Thích Ca Mâu Ni Phật' },
-      { name: 'Phật A Di Đà', sub: 'Tây Phương Cực Lạc', aura: '#ffb27a', mantra: 'Nam Mô A Di Đà Phật' }
+      { name: 'Phật Dược Sư', sub: 'Đông Phương Lưu Ly', aura: '#8fc3ff', mantra: 'Nam Mô Dược Sư Lưu Ly Quang Vương Phật', img: 'assets/buddha/duocsu.webp', kind: 'duocsu', headFrac: 0.15, bodyFrac: 0.5 },
+      { name: 'Phật Thích Ca', sub: 'Ta Bà Giáo Chủ', aura: '#ffd36b', mantra: 'Nam Mô Bổn Sư Thích Ca Mâu Ni Phật', img: 'assets/buddha/thichca.webp', kind: 'thichca', headFrac: 0.14, bodyFrac: 0.48 },
+      { name: 'Phật A Di Đà', sub: 'Tây Phương Cực Lạc', aura: '#ff9f6b', mantra: 'Nam Mô A Di Đà Phật', img: 'assets/buddha/adida.webp', kind: 'adida', headFrac: 0.12, bodyFrac: 0.5 }
     ],
     thu: [
-      { name: 'Phật A Di Đà', sub: 'Quá Khứ', aura: '#ffb27a', mantra: 'Nam Mô A Di Đà Phật' },
-      { name: 'Phật Thích Ca', sub: 'Hiện Tại', aura: '#ffd36b', mantra: 'Nam Mô Bổn Sư Thích Ca Mâu Ni Phật' },
-      { name: 'Phật Di Lặc', sub: 'Vị Lai', aura: '#ffe9a8', mantra: 'Nam Mô Đương Lai Hạ Sanh Di Lặc Tôn Phật' }
+      { name: 'Phật A Di Đà', sub: 'Quá Khứ', aura: '#ff9f6b', mantra: 'Nam Mô A Di Đà Phật', img: 'assets/buddha/adida.webp', kind: 'adida', headFrac: 0.12, bodyFrac: 0.5 },
+      { name: 'Phật Thích Ca', sub: 'Hiện Tại', aura: '#ffd36b', mantra: 'Nam Mô Bổn Sư Thích Ca Mâu Ni Phật', img: 'assets/buddha/thichca.webp', kind: 'thichca', headFrac: 0.14, bodyFrac: 0.48 },
+      { name: 'Phật Di Lặc', sub: 'Vị Lai', aura: '#ffe9a8', mantra: 'Nam Mô Đương Lai Hạ Sanh Di Lặc Tôn Phật', img: 'assets/buddha/dilac.webp', kind: 'dilac', headFrac: 0.15, bodyFrac: 0.5 }   // chưa có ảnh Di Lặc: đặt file assets/buddha/dilac.webp, thiếu thì dùng hình vẽ
     ]
   },
+
+  /* ẢNH TƯỢNG: ảnh tượng thật đã tách nền trong assets/buddha/ (nguồn & giấy phép: assets/buddha/CREDITS.md).
+     Muốn thay bằng ảnh tượng chùa bạn: đặt ảnh PNG/WebP nền trong suốt rồi sửa 'img' ở trên. */
+
+  /* PHẬT QUANG: cứ N phút, MỖI người đang tu tập (tương tác trong 10 phút gần nhất)
+     có tỉ lệ may mắn riêng được hào quang của một vị Phật chiếu đến — không phụ thuộc quà. */
+  phatQuang: { everyMin: 10, chance: 0.5, activeMin: 10, bonus: 54, glowMin: 3 },
 
   /* Kết nối TikFinity (Desktop App → Settings → WebSocket API) */
   tikfinity: {

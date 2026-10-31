@@ -149,17 +149,75 @@
     const set = C.buddhaSets[C.buddhaSet] || C.buddhaSets.hoanh;
     const texts = document.querySelectorAll('#buddhaNames text');
     set.forEach((b, i) => { texts[i * 2].textContent = b.name; texts[i * 2 + 1].textContent = b.sub; });
-    const halos = document.querySelectorAll('#halos .halo');
-    set.forEach((b, i) => halos[i] && halos[i].style.setProperty('filter', `drop-shadow(0 0 30px ${b.aura})`));
+    placeBuddhas(set);
     const bg = $('bg');
     const img = params.get('bg') || C.background;
     if (img) { bg.classList.add('has-img'); bg.querySelector('.bg-img').style.backgroundImage = `url("${img}")`; }
     else bg.classList.remove('has-img');
     $('altar').classList.toggle('no-buddha', !!img && !C.showDrawnBuddhas);
+    $('aura').style.display = img && !C.showDrawnBuddhas ? 'none' : '';
     const gl = $('guideList'); gl.innerHTML = '';
     C.guide.forEach(g => { const li = el('li'); li.append(el('span', 'gi', g.icon), el('span', 'gt', g.title), el('span', 'gd', g.desc)); gl.append(li); });
     setSegment(S.segment, false);
   }
+
+  /* ============================ TƯỢNG PHẬT & HÀO QUANG ============================ */
+  const BPOS = [{ cx: 300, h: 250 }, { cx: 540, h: 345 }, { cx: 780, h: 245 }], B_BOTTOM = 772;
+  function placeBuddhas(set) {
+    const groups = document.querySelectorAll('#buddhas .bud');
+    const auraList = [];
+    set.forEach((b, i) => {
+      const g = groups[i], pos = BPOS[i], img = g.querySelector('.bimg'), sym = g.querySelector('.bsym');
+      const useSym = () => {
+        const w = pos.h * 300 / 420; img.style.display = 'none'; sym.style.display = '';
+        sym.setAttribute('x', pos.cx - w / 2); sym.setAttribute('y', B_BOTTOM - pos.h); sym.setAttribute('width', w); sym.setAttribute('height', pos.h);
+        setAura(i, w, 0.18, 0.5);
+      };
+      const setAura = (i, w, hf, bf) => {
+        const top = B_BOTTOM - pos.h;
+        auraList[i] = { x: pos.cx, head: top + pos.h * hf, body: top + pos.h * bf, w, h: pos.h, color: b.aura, kind: b.kind || 'thichca' };
+        CBA.Aura.set(auraList.filter(Boolean).length === set.length ? auraList : auraList.map(x => x || { x: -999, head: 0, body: 0, w: 1, h: 1, color: '#000000' }));
+      };
+      if (!b.img) return useSym();
+      const probe = new Image();
+      probe.onload = () => {
+        const w = pos.h * probe.naturalWidth / probe.naturalHeight;
+        img.setAttribute('href', b.img); img.style.display = ''; sym.style.display = 'none';
+        img.setAttribute('x', pos.cx - w / 2); img.setAttribute('y', B_BOTTOM - pos.h); img.setAttribute('width', w); img.setAttribute('height', pos.h);
+        setAura(i, w, b.headFrac || 0.14, b.bodyFrac || 0.5);
+      };
+      probe.onerror = useSym;
+      probe.src = b.img;
+    });
+  }
+  const buddhaSet = () => C.buddhaSets[C.buddhaSet] || C.buddhaSets.hoanh;
+
+  /* ---------- PHẬT QUANG: mỗi 10 phút, mỗi người đang tu tập có 50% may mắn ---------- */
+  let pqNext = now() + C.phatQuang.everyMin * 60000, pqTurn = 0;
+  function phatQuang() {
+    pqNext = now() + C.phatQuang.everyMin * 60000;
+    const cut = now() - C.phatQuang.activeMin * 60000;
+    const cands = [...present.values()].filter(p => p.fig && p.u.last > cut);
+    if (!cands.length) return;
+    const bi = pqTurn++ % 3, b = buddhaSet()[bi], ab = CBA.Aura.list()[bi];
+    const lucky = cands.filter(() => Math.random() < C.phatQuang.chance);
+    CBA.Aura.manifest(bi, 14); radiant(4);
+    A.khanh(); A.bigBell(0.8);
+    lucky.forEach((p, k) => setTimeout(() => {
+      const pos = figPos(p);
+      if (ab) FX.beam(ab.x, ab.head, pos.x, pos.y, b.aura);
+      bless(p, C.phatQuang.glowMin * 60); bow(p);
+      addBeads(p.u, C.phatQuang.bonus, false);
+      const pr = prof(p.u); pr.pq = (pr.pq || 0) + 1;
+    }, 1200 + k * 180));
+    saveP();
+    const names = lucky.slice(0, 10).map(p => p.u.name).join(', ') + (lucky.length > 10 ? ` và ${lucky.length - 10} người khác` : '');
+    card(lucky.length
+      ? { kicker: `☀️ Phật Quang phổ chiếu · ${b.name}`, title: `${lucky.length}/${cands.length} Phật tử được hào quang chiếu đến`, text: names, sub: `Mỗi người +${C.phatQuang.bonus} hạt · ${b.mantra}`, ms: 9000, big: true }
+      : { kicker: `☀️ Phật Quang · ${b.name}`, title: 'Hào quang đã tỏa khắp chùa', text: 'Lần này chưa ai được chiếu riêng — hãy tiếp tục niệm Phật, 10 phút nữa Phật Quang lại hiện.', ms: 7000, big: true });
+    A.speak(`${b.name} tỏa hào quang. ${lucky.length ? lucky.length + ' Phật tử được hào quang chiếu đến.' : ''}`);
+  }
+  setInterval(() => { if (now() >= pqNext) phatQuang(); }, 1000);
 
   /* ============================ TRÀNG HẠT ============================ */
   const beads = [];
@@ -235,7 +293,7 @@
     if (m.kind === 'rong') { A.bigBell(); A.bigBell(2.2); A.bigBell(4.4); radiant(12); FX.dragon(12); FX.lanterns(50); }
   }
   function radiant(sec) {
-    const a = $('altar'); a.classList.add('radiant'); FX.halo(sec);
+    const a = $('altar'); a.classList.add('radiant'); FX.halo(sec); CBA.Aura.all(sec);
     clearTimeout(radiant._t); radiant._t = setTimeout(() => a.classList.remove('radiant'), sec * 1000);
   }
 
@@ -252,44 +310,117 @@
     }
   })();
 
-  const ROBE = ['#8597b8', '#a0714a', '#e9e9ef', '#f0b93a'];
+  const ROBE = ['#7f93b6', '#9c6b45', '#e6e6ee', '#f0b93a'];
+  const ROBE2 = ['#6a7ea0', '#845a39', '#c9c9d4', '#d39a22'];
   function tierOfUser(u, rank) {
     if (u.merit > 0 && rank < 3) return 3;
     if (u.merit >= 1000) return 2;
     if (u.merit >= 10) return 1;
     return 0;
   }
+  const scaleAt = (y) => Math.max(0.72, Math.min(1.25, 0.84 + (y - 1062) / 115 * 0.07));
+  const AISLE = 540, BURNER_SPOT = { x: 540, y: 1186 };
 
+  /* ---------- hình nhân vật (nhìn từ phía sau, hướng lên điện Phật) ---------- */
   function makeFigure(u) {
-    const f = el('div', 'pt walking');
+    const f = el('div', 'pt');
     const tag = el('div', 'tag');
     if (u.avatar) {
       const im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = u.avatar; im.onerror = () => im.replaceWith(el('span', 'av'));
       tag.append(im);
     } else tag.append(el('span', 'av'));
     tag.append(el('b', 'lv', '1'), document.createTextNode(u.name));
-    const hasBun = (u.id.charCodeAt(0) + u.id.length) % 2 === 0;
-    f.innerHTML = `<svg viewBox="0 0 74 104"><ellipse cx="37" cy="100" rx="31" ry="5" fill="rgba(0,0,0,.35)"/>
-      <g class="body"><g class="torso" style="transform-box:fill-box;transform-origin:50% 100%">
-        <path class="robe" d="M7 100 C5 78 13 58 37 51 C61 58 69 78 67 100 Z" fill="${ROBE[0]}" stroke="rgba(0,0,0,.35)" stroke-width="1.5"/>
-        <path d="M37 56 V100" stroke="rgba(0,0,0,.22)" stroke-width="2"/>
-        <path d="M12 86 Q20 70 26 64 M62 86 Q54 70 48 64" stroke="rgba(0,0,0,.18)" stroke-width="2" fill="none"/>
-        <path d="M27 53 Q37 59 47 53" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/></g>
-      <g class="head" style="transform-box:fill-box;transform-origin:50% 100%">
-        <rect x="32" y="44" width="10" height="9" rx="3" fill="#e8b88a"/>
-        <ellipse cx="22.5" cy="38" rx="3" ry="5" fill="#e8b88a"/><ellipse cx="51.5" cy="38" rx="3" ry="5" fill="#e8b88a"/>
-        <circle cx="37" cy="35" r="15" fill="#1d120c"/>
-        ${hasBun ? '<circle cx="37" cy="22" r="6.5" fill="#1d120c"/>' : '<path d="M24 30 Q37 18 50 30" stroke="#3a261a" stroke-width="2" fill="none"/>'}
-      </g></g></svg><div class="incense"></div>`;
+    const h = hashStr(u.id);
+    const hair = ['bun', 'bun', 'short', 'long', 'long', 'shaved'][h % 6];
+    const skin = ['#e8b88a', '#dca77a', '#f0c9a0', '#c99668'][(h >> 3) % 4];
+    const hairC = ['#1d120c', '#2a1810', '#3b2414'][(h >> 5) % 3];
+    const hairSvg = {
+      bun: `<circle cx="40" cy="29" r="14.5" fill="${hairC}"/><circle cx="40" cy="15.5" r="6.5" fill="${hairC}"/><path d="M33 13 q7 -4 14 0" stroke="#7a5a3a" stroke-width="1.2" fill="none"/>`,
+      short: `<circle cx="40" cy="29" r="14.5" fill="${hairC}"/><path d="M29 22 q11 -9 22 0" stroke="rgba(255,255,255,.12)" stroke-width="2" fill="none"/>`,
+      long: `<path d="M26 30 Q25 56 31 64 L49 64 Q55 56 54 30 Z" fill="${hairC}"/><circle cx="40" cy="29" r="14.5" fill="${hairC}"/>`,
+      shaved: `<circle cx="40" cy="29" r="14" fill="${skin}"/><circle cx="40" cy="29" r="14" fill="rgba(60,40,30,.18)"/>`
+    }[hair];
+    f.innerHTML = `<div class="hring"></div><svg viewBox="0 0 80 140">
+      <ellipse class="shadow" cx="40" cy="136" rx="27" ry="5" fill="rgba(0,0,0,.35)"/>
+      <g class="feet"><ellipse class="fl" cx="32" cy="133" rx="6.5" ry="3.5" fill="#2a1a12"/><ellipse class="fr" cx="48" cy="133" rx="6.5" ry="3.5" fill="#2a1a12"/></g>
+      <g class="st">
+        <path class="robe2" d="M24 52 Q11 72 13 104 Q20 108 27 103 Q25 82 29 64 Z" fill="${ROBE2[0]}"/>
+        <path class="robe2" d="M56 52 Q69 72 67 104 Q60 108 53 103 Q55 82 51 64 Z" fill="${ROBE2[0]}"/>
+        <path class="robe" d="M24 50 Q40 43 56 50 L63 129 Q40 135 17 129 Z" fill="${ROBE[0]}" stroke="rgba(0,0,0,.3)" stroke-width="1.2"/>
+        <path d="M40 50 V132" stroke="rgba(0,0,0,.2)" stroke-width="1.6"/>
+        <path d="M30 70 L26 128 M50 70 L54 128" stroke="rgba(0,0,0,.08)" stroke-width="2"/>
+        <path d="M31 50 Q40 56 49 50" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/>
+      </g>
+      <g class="kn">
+        <path class="robe" d="M8 136 C6 112 15 91 40 84 C65 91 74 112 72 136 Z" fill="${ROBE[0]}" stroke="rgba(0,0,0,.32)" stroke-width="1.4"/>
+        <path d="M40 88 V136" stroke="rgba(0,0,0,.2)" stroke-width="1.8"/>
+        <path d="M14 122 Q21 104 28 98 M66 122 Q59 104 52 98" stroke="rgba(0,0,0,.16)" stroke-width="2" fill="none"/>
+        <path d="M30 86 Q40 92 50 86" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/>
+      </g>
+      <g class="head">
+        <g class="inc"><path d="M36 -2 L37.5 20 M44 -2 L42.5 20" stroke="#b3261e" stroke-width="2"/><circle cx="36" cy="-3" r="2.6" fill="#ffd36b"/><circle cx="44" cy="-3" r="2.6" fill="#ffd36b"/></g>
+        <rect x="35" y="39" width="10" height="11" rx="3" fill="${skin}"/>
+        <ellipse cx="25.5" cy="31" rx="3" ry="5" fill="${skin}"/><ellipse cx="54.5" cy="31" rx="3" ry="5" fill="${skin}"/>
+        ${hairSvg}
+      </g></svg>`;
     f.prepend(tag);
-    f.style.left = '540px'; f.style.top = '1960px';
     $('yard').append(f);
     return f;
+  }
+  function setFigTier(p, t) {
+    p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
+    p.fig.querySelectorAll('.robe').forEach(e => e.setAttribute('fill', ROBE[t]));
+    p.fig.querySelectorAll('.robe2').forEach(e => e.setAttribute('fill', ROBE2[t]));
+  }
+
+  /* ---------- di chuyển theo lối đi ---------- */
+  function place(p, x, y, sec) {
+    const f = p.fig; if (!f) return;
+    const from = p.pos || { x, y };
+    f.style.transitionDuration = sec + 's';
+    f.style.left = x + 'px'; f.style.top = y + 'px';
+    f.style.setProperty('--sc', scaleAt(y).toFixed(3));
+    f.style.zIndex = String(10 + Math.round(y / 10));
+    f.classList.toggle('faceL', x < from.x - 4); f.classList.toggle('faceR', x > from.x + 4);
+    p.pos = { x, y };
+  }
+  function walkPath(p, pts, done, speed = 190) {
+    if (!p.fig) return;
+    clearTimeout(p.walkT);
+    p.fig.classList.remove('kneel', 'bow');
+    p.fig.classList.add('walk');
+    let i = 0;
+    const step = () => {
+      if (!p.fig) return;
+      if (i >= pts.length) { p.fig.classList.remove('walk', 'faceL', 'faceR'); if (done) done(); return; }
+      const [x, y] = pts[i++]; const c = p.pos || { x, y };
+      const sec = Math.max(0.12, Math.hypot(x - c.x, y - c.y) / speed);
+      place(p, x, y, sec);
+      p.walkT = setTimeout(step, sec * 1000);
+    };
+    step();
+  }
+  const jit = () => (Math.random() - 0.5) * 36;
+  function routeTo(p, x, y) {
+    const c = p.pos || { x: AISLE, y: 1990 }, a = AISLE + jit(), pts = [];
+    if (Math.abs(c.x - AISLE) > 25) pts.push([a, c.y]);
+    if (Math.abs(c.y - y) > 4) pts.push([a, y]);
+    pts.push([x, y]);
+    return pts;
+  }
+  function sitDown(p) {
+    if (!p.fig) return;
+    p.fig.classList.add('kneel');
+    setTimeout(() => bow(p), 450);
+  }
+  function goSeat(p) {
+    const s = slots[p.seat]; if (!s) return;
+    walkPath(p, routeTo(p, s.x, s.y), () => sitDown(p));
   }
 
   function join(u) {
     if (present.has(u.id)) { present.get(u.id).u = u; return present.get(u.id); }
-    const p = { u, fig: null, seat: -1, since: now() };
+    const p = { u, fig: null, seat: -1, since: now(), pos: null, busy: false };
     present.set(u.id, p);
     if (present.size > 250) {   // giới hạn danh sách trong chùa
       const oldest = [...present.values()].filter(x => x.u.merit === 0).sort((a, b) => a.u.last - b.u.last)[0];
@@ -303,13 +434,14 @@
   function leave(id) {
     const p = present.get(id); if (!p) return;
     present.delete(id);
-    if (p.fig) walkOut(p.fig);
+    if (p.fig) walkOut(p);
     dirtySeats = true;
   }
-  function walkOut(fig) {
-    fig.classList.add('walking');
-    fig.style.left = '540px'; fig.style.top = '1980px'; fig.style.opacity = '0';
-    setTimeout(() => fig.remove(), 2300);
+  function walkOut(p) {
+    const ghost = { fig: p.fig, pos: p.pos };
+    p.fig = null; p.seat = -1; p.busy = false;
+    clearTimeout(p.walkT);
+    walkPath(ghost, routeTo(ghost, AISLE, 1990), () => { ghost.fig.style.opacity = '0'; setTimeout(() => ghost.fig.remove(), 900); });
   }
 
   function ranked() {
@@ -322,27 +454,18 @@
     const meritRank = Object.values(S.users).filter(u => u.merit > 0).sort((a, b) => b.merit - a.merit).slice(0, 3).map(u => u.id);
     list.forEach((p, i) => {
       if (i < slots.length) {
-        const fresh = !p.fig;
-        if (fresh) p.fig = makeFigure(p.u);
-        const s = slots[i];
-        const t = tierOfUser(p.u, meritRank.indexOf(p.u.id) === -1 ? 99 : meritRank.indexOf(p.u.id));
-        p.fig.className = p.fig.className.replace(/\bt\d\b/g, '').trim() + ' t' + t;
-        p.fig.querySelector('.robe').setAttribute('fill', ROBE[t]);
+        if (!p.fig) { p.fig = makeFigure(p.u); p.pos = null; place(p, AISLE + jit(), 1990, 0); }
+        const r = meritRank.indexOf(p.u.id);
+        setFigTier(p, tierOfUser(p.u, r === -1 ? 99 : r));
         const prr = prof(p.u);
         p.fig.querySelector('.lv').textContent = String(levelOf(prr.beads) + 1) + ((prr.titles || []).length ? '✦' : '');
-        p.fig.style.zIndex = String(10 + Math.round(s.y / 10));
-        p.fig.style.transform = `scale(${s.sc})`;
         renderRose(p);
         if (p.seat !== i) {
           p.seat = i;
-          p.fig.classList.add('walking');
-          const go = () => { p.fig.style.left = s.x + 'px'; p.fig.style.top = s.y + 'px'; };
-          fresh ? requestAnimationFrame(() => requestAnimationFrame(go)) : go();
-          clearTimeout(p.walkT);
-          p.walkT = setTimeout(() => { if (p.fig) { p.fig.classList.remove('walking'); bow(p); } }, 2300);
+          if (!p.busy) { const go = () => goSeat(p); p.pos && p.pos.y < 1980 ? go() : requestAnimationFrame(() => requestAnimationFrame(go)); }
         }
       } else if (p.fig) {   // hết chỗ: ra hàng chờ
-        walkOut(p.fig); p.fig = null; p.seat = -1;
+        walkOut(p);
       }
     });
     updateHud();
@@ -356,10 +479,11 @@
     r.style.filter = p.u.rose === 'white' ? 'grayscale(1) brightness(2.2)' : '';
   }
 
+  /* lạy: đang quỳ thì cúi sát đất, đang đứng thì vái */
   function bow(p) {
-    if (!p || !p.fig) return;
+    if (!p || !p.fig || p.fig.classList.contains('walk')) return;
     p.fig.classList.remove('bow'); void p.fig.offsetWidth; p.fig.classList.add('bow');
-    setTimeout(() => p.fig && p.fig.classList.remove('bow'), 1900);
+    clearTimeout(p.bowT); p.bowT = setTimeout(() => p.fig && p.fig.classList.remove('bow'), 2300);
   }
   function bowAll() {
     let d = 0;
@@ -370,6 +494,11 @@
     p.fig.classList.add('holding');
     clearTimeout(p.incT); p.incT = setTimeout(() => p.fig && p.fig.classList.remove('holding'), sec * 1000);
   }
+  function bless(p, sec = 60) {
+    if (!p || !p.fig) return;
+    p.fig.classList.add('blessed');
+    clearTimeout(p.blT); p.blT = setTimeout(() => p.fig && p.fig.classList.remove('blessed'), sec * 1000);
+  }
   function say(p, text, wish = false) {
     if (!p || !p.fig || !text) return;
     const old = p.fig.querySelector('.bubble'); if (old) old.remove();
@@ -377,9 +506,48 @@
     p.fig.append(b); setTimeout(() => b.remove(), 5000);
   }
   function figPos(p) {
-    if (p && p.seat >= 0) { const s = slots[p.seat]; return { x: s.x, y: s.y - 70 }; }
+    if (p && p.fig && p.pos) {
+      const kneel = p.fig.classList.contains('kneel');
+      return { x: p.pos.x, y: p.pos.y - (kneel ? 66 : 112) * scaleAt(p.pos.y) };
+    }
+    if (p && p.seat >= 0) { const s = slots[p.seat]; return { x: s.x, y: s.y - 66 }; }
     return { x: 540, y: 1500 };
   }
+
+  /* ---------- lên lư hương thắp hương ---------- */
+  let burnerVisitors = 0;
+  function visitBurner(p, onPlant) {
+    if (!p || !p.fig || p.busy) { if (onPlant) onPlant(); return; }
+    p.busy = true; holdIncense(p, 40);
+    const k = burnerVisitors++ % 3, x = BURNER_SPOT.x + (k - 1) * 46;
+    walkPath(p, routeTo(p, x, BURNER_SPOT.y), () => {
+      p.fig.classList.add('faceUp'); bow(p);
+      setTimeout(() => bow(p), 2300);
+      setTimeout(() => {
+        if (onPlant) onPlant();
+        if (!p.fig) return;
+        p.fig.classList.remove('holding', 'faceUp'); p.busy = false;
+        burnerVisitors = Math.max(0, burnerVisitors - 1);
+        goSeat(p);
+      }, 4700);
+    });
+  }
+
+  /* ---------- kinh hành: đi chậm quanh sân chùa ---------- */
+  function kinhHanh(p) {
+    if (!p || !p.fig || p.busy || p.seat < 0) return;
+    const s = slots[p.seat]; p.busy = true;
+    const side = s.x < AISLE ? 70 : 1010, a = AISLE + jit();
+    walkPath(p, [[a, s.y], [a, 1548], [side, 1548], [side, 1040], [s.x, 1040], [s.x, s.y]], () => { p.busy = false; if (slots[p.seat] === s) sitDown(p); else goSeat(p); }, 75);
+  }
+  setInterval(() => {   // sân chùa luôn có sự sống: người lạy, người kinh hành
+    const seated = [...present.values()].filter(p => p.fig && !p.busy && p.fig.classList.contains('kneel'));
+    if (!seated.length) return;
+    if (Math.random() < 0.6) bow(pickOne(seated));
+    const walkers = [...present.values()].filter(p => p.busy && p.fig && p.fig.classList.contains('walk')).length;
+    const want = S.segment === 'niemphat' ? 4 : 1;
+    if (walkers < want && Math.random() < (S.segment === 'niemphat' ? 0.5 : 0.12)) kinhHanh(pickOne(seated));
+  }, 3000);
 
   // rời chùa khi lâu không tương tác
   setInterval(() => {
@@ -500,13 +668,13 @@
     const bless = fill(pickOne(CBA.blessings[tier.id] || CBA.blessings.huong), name);
     const qty = count > 1 ? ` ×${count}` : '';
     toast(tier.icon, [{ b: name }, ` ${tier.label.toLowerCase()} · ${giftName}${qty}`], false, u.avatar);
-    bow(p); holdIncense(p);
+    if (tier.id !== 'huong') { bow(p); holdIncense(p, 8); }
     const pos = figPos(p);
     switch (tier.id) {
       case 'huong':
         u._buff = now() + C.incenseBuff.personalMin * 60000;
-        addSticks(Math.min(count, 5)); FX.boostSmoke(6 + count * 2); A.mo(1);
-        FX.sparkle(10, FX.BURNER.x, FX.BURNER.y);
+        A.mo(1);
+        visitBurner(p, () => { addSticks(Math.min(count, 5)); FX.boostSmoke(6 + count * 2); FX.sparkle(14, FX.BURNER.x, FX.BURNER.y); A.mo(0.8); });
         if (count >= 5) card({ title: name, text: bless, tier: tier.id, ms: 4200 });
         break;
       case 'chuong':
@@ -750,6 +918,8 @@
     chips.push(lunar.feast && C.lunarBonus ? `🌕 ${lunar.feast.name} · ×${lunar.mult}` : `🌙 ${lunar.text}`);
     const dn = dongTamCount(); if (dn >= C.dongTam.minPeople) chips.push(`🤝 Đồng tâm ${dn} người · ×${dongTamMult().toFixed(2)}`);
     const left = roomBuffUntil - now();
+    const pqLeft = Math.max(0, pqNext - now());
+    chips.push(`☀️ Phật Quang sau ${Math.floor(pqLeft / 60000)}:${String(Math.floor(pqLeft / 1000) % 60).padStart(2, '0')}`);
     if (left > 0) chips.push(`🪔 Hương trầm ×${C.incenseBuff.mult} · ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`);
     const html = chips.join('|');
     if (html !== updateHud._last) {
@@ -1146,6 +1316,7 @@
       case 'storyStop': stopStory(); break;
       case 'storyAuto': C.story.autoEveryMin = +a.min || 0; break;
       case 'luckNow': lastLuck = 0; break;
+      case 'phatQuang': phatQuang(); break;
       case 'resetProfiles': P = {}; try { localStorage.removeItem(PKEY); } catch (e) {} dirtySeats = true; break;
       case 'clearYard': for (const id of [...present.keys()]) leave(id); break;
       case 'export': ch && ch.postMessage({ type: 'export', users: Object.values(S.users).sort((x, y) => (y.merit - x.merit) || (y.beads - x.beads))
@@ -1190,6 +1361,7 @@
       case 's': $('safe').classList.toggle('hidden'); break;
       case 'h': $('quick').classList.toggle('hidden'); break;
       case 't': storyRun ? stopStory() : startStory(); break;
+      case 'q': phatQuang(); break;
       case 'f': document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); break;
     }
   });
@@ -1199,6 +1371,7 @@
   A.scanFolder().then(n => { if (n) toast('🎵', [`Đã nhận ${n} file nhạc/kinh trong thư mục audio`], true); });
   applyConfig();
   FX.init($('fx'));
+  CBA.Aura.init($('aura'));
   renderMala(); renderCandles(); renderOfferings(); renderSticks(); renderBoard(); updateHud();
   $('beadNum').textContent = fmt(S.beads); $('beadSub').textContent = `hạt · vòng ${fmt(Math.floor(S.beads / 108))}`;
   requestAnimationFrame(tickCounter);

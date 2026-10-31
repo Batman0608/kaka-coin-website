@@ -23,6 +23,7 @@
   </div>
 
   <!-- ===== TAM THẾ PHẬT ===== -->
+  <canvas id="aura" width="1080" height="1000"></canvas>
   <svg id="altar" viewBox="0 0 1080 1000" width="1080" height="1000">
     <defs>
       <radialGradient id="gHalo" cx="50%" cy="50%" r="50%">
@@ -89,23 +90,24 @@
       <circle class="halo h1" cx="540" cy="430" r="190" fill="url(#gHalo)"/>
       <circle class="halo h2" cx="755" cy="520" r="115" fill="url(#gHalo)"/>
     </g>
+    <!-- tượng: ảnh tượng thật (assets/buddha), nếu thiếu ảnh thì dùng hình vẽ -->
     <g id="buddhas">
-      <use href="#buddha" x="250" y="420" width="150" height="210"/>
-      <use href="#buddha" x="410" y="290" width="260" height="364"/>
-      <use href="#buddha" x="680" y="420" width="150" height="210"/>
-    </g>
-    <g id="buddhaNames" font-family="'Noto Serif', Georgia, serif" text-anchor="middle">
-      <text x="325" y="652" class="bn"></text><text x="325" y="672" class="bs"></text>
-      <text x="540" y="690" class="bn"></text><text x="540" y="712" class="bs"></text>
-      <text x="755" y="652" class="bn"></text><text x="755" y="672" class="bs"></text>
+      <g class="bud"><image class="bimg" preserveAspectRatio="xMidYMax meet"/><use class="bsym" href="#buddha"/></g>
+      <g class="bud"><image class="bimg" preserveAspectRatio="xMidYMax meet"/><use class="bsym" href="#buddha"/></g>
+      <g class="bud"><image class="bimg" preserveAspectRatio="xMidYMax meet"/><use class="bsym" href="#buddha"/></g>
     </g>
     <!-- bàn thờ -->
     <rect x="160" y="770" width="760" height="22" rx="6" fill="url(#gGold)"/>
     <rect x="180" y="792" width="720" height="80" fill="url(#gWood)" stroke="#c98a1c" stroke-width="3"/>
     <g stroke="#e0b04a" stroke-width="2" fill="none" opacity=".7">
-      <path d="M220 812 h120 v40 h-120z"/><path d="M480 812 h120 v40 h-120z"/><path d="M740 812 h120 v40 h-120z"/>
+      <path d="M218 808 h164 v50 h-164z"/><path d="M458 808 h164 v50 h-164z"/><path d="M698 808 h164 v50 h-164z"/>
     </g>
     <!-- lễ vật trên bàn thờ -->
+    <g id="buddhaNames" font-family="'Noto Serif', Georgia, serif" text-anchor="middle">
+      <text x="300" y="830" class="bn"></text><text x="300" y="850" class="bs"></text>
+      <text x="540" y="830" class="bn"></text><text x="540" y="850" class="bs"></text>
+      <text x="780" y="830" class="bn"></text><text x="780" y="850" class="bs"></text>
+    </g>
     <g id="offerings"></g>
     <g id="candles"></g>
   </svg>
@@ -220,7 +222,7 @@
 <div id="quick" class="hidden">
   <b>Phím tắt màn hình phát</b>
   <p>M bật/tắt nhạc · N bài kế · P phát/dừng · K kết nối TikFinity<br>
-     1–6 thử quà theo bậc · C thử comment · L thử thả tim · T kể chuyện<br>
+     1–6 thử quà theo bậc · C thử comment · L thử thả tim · T kể chuyện · Q Phật Quang<br>
      B bot mô phỏng · S vùng an toàn TikTok · F toàn màn hình · H ẩn</p>
 </div>
 
@@ -231,6 +233,7 @@
 <script src="js/audio.js"></script>
 <script src="js/tiktok.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/aura.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
