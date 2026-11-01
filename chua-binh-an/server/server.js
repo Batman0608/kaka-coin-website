@@ -136,6 +136,10 @@ wss.on('connection', (ws, req) => {
       if (!ACTS.has(m.k)) return;
       r.acts.push([p.id, m.k, clean(m.d, 40)]);
       if (r.acts.length > 60) r.acts.shift();
+    } else if (m.t === 'chat') {
+      const text = clean(m.text, 120); if (!text) return;
+      const nowc = Date.now(); if (nowc - (p.chatAt || 0) < 1200) return; p.chatAt = nowc;   // chống spam chat
+      broadcast(r, { t: 'chat', id: p.id, name: p.name, text }, p);   // gửi cho mọi người khác trong kênh
     } else if (m.t === 'prof') {
       p.beads = num(m.b, 1e9) | 0; p.merit = num(m.m, 1e9) | 0; p.badge = clean(m.bd, 4);
       broadcast(r, { t: 'prof', id: p.id, b: p.beads, m: p.merit, bd: p.badge }, p);

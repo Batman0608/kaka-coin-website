@@ -354,3 +354,20 @@ body.touch .obj {
 .kinhbar.muted { background: rgba(40, 20, 12, .9); color: #b9a88e; animation: none; }
 @keyframes kinhGlow { 0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, .5); } 50% { box-shadow: 0 4px 22px rgba(255, 170, 70, .6); } }
 body.touch .kinhbar { top: calc(100px + env(safe-area-inset-top, 0px)); font-size: 11.5px; padding: 5px 11px; max-width: 76vw; }
+
+/* ====== CHAT ====== */
+.chatbtn { position: fixed; z-index: 6; left: max(10px, env(safe-area-inset-left, 0px)); top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(240, 192, 80, .55);
+  background: rgba(42, 16, 8, .85); color: #ffd36b; font-size: 22px; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, .45); }
+.chatbtn:hover { background: rgba(60, 24, 10, .95); }
+.chatinput { position: fixed; z-index: 40; left: 50%; bottom: calc(50% - 30px); transform: translateX(-50%);
+  display: flex; gap: 6px; width: min(92vw, 440px); padding: 8px; border-radius: 14px;
+  background: rgba(28, 11, 5, .96); border: 1px solid rgba(240, 192, 80, .5); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+.chatinput input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #1f0d06; color: var(--fg); font: 15px var(--sans); }
+.chatinput .btn { padding: 0 16px; }
+body.touch .chatinput { bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
+/* bong bóng chat trên đầu nhân vật */
+.chatbub { position: absolute; left: 0; top: 0; max-width: 200px; padding: 5px 10px; border-radius: 12px;
+  background: rgba(255, 252, 245, .96); color: #2a1406; font: 600 13px/1.3 var(--sans); text-align: center;
+  white-space: normal; word-break: break-word; box-shadow: 0 3px 10px rgba(0, 0, 0, .35); border: 1px solid rgba(180, 120, 40, .4); }
+.chatbub::after { content: ''; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: rgba(255, 252, 245, .96); border-bottom: 0; }

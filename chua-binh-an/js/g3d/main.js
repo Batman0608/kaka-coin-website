@@ -1017,9 +1017,52 @@ const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt
 const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: () => { store.set('profile', P); saveS(); } });
 window.__acc = ACC;
 /* nhiều người chơi thật qua máy chủ (server/server.js), tự chia kênh khi đông */
-const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, badgeOf,
+const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, badgeOf, chatBubble,
   onPeers: (k) => { while (npcs.length > Math.max(0, 6 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
   remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
+/* ---------------- trò chuyện (chat) ---------------- */
+const chatBubbles = [];
+function chatBubble(root, text, name, h) {
+  if (!root) return;
+  let b = chatBubbles.find(x => x.root === root);
+  if (!b) { b = { root, el: label('', 'chatbub'), h: h || 2 }; chatBubbles.push(b); }
+  b.el.textContent = text; b.el.style.display = ''; if (h) b.h = h;
+  b.until = performance.now() / 1000 + 3;   // hiện 3 giây rồi tự ẩn, trả lại chỗ trống
+}
+function chatStep() {
+  const nowSec = performance.now() / 1000;
+  for (let i = chatBubbles.length - 1; i >= 0; i--) {
+    const b = chatBubbles[i];
+    if (nowSec > b.until || !b.root.parent) { b.el.remove(); chatBubbles.splice(i, 1); continue; }
+    placeLabel(b.el, b.root.position, (b.h || 2) + 0.65);
+  }
+}
+function sendChat() {
+  const inp = $('chatText'), t = inp.value.replace(/\s+/g, ' ').trim().slice(0, 120);
+  inp.value = ''; $('chatInput').hidden = true;
+  if (!t) return;
+  if (me.av) chatBubble(me.av.root, t, P.name, me.av.height);   // mình thấy ngay
+  if (NET.online) NET.chat(t);
+  else toast('Chưa kết nối máy chủ · tin nhắn chỉ mình bạn thấy');
+}
+$('chatBtn').onclick = () => { const ci = $('chatInput'); ci.hidden = !ci.hidden; if (!ci.hidden) setTimeout(() => $('chatText').focus(), 30); };
+$('chatSend').onclick = sendChat;
+$('chatText').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } else if (e.key === 'Escape') $('chatInput').hidden = true; };
+document.addEventListener('pointerdown', (e) => { const ci = $('chatInput'); if (!ci.hidden && !ci.contains(e.target) && e.target !== $('chatBtn')) ci.hidden = true; });
+
+/* ---------------- khóa vuốt mép trái thoát game (điện thoại) ---------------- */
+(function lockBackSwipe() {
+  if (!matchMedia('(pointer: coarse)').matches) return;   // chỉ khóa trên điện thoại/máy cảm ứng
+  // 1) bẫy nút/động tác Back: ở lại trang thay vì thoát
+  try { history.pushState(null, '', location.href); } catch (e) {}
+  addEventListener('popstate', () => { try { history.pushState(null, '', location.href); } catch (e) {} });
+  // 2) chặn vuốt bắt đầu sát mép trái (động tác "lùi" của iOS/Android)
+  let edge = false;
+  addEventListener('touchstart', (e) => { const t = e.touches[0]; edge = !!t && t.clientX <= 24; }, { passive: true });
+  addEventListener('touchmove', (e) => { if (edge && e.cancelable) e.preventDefault(); }, { passive: false });
+  addEventListener('touchend', () => { edge = false; }, { passive: true });
+})();
+
 window.__net = NET;
 NET.onChange(() => { if (W) $('online').textContent = NET.online ? `👥 ${NET.count} người chơi thật · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; });
 function openChannels() {
@@ -1384,6 +1427,7 @@ function loop() {
     NET.step(dt);
     if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
+    chatStep();
     if (meritLbl) { placeLabel(meritLbl, W.merit, 1.6); if (W.merit.distanceTo(me.av.root.position) > 12) meritLbl.style.display = 'none'; }
     ANIM.forEach(f => f(t));
     smokes.forEach(s => s.update(dt, smokeBoost)); smokeBoost = Math.max(0, smokeBoost - dt);

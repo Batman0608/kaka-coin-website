@@ -16,7 +16,7 @@ function serverUrl() {
 }
 
 export function initNet(ctx) {
-  const { P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, onPeers, remoteLantern, badgeOf } = ctx;
+  const { P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, onPeers, remoteLantern, badgeOf, chatBubble } = ctx;
   const url = serverUrl();
   let ws = null, temple = null, ch = 0, chs = [], cap = 30, myId = 0, online = false, tries = 0, sendT = 0, lastS = '', lastSentAt = 0, profT = 0, wantCh = 0;
   const peers = new Map();   // id → { av, label, name, b, m, bd, tgt, yaw, mv }
@@ -63,7 +63,8 @@ export function initNet(ctx) {
         if (pose !== p.pose) { p.pose = pose; p.av.setPose(pose === 'bow' ? 'kneel' : pose); }
       });
       (m.a || []).forEach(([id, k, d]) => act(id, k, d));
-    } else if (m.t === 'chs') { chs = m.chs; cap = m.cap; changed(); }
+    } else if (m.t === 'chat') { const p = peers.get(m.id); if (p && chatBubble) chatBubble(p.av.root, m.text, p.name, p.av.height); }
+    else if (m.t === 'chs') { chs = m.chs; cap = m.cap; changed(); }
     else if (m.t === 'chfull') toast(`Kênh ${m.ch} vừa đầy · chọn kênh khác`);
     else if (m.t === 'full') { toast(`📡 Máy chủ đang đầy (${m.max} người) · bạn chơi chế độ một mình, thử lại sau`); tries = 99; }
   }
@@ -104,6 +105,7 @@ export function initNet(ctx) {
     join(t) { temple = t; if (!url) return; if (!ws) connect(); else if (ws.readyState === 1) hello(); },
     leave() { clearPeers(); },
     act(k, d) { if (online) sendJ({ t: 'act', k, d: d || '' }); },
+    chat(text) { if (online) sendJ({ t: 'chat', text: text }); },
     profile() { if (online) sendJ({ t: 'prof', b: P.beads | 0, m: P.merit | 0, bd: badgeOf(P) }); },
     listChannels() { sendJ({ t: 'chs' }); },
     switchChannel(c) { if (online && c !== ch) { wantCh = c; sendJ({ t: 'ch', ch: c }); } },
