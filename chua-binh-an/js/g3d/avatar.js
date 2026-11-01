@@ -22,6 +22,7 @@ const POSES = {
   bow:     { hipY: 0.24, torso: 1.15, head: 0.25, lThigh: -1.45, lKnee: 1.5, rThigh: -1.45, rKnee: 1.5, lArm: -1.5, lElbow: -0.2, rArm: -1.5, rElbow: -0.2, armIn: 0.15, legOut: 0, skirt: 0.62 },
   lotus:   { hipY: 0.18, torso: 0, head: 0.05, lThigh: -1.5, lKnee: 2.3, rThigh: -1.5, rKnee: 2.3, lArm: -0.15, lElbow: -1.0, rArm: -0.15, rElbow: -1.0, armIn: 0.5, legOut: 0.9, skirt: 0.5 },
   incense: { hipY: 0.5, torso: 0, head: -0.12, lThigh: 0, lKnee: 0, rThigh: 0, rKnee: 0, lArm: -1.15, lElbow: -1.2, rArm: -1.15, rElbow: -1.2, armIn: 0.7, legOut: 0, skirt: 1 },
+  carry:   { hipY: 0.5, torso: 0, head: 0.1, lThigh: 0, lKnee: 0, rThigh: 0, rKnee: 0, lArm: -1.0, lElbow: -0.75, rArm: -1.0, rElbow: -0.75, armIn: 0.6, legOut: 0, skirt: 1 },
   standBow:{ hipY: 0.5, torso: 0.55, head: 0.2, lThigh: 0, lKnee: 0, rThigh: 0, rKnee: 0, lArm: -0.5, lElbow: -1.4, rArm: -0.5, rElbow: -1.4, armIn: 0.8, legOut: 0, skirt: 1 }
 };
 
@@ -55,7 +56,7 @@ export class Avatar {
     this.torso = pivot(0, 0, 0); this.hips.add(this.torso);
     this.torso.add(lathe([[0.001, 0], [0.26, 0], [0.24, 0.16], [0.21, 0.3], [0.15, 0.4], [0.07, 0.44], [0.001, 0.45]], robe));
     const sash = part(new THREE.TorusGeometry(0.22, 0.03, 8, 30), gold, 0, 0.2, 0); sash.rotation.set(Math.PI / 2 + 0.15, 0.55, 0); sash.scale.set(1.05, 1.05, 1); this.torso.add(sash);   // dải vàng chéo ngực
-    const neck = pivot(0, 0.42, 0); this.torso.add(neck);
+    const neck = pivot(0, 0.42, 0); this.torso.add(neck); this.necklace = neck;
     for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; neck.add(part(new THREE.SphereGeometry(0.022, 6, 5), bead, Math.cos(a) * 0.13, -0.03 - Math.max(0, Math.sin(a)) * 0.05, Math.sin(a) * 0.11)); }   // chuỗi hạt
     // tay áo rộng
     const arm = (sx) => {
@@ -101,11 +102,12 @@ export class Avatar {
   bow() { this.bowT = 0; }
   get height() { return this.pose.hipY + 1.0; }
   update(dt, moving) {
-    const tgt = Object.assign({}, POSES[moving ? 'idle' : this.target]);
+    const tgt = Object.assign({}, POSES[moving && this.target !== 'carry' ? 'idle' : this.target]);
     if (moving) {
       this.walkT += dt * 9 * Math.max(0.6, this.speed);
       const s = Math.sin(this.walkT), a = 0.6 * Math.min(1, this.speed + 0.3);
-      Object.assign(tgt, { lThigh: -s * a, rThigh: s * a, lKnee: Math.max(0, s) * a, rKnee: Math.max(0, -s) * a, lArm: s * a * 0.6 - 0.1, rArm: -s * a * 0.6 - 0.1, lElbow: -0.4, rElbow: -0.4, armIn: 0, hipY: 0.5 + Math.abs(Math.cos(this.walkT)) * 0.035 });
+      Object.assign(tgt, { lThigh: -s * a, rThigh: s * a, lKnee: Math.max(0, s) * a, rKnee: Math.max(0, -s) * a, hipY: 0.5 + Math.abs(Math.cos(this.walkT)) * 0.035 });
+      if (this.target !== 'carry') Object.assign(tgt, { lArm: s * a * 0.6 - 0.1, rArm: -s * a * 0.6 - 0.1, lElbow: -0.4, rElbow: -0.4, armIn: 0 });
     }
     if (this.bowT >= 0) {
       this.bowT += dt;

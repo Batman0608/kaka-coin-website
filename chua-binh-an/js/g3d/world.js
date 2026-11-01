@@ -8,7 +8,7 @@ import { THREE, buildLandmark, interiorHall, HALLS, box, mat, water, tree, LEAF,
 export const LAYOUT = {
   'binh-an': { spawn: [0, 22], abbot: [3.5, 7], pois: [
     ['Chánh điện', 0, 1, 6, 'Nơi thờ Tam Thế Phật. Vào trong, chọn một đệm để ngồi và lễ Phật.'],
-    ['Lư hương trước sân', 0, 6, 3, 'Thắp nén hương, nguyện cho người thân bình an.'],
+    ['Lư hương trước sân', 0, 12, 3, 'Thắp nén hương, nguyện cho người thân bình an.'],
     ['Hàng cây trong vườn chùa', -8, 4, 4, 'Bóng cây che mát sân chùa — nơi Phật tử nghỉ chân.']] },
   'bai-dinh': { spawn: [0, 26], abbot: [4, 14], pois: [
     ['Điện Pháp Chủ trên nền cao', 0, 6, 7, 'Leo bậc đá lên nền cao để vào điện. Khu chùa mới Bái Đính khánh thành năm 2010.'],
@@ -118,7 +118,9 @@ export function buildWorld(scene, temple) {
   root.updateMatrixWorld(true);
   const hallInfo = halls.map(h => {
     const m = h.userData.mainHall;
-    return { altar: h.localToWorld(m.altar.clone()), cushions: m.cushions.map(c => h.localToWorld(c.clone())), group: h };
+    return { altar: h.localToWorld(m.altar.clone()), cushions: m.cushions.map(c => h.localToWorld(c.clone())), group: h,
+      offerSlots: (m.offerSlots || []).map(c => h.localToWorld(c.clone())), burner: m.burner ? h.localToWorld(m.burner.clone()) : null,
+      roofs: m.roofs || [], w: m.w, d: m.d, yaw: h.getWorldQuaternion(new THREE.Quaternion()) };
   });
   const burners = []; root.traverse(o => { if (o.userData.burner) burners.push(o.getWorldPosition(new THREE.Vector3())); });
   const col = new Collision(); col.build(root);

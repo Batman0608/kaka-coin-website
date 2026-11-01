@@ -4,7 +4,7 @@
  *  ngồi đệm, lạy Phật, lần hạt, tụng kinh, thiền, dâng lễ, thả đèn nguyện,
  *  khám phá địa danh, nghe sư trụ trì kể sự tích, nhận ấn hành hương.
  * ========================================================================= */
-import { THREE, ANIM, BOARDS } from '../temple3d.js';
+import { THREE, ANIM, BOARDS, PETAL_TEX } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 
@@ -98,7 +98,7 @@ function loadTemple(id) {
   if (S.npc) spawnNpcs();
   // âm thanh của chùa
   A.setTone(temple.tone); A.setTempleTrack(temple);
-  if (S.amb) A.ambience.start();
+  A.ambience.stop();   // không phát tụng kinh nền
   $('tName').textContent = temple.name; $('tPlace').textContent = temple.place;
   banner('🏯 ' + (CBA.regions[temple.region] || 'Hành hương'), temple.name, temple.intro);
   objective(); drawMiniBase(); hud();
@@ -228,6 +228,7 @@ function offerIncense(bur) {
   if (Date.now() - lastIncense < 60000) { toast(`Nén hương vẫn đang cháy · đợi ${Math.ceil((60000 - (Date.now() - lastIncense)) / 1000)} giây`); return; }
   lastIncense = Date.now();
   me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); me.av.setPose('incense'); A.mo(1);
+  if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
   setTimeout(() => { me.av.bow(); }, 600);
   setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; P.merit += 10; addBeads(10); toast('🕯️ Đã thắp nén hương · +10 công đức'); }, 2800);
 }
@@ -240,19 +241,25 @@ function fade(fn) { const f = $('fade'); f.classList.add('on'); setTimeout(() =>
 
 /* Tràng hạt: chuỗi hạt gỗ hiện ngay trên màn chơi, nhân vật tự về đệm ngồi */
 let malaOn = false, malaAnim = 0;
+function insideHall(h) { return h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75) && Math.abs(me.y - h.altar.y) < 1.5; }
 function openMala() {
   if (malaOn) return;
   const h = W.halls[0];
-  const seatMe = () => {
-    if (me.seated || !h) return;
-    const c = h.cushions[P.seat ?? 0] && !h.cushions[P.seat ?? 0].taken ? h.cushions[P.seat ?? 0] : h.cushions.find(x => !x.taken);
-    if (c) { P.seat = h.cushions.indexOf(c); sitOn(c, h); }
+  if (!h) return toast('Chùa này chưa có chánh điện để ngồi lần hạt');
+  // chỉ lần hạt khi đã vào chánh điện và ngồi trên đệm
+  const seatAndOpen = () => {
+    if (!me.seated) {
+      const pref = h.cushions[P.seat ?? -1];
+      const c = pref && !pref.taken ? pref : h.cushions.filter(x => !x.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0];
+      if (!c) return toast('Các đệm đều đã có người ngồi, đợi một chút nhé');
+      P.seat = h.cushions.indexOf(c); sitOn(c, h);
+    }
+    malaOn = true; document.body.classList.add('focus'); $('malaUI').hidden = false; cam.distBak = cam.dist; cam.dist = 3;
+    paintMala();
   };
-  if (h && !me.seated) { const far = Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) > 7; far ? fade(seatMe) : seatMe(); }
-  malaOn = true; document.body.classList.add('focus'); $('malaUI').hidden = false; A.ambience.duck(true); cam.distBak = cam.dist; cam.dist = 3;
-  paintMala();
+  if (insideHall(h)) seatAndOpen(); else { toast('🛕 Vào chánh điện, ngồi lên đệm để lần tràng hạt'); fade(seatAndOpen); }
 }
-function closeMala() { malaOn = false; document.body.classList.remove('focus'); $('malaUI').hidden = true; A.ambience.duck(false); if (cam.distBak) cam.dist = cam.distBak; }
+function closeMala() { malaOn = false; document.body.classList.remove('focus'); $('malaUI').hidden = true; if (cam.distBak) cam.dist = cam.distBak; }
 $('malaBack').onclick = (e) => { e.stopPropagation(); closeMala(); };
 let lastBead = 0;
 function tickBead() {
@@ -354,28 +361,73 @@ function meditate(min) {
 }
 
 /* Dâng lễ */
-const OFFERS = [{ id: 'nen', icon: '🕯', n: 'Thắp nến', m: 20, cd: 180, c: 0xffd36b }, { id: 'qua', icon: '🍑', n: 'Dâng mâm ngũ quả', m: 30, cd: 300, c: 0xff8c1a }, { id: 'sen', icon: '🌸', n: 'Dâng hoa sen', m: 50, cd: 600, c: 0xff9fb8 }];
+const OFFERS = [
+  { id: 'nen', icon: '🕯', n: 'Đôi nến đỏ', m: 20, cd: 120 },
+  { id: 'qua', icon: '🍑', n: 'Mâm ngũ quả', m: 30, cd: 180 },
+  { id: 'sen', icon: '🌸', n: 'Bình hoa sen', m: 50, cd: 300 },
+  { id: 'tra', icon: '🍵', n: 'Chén trà dâng Phật', m: 15, cd: 90 }
+];
 function openOffer() {
   const cds = store.get('cd', {});
   modal('Dâng lễ', (b) => {
     const list = el('div', 'list');
-    list.append(Object.assign(el('div', 'note'), { textContent: 'Thắp hương: đến lư hương trước chánh điện, bấm "Thắp hương".' }));
     OFFERS.forEach(o => {
       const left = Math.max(0, Math.ceil(((cds[o.id] || 0) - Date.now()) / 1000));
       const r = el('button', 'item' + (left ? ' wait' : '')); r.disabled = !!left;
-      r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Đợi ${Math.ceil(left / 60)} phút` : `+${o.m} công đức · dâng tại bàn thờ`));
-      r.onclick = () => { if (!nearAltar()) { toast('Hãy vào chánh điện, đến trước bàn thờ để dâng lễ'); return; } cds[o.id] = Date.now() + o.cd * 1000; store.set('cd', cds); closeModal(); placeOffering(o); };
+      r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Đợi ${Math.ceil(left / 60)} phút` : `+${o.m} công đức · cầm lên tay, đặt trên bàn thờ`));
+      r.onclick = () => { cds[o.id] = Date.now() + o.cd * 1000; store.set('cd', cds); closeModal(); carryOffering(o); };
       list.append(r);
     });
-    b.append(list, el('p', 'note', 'Lễ vật trong game là miễn phí — quý ở tấm lòng.'));
+    b.append(list, el('p', 'note', 'Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương". Lễ vật trong game miễn phí — quý ở tấm lòng.'));
   });
 }
-function placeOffering(o) {
-  const h = W.halls.find(h => near(h.altar, 7)); if (!h) return;
-  me.av.bow(); A.smallBell();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), new THREE.MeshStandardMaterial({ color: o.c, emissive: o.c, emissiveIntensity: 0.6 }));
-  m.position.copy(h.altar).add(new THREE.Vector3((Math.random() - 0.5) * 2, 0.98, -1.0)); m.userData.tmp = true; scene.add(m);
-  P.merit += o.m; addBeads(o.m); toast(`${o.icon} ${o.n} · +${o.m} công đức`);
+/* mô hình lễ vật */
+function offeringMesh(id) {
+  const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o));
+  const add = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  if (id === 'qua') {
+    add(new THREE.CylinderGeometry(0.2, 0.14, 0.05, 20), M(0xd9a83a, { metalness: 0.7, roughness: 0.3 }), 0, 0.025);
+    [[0xff8c1a, 0, 0.1, 0], [0xe63b2e, 0.09, 0.09, 0.03], [0xffd23f, -0.09, 0.09, 0.03], [0x8bc34a, 0.04, 0.09, -0.09], [0xff6f61, -0.05, 0.17, -0.02]].forEach(([c, x, y, z]) => add(new THREE.SphereGeometry(0.065, 12, 10), M(c), x, y, z));
+  } else if (id === 'sen') {
+    add(new THREE.CylinderGeometry(0.06, 0.09, 0.22, 14), M(0x3f8a7a, { roughness: 0.3 }), 0, 0.11);
+    [[-0.05, 0.36], [0.05, 0.4], [0, 0.46]].forEach(([x, y]) => { add(new THREE.CylinderGeometry(0.006, 0.006, y - 0.18, 5), M(0x3f7a3a), x, (y + 0.18) / 2); add(new THREE.ConeGeometry(0.05, 0.12, 8), M(0xff9fb8), x, y); });
+  } else if (id === 'tra') {
+    add(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 18), M(0x8a5a2a), 0, 0.01);
+    add(new THREE.CylinderGeometry(0.05, 0.035, 0.06, 14), M(0xf0ece0, { roughness: 0.3 }), 0.05, 0.05);
+    add(new THREE.SphereGeometry(0.07, 14, 10), M(0xf0ece0, { roughness: 0.3 }), -0.06, 0.08).scale.y = 0.8;
+  } else {
+    [-0.07, 0.07].forEach(x => { add(new THREE.CylinderGeometry(0.03, 0.03, 0.26, 10), M(0xc0392b), x, 0.13); add(new THREE.ConeGeometry(0.02, 0.06, 8), new THREE.MeshBasicMaterial({ color: 0xffd36b }), x, 0.3); });
+  }
+  return g;
+}
+let carrying = null, slotIdx = 0;
+function dropCarry() { if (carrying) { me.av.root.remove(carrying); carrying = null; } me.av.setPose('idle'); }
+function carryOffering(o) {
+  const h = W.halls[0]; if (!h) return toast('Chùa này chưa có bàn thờ để dâng lễ');
+  const go = () => {
+    const item = offeringMesh(o.id); item.position.set(0, 0.86, 0.32); me.av.root.add(item); carrying = item; me.av.setPose('carry');
+    toast(`${o.icon} Cầm ${o.n.toLowerCase()} lên chánh điện`);
+    const slots = h.offerSlots.length ? h.offerSlots : [h.altar.clone()];
+    const slot = slots[slotIdx++ % slots.length];
+    const fwd = h.burner ? h.burner.clone().sub(slot).setY(0).normalize() : new THREE.Vector3(0, 0, 1);
+    const side = new THREE.Vector3(fwd.z, 0, -fwd.x).multiplyScalar(Math.sign(slot.clone().sub(h.burner || slot).dot(new THREE.Vector3(fwd.z, 0, -fwd.x))) || 1);
+    const stand = slot.clone().add(fwd.clone().multiplyScalar(0.7)); stand.y = 0;
+    const pts = [];
+    if (h.burner) { const pass = h.burner.clone().add(side.clone().multiplyScalar(1.6)).add(fwd.clone().multiplyScalar(0.8)); pts.push(pass); pts.push(h.burner.clone().add(side.clone().multiplyScalar(1.6)).sub(fwd.clone().multiplyScalar(0.9))); }
+    pts.push(stand);
+    walkTo(pts, () => {
+      me.yaw = Math.atan2(slot.x - me.pos.x, slot.z - me.pos.z);
+      // đặt lễ vật lên bàn thờ
+      const wp = item.getWorldPosition(new THREE.Vector3()); me.av.root.remove(item); item.position.copy(wp); item.rotation.y = me.yaw; item.userData.tmp = true; scene.add(item); carrying = null;
+      const from = wp.clone(), t0 = performance.now();
+      const fly = () => { const k = Math.min(1, (performance.now() - t0) / 700); item.position.lerpVectors(from, slot, k); item.position.y += Math.sin(k * Math.PI) * 0.25; if (k < 1) requestAnimationFrame(fly); };
+      fly();
+      me.av.setPose('idle'); setTimeout(() => { me.av.bow(); A.smallBell(); if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }); }, 600);
+      P.merit += o.m; addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · +${o.m} công đức`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`);
+    });
+  };
+  const inside = Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75);
+  if (inside) go(); else fade(() => { const c = h.cushions[h.cushions.length - 1] || h.altar; me.pos.set(c.x, 0, c.z + 0.8); me.y = c.y || h.altar.y; go(); });
 }
 
 /* Đèn nguyện */
@@ -548,7 +600,7 @@ function openSettings() {
     b.append(el('h3', '', '🔊 Âm thanh'),
       tg('Nhạc nền / tụng kinh', st.musicOn, v => A.set({ musicOn: v })),
       tg('Tiếng mõ, chuông của bạn', st.sfxOn, v => A.set({ sfxOn: v })),
-      tg('Không gian chùa (đại chúng tụng niệm, mõ, chuông xa)', S.amb, v => { S.amb = v; saveS(); v ? A.ambience.start() : A.ambience.stop(); }),
+      tg('Chuông chùa tự vang mỗi phút', S.amb, v => { S.amb = v; saveS(); }),
       tg('Mõ tự động khi tụng kinh', S.autoMo, v => { S.autoMo = v; saveS(); A.set({ autoMo: v }); }),
       tg('Giọng đọc truyện', st.storyTtsOn, v => A.set({ storyTtsOn: v })),
       tg('Niệm "Nam mô A Di Đà Phật" khi lạy', S.voiceBow !== false, v => { S.voiceBow = v; saveS(); }));
@@ -628,14 +680,16 @@ setInterval(() => { if (W) { updGo(); $('online').textContent = `${1 + npcs.leng
 function ticker(t) { const e = $('tickerText'); e.textContent = t; e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
 setInterval(() => {
   if (!W || !npcs.length) return; const n = npcs[(Math.random() * npcs.length) | 0], nm = n.label.textContent;
-  n.beads = (n.beads || 200 + (Math.random() * 3000 | 0)) + 108;
+  n.beads = (n.beads || 200 + (Math.random() * 3000 | 0)) + 108; if (Math.random() < 0.35) n.merit = (n.merit || 0) + 30 + (Math.random() * 60 | 0);
   ticker(['📿 ' + nm + ' vừa tròn một chuỗi 108 hạt', '🕯️ ' + nm + ' vừa thắp nén hương', '🙏 ' + nm + ' vừa lạy Phật tại chánh điện', '🏮 ' + nm + ' vừa thả đèn nguyện'][(Math.random() * 4) | 0]);
 }, 24000);
 /* bảng vàng trong chánh điện */
 setInterval(() => {
   if (!BOARDS.length) return;
   const rows = [[P.name, P.beads], ...npcs.map(n => [n.label.textContent, n.beads || (n.beads = 200 + (Math.random() * 3000 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)]);
-  BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : [[P.name, P.merit], ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)])));
+  const meritRows = [[P.name, P.merit], ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
+  BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
+  checkRanks(meritRows);
 }, 3000);
 
 /* camera không xuyên tường: tia từ người chơi tới camera cắt hộp va chạm nào gần nhất (0..1) */
@@ -653,6 +707,100 @@ function rayBoxes(a, b) {
   }
   return best;
 }
+/* chuông chùa tự vang mỗi phút (bấm "Thỉnh chuông" thì vang ngay) */
+setInterval(() => { if (W && S.amb && !paused) { A.bigBell(); } }, 60000);
+
+/* ---------------- tự đi tới đích (dâng lễ, về chỗ) ---------------- */
+let auto = null;   // { pts: [Vector3...], done, stuck }
+function walkTo(pts, done) { standUp(); auto = { pts: pts.map(p => p.clone()), done, stuck: 0 }; }
+function autoStep(dt) {
+  if (!auto) return false;
+  const tgt = auto.pts[0]; const dx = tgt.x - me.pos.x, dz = tgt.z - me.pos.z, d = Math.hypot(dx, dz);
+  if (d < 0.18) { auto.pts.shift(); if (!auto.pts.length) { const f = auto.done; auto = null; if (f) f(); } return false; }
+  const sp = Math.min(d, 2.6 * dt), nx = me.pos.x + dx / d * sp, nz = me.pos.z + dz / d * sp, h = W.col.heightAt(nx, nz, me.y);
+  if (h == null) { auto.stuck += dt; if (auto.stuck > 0.6) { me.pos.x = nx; me.pos.z = nz; } } else { me.pos.x = nx; me.pos.z = nz; auto.stuck = 0; }
+  let dy = Math.atan2(dx, dz) - me.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); me.yaw += dy * Math.min(1, dt * 10); me.av.speed = 0.7;
+  return true;
+}
+
+/* ---------------- mưa hoa mỗi 5 phút ---------------- */
+let shower = null;
+function petalShower() {
+  if (!W || shower) return;
+  const N = 420, pos = new Float32Array(N * 3), vel = [];
+  for (let i = 0; i < N; i++) { pos[i * 3] = me.pos.x + (Math.random() - 0.5) * 26; pos[i * 3 + 1] = me.y + 6 + Math.random() * 10; pos[i * 3 + 2] = me.pos.z + (Math.random() - 0.5) * 26; vel.push(0.6 + Math.random() * 0.9); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ map: PETAL_TEX(), size: 0.28, transparent: true, alphaTest: 0.25, depthWrite: false })); pts.userData.tmp = true; scene.add(pts);
+  shower = { pts, pos, vel, t: 0, y0: me.y }; A.khanh(); ticker('🌸 Mưa hoa sen rơi khắp chùa · nguyện cho tất cả được an lạc');
+}
+function showerStep(dt) {
+  if (!shower) return; shower.t += dt; const { pos, vel } = shower;
+  for (let i = 0; i < vel.length; i++) { pos[i * 3 + 1] -= vel[i] * dt; pos[i * 3] += Math.sin(shower.t * 1.3 + i) * dt * 0.4; if (pos[i * 3 + 1] < shower.y0 && shower.t < 14) pos[i * 3 + 1] += 14; }
+  shower.pts.geometry.attributes.position.needsUpdate = true;
+  if (shower.t > 22) { scene.remove(shower.pts); shower = null; }
+}
+setInterval(() => { if (W && !paused) petalShower(); }, 5 * 60000);
+setTimeout(() => { if (W) petalShower(); }, 40000);
+
+/* ---------------- rồng chuỗi hạt khi có người lên hạng Bảng Công Đức ---------------- */
+const fx = $('fx2d'), fg = fx.getContext('2d'); let dragon = null, lastRanks = null, lastDragon = 0;
+function sizeFx() { const r = Math.min(2, devicePixelRatio || 1); fx.width = innerWidth * r; fx.height = innerHeight * r; fg.setTransform(r, 0, 0, r, 0, 0); }
+addEventListener('resize', sizeFx); sizeFx();
+function checkRanks(rows) {
+  const names = rows.map(r => r[0]);
+  if (lastRanks && Date.now() - lastDragon > 45000) {
+    for (let k = 0; k < Math.min(3, names.length); k++) {
+      const n = names[k], before = lastRanks.indexOf(n);
+      if (before === -1 || before > k) { lastDragon = Date.now(); launchDragon(n, k + 1); break; }
+    }
+  }
+  lastRanks = names;
+}
+function launchDragon(name, rank) {
+  const who = name === P.name ? me.av : (npcs.find(n => n.label.textContent === name) || {}).av;
+  let sx = innerWidth / 2, sy = innerHeight * 0.6;
+  if (who) { v3.copy(who.root.position); v3.y += who.height - 0.4; v3.project(camera); sx = (v3.x * 0.5 + 0.5) * innerWidth; sy = (-v3.y * 0.5 + 0.5) * innerHeight; who.necklace.visible = false; }
+  dragon = { t: 0, sx, sy, hist: [], who };
+  A.bigBell(); A.khanh(0.6);
+  banner('🐉 Bảng Công Đức', `${name} lên hạng ${rank}`, 'Chuỗi hạt hóa rồng bay lên chúc mừng');
+  ticker(`🐉 ${name} vừa lên hạng ${rank} Bảng Công Đức`);
+}
+function dragonStep(dt) {
+  fg.clearRect(0, 0, innerWidth, innerHeight);
+  if (!dragon) return; const d = dragon; d.t += dt;
+  const W2 = innerWidth, H2 = innerHeight, T = 10;
+  // đầu rồng: 1 giây đầu bay lên từ người, sau đó lượn sóng khắp màn hình
+  let hx, hy;
+  if (d.t < 1) { const k = d.t; hx = d.sx + (W2 * 0.5 - d.sx) * k; hy = d.sy + (H2 * 0.3 - d.sy) * k - Math.sin(k * Math.PI) * 80; }
+  else { const th = (d.t - 1) * 0.9; hx = W2 * 0.5 + Math.sin(th) * W2 * 0.38; hy = H2 * 0.36 + Math.sin(th * 2.1) * H2 * 0.16 + Math.cos(th * 0.7) * 30; }
+  d.hist.unshift([hx, hy]); if (d.hist.length > 300) d.hist.pop();
+  const fade = Math.min(1, (T - d.t) / 1.2), N = 34, R = Math.max(9, Math.min(W2, H2) * 0.022);
+  fg.save(); fg.globalAlpha = Math.max(0, fade);
+  for (let i = N - 1; i >= 0; i--) {
+    const p = d.hist[Math.min(d.hist.length - 1, i * 4)]; if (!p) continue;
+    const r = R * (1 - i / N * 0.55);
+    const gr = fg.createRadialGradient(p[0] - r * 0.35, p[1] - r * 0.4, r * 0.1, p[0], p[1], r);
+    gr.addColorStop(0, '#fff6d6'); gr.addColorStop(0.45, i % 6 === 0 ? '#ffd36b' : '#e9c48c'); gr.addColorStop(1, i % 6 === 0 ? '#b87a14' : '#9c6a36');
+    fg.shadowColor = 'rgba(255,210,100,.9)'; fg.shadowBlur = 14; fg.fillStyle = gr; fg.beginPath(); fg.arc(p[0], p[1], r, 0, 7); fg.fill();
+  }
+  // đầu rồng
+  const h0 = d.hist[0], h1 = d.hist[3] || h0, a = Math.atan2(h0[1] - h1[1], h0[0] - h1[0]);
+  fg.translate(h0[0], h0[1]); fg.rotate(a); fg.shadowBlur = 24;
+  fg.fillStyle = '#f3c047'; fg.beginPath(); fg.ellipse(R * 0.6, 0, R * 1.7, R * 1.1, 0, 0, 7); fg.fill();
+  fg.beginPath(); fg.moveTo(R * 1.6, -R * 0.5); fg.lineTo(R * 3, -R * 0.25); fg.lineTo(R * 3, R * 0.35); fg.lineTo(R * 1.6, R * 0.6); fg.fill();
+  fg.strokeStyle = '#ffe9a0'; fg.lineWidth = 3; fg.lineCap = 'round';
+  fg.beginPath(); fg.moveTo(0, -R * 0.8); fg.quadraticCurveTo(-R * 1.4, -R * 2.6, -R * 2.4, -R * 2.1); fg.stroke();
+  fg.beginPath(); fg.moveTo(0, R * 0.8); fg.quadraticCurveTo(-R * 1.4, R * 2.6, -R * 2.4, R * 2.1); fg.stroke();
+  fg.strokeStyle = '#fff6d0'; fg.lineWidth = 2;
+  fg.beginPath(); fg.moveTo(R * 2.8, -R * 0.1); fg.quadraticCurveTo(R * 4, -R * 1.8, R * 5.2, -R * 0.8); fg.stroke();
+  fg.beginPath(); fg.moveTo(R * 2.8, R * 0.2); fg.quadraticCurveTo(R * 4, R * 1.8, R * 5.2, R * 1.0); fg.stroke();
+  fg.shadowBlur = 0; fg.fillStyle = '#b3261e'; fg.beginPath(); fg.arc(R * 1.2, -R * 0.45, R * 0.22, 0, 7); fg.fill(); fg.beginPath(); fg.arc(R * 1.2, R * 0.45, R * 0.22, 0, 7); fg.fill();
+  fg.rotate(-a); const pg = fg.createRadialGradient(Math.cos(a) * R * 6, Math.sin(a) * R * 6, 0, Math.cos(a) * R * 6, Math.sin(a) * R * 6, R * 1.4);
+  pg.addColorStop(0, '#ffffff'); pg.addColorStop(1, 'rgba(255,230,150,0)'); fg.fillStyle = pg; fg.beginPath(); fg.arc(Math.cos(a) * R * 6, Math.sin(a) * R * 6, R * 1.4, 0, 7); fg.fill();   // ngọc
+  fg.restore();
+  if (d.t > T) { if (d.who) d.who.necklace.visible = true; dragon = null; fg.clearRect(0, 0, W2, H2); }
+}
+
 /* ---------------- vòng lặp ---------------- */
 const clock = new THREE.Clock(); const fwd = new THREE.Vector3();
 function loop() {
@@ -661,7 +809,10 @@ function loop() {
     // di chuyển
     let ix = 0, iz = 0;
     if (!paused) { if (keys.KeyW || keys.ArrowUp) iz -= 1; if (keys.KeyS || keys.ArrowDown) iz += 1; if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1; ix += joy.x; iz += joy.y; }
-    const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > 0.12 && $('med').hidden;
+    const mag = Math.min(1, Math.hypot(ix, iz)), manual = mag > 0.12 && $('med').hidden;
+    if (manual && auto) { auto = null; if (me.av.target === 'carry') { dropCarry(); } }
+    if (malaOn && !me.seated) closeMala();
+    const autoMoving = !manual && autoStep(dt), moving = manual;
     if (moving && me.seated) standUp();
     if (moving && ['kneel', 'lotus', 'incense'].includes(me.av.target)) me.av.setPose('idle');
     if (moving) {
@@ -676,12 +827,15 @@ function loop() {
       me.av.speed = mag * (keys.ShiftLeft ? 1.5 : 1);
     }
     if (!me.seated) { const g = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.01) ?? me.y; me.y += (g - me.y) * Math.min(1, dt * (g < me.y ? 6 : 14)); }
-    me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving);
+    me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving || autoMoving);
+    showerStep(dt); dragonStep(dt);
     // camera
     const tgt = new THREE.Vector3(me.pos.x, me.y + 1.05, me.pos.z);
     // trong chánh điện: camera thấp & gần để không bị mái che
-    const inHall = W.halls.some(h => Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7 && Math.abs(me.y - h.altar.y) < 1.5);
-    const dist = inHall ? Math.min(cam.dist, 3.6) : cam.dist, pitch = inHall ? Math.min(cam.pitch, 0.3) : cam.pitch;
+    const hallIn = W.halls.find(h => Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75) && Math.abs(me.y - h.altar.y) < 1.5);
+    W.halls.forEach(h => h.roofs.forEach(r => { r.visible = h !== hallIn; }));   // ở trong điện: ẩn mái để nhìn bao quát
+    const inHall = !!hallIn;
+    const dist = malaOn ? 3.2 : inHall ? Math.max(6.5, Math.min(cam.dist + 3, 11)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.max(cam.pitch, 0.62) : cam.pitch;
     let cp = new THREE.Vector3(tgt.x + Math.sin(cam.yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(cam.yaw) * Math.cos(pitch) * dist);
     const hit = rayBoxes(tgt, cp); if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
     camera.position.lerp(cp, Math.min(1, dt * 8)); camera.lookAt(tgt);
@@ -697,7 +851,7 @@ function loop() {
     if ((t * 10 | 0) % 3 === 0) {
       ctxAction = findContext(); const cb = $('ctx'); cb.hidden = !ctxAction; if (ctxAction) cb.textContent = ctxAction.label;
       checkPois();
-      const h = W.halls[0]; if (h && S.amb) A.ambience.level(1 / (1 + Math.max(0, h.altar.distanceTo(me.pos) - 4) / 10));
+
     }
     drawMini();
   }
@@ -705,7 +859,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__game = { me, get W() { return W; }, P, cam, loadTemple };   // hỗ trợ kiểm thử
+window.__game = { me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: () => petalShower() };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');

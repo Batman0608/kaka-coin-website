@@ -151,3 +151,5 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .mcount b { font: 900 64px/1 var(--serif); font-variant-numeric: tabular-nums; } .mcount span { font: 600 24px var(--sans); } .mcount small { grid-column: 1 / -1; font-size: 14px; color: #ffe6b0; }
 .mhint { position: absolute; right: max(18px, env(safe-area-inset-right, 0px)); bottom: calc(32px + env(safe-area-inset-bottom, 0px)); text-align: right; color: #ffe6b0; font-size: 14px; text-shadow: 0 1px 4px #000; pointer-events: none; }
 .mhint b { color: var(--gold); }
+
+.fx2d { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 7; pointer-events: none; }
