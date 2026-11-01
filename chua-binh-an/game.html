@@ -13,23 +13,43 @@
 <div id="fade"></div>
 
 <!-- trên cùng -->
-<button id="pChip" class="chip-p" aria-label="Hồ sơ tu tập">
-  <span id="pInit" class="av">🙏</span>
-  <span class="pt"><b id="pName">—</b><small id="pLv"></small><span class="bar"><i id="pBar"></i></span><small id="pBeads"></small></span>
-</button>
-<div class="tbox"><b id="tName">Chùa Bình An</b><small id="tPlace"></small><div id="obj" class="obj"></div></div>
-<div class="tr">
-  <button id="miniBtn" class="mini" aria-label="Bản đồ – chọn chùa"><canvas id="mini" width="120" height="120"></canvas><span>Bản đồ</span></button>
-  <div class="trow"><span id="pq" class="pq" title="Phật Quang">☀️</span><button id="setBtn" class="round" aria-label="Cài đặt">⚙️</button></div>
+<div id="ticker" class="ticker"><span id="tickerText">🙏 A Di Đà Phật · Chào mừng quý Phật tử về chùa</span></div>
+<div class="tl">
+  <button id="pChip" class="chip-p" aria-label="Hồ sơ tu tập">
+    <span id="pInit" class="av">🙏</span>
+    <span class="pt"><b id="pName">—</b><small id="pLv"></small><span class="bar"><i id="pBar"></i></span><small id="pBeads"></small></span>
+  </button>
+  <button id="tName" class="tname">Chùa Bình An</button>
+  <small id="tPlace" class="tplace"></small>
+  <div id="obj" class="obj"></div>
+  <button id="goBtn" class="pill-btn">🗺 Ra sân ngắm cảnh</button>
+  <div class="online"><i></i><span id="online">1 đang tu tập</span> · <span id="pq" class="pq">☀️</span></div>
 </div>
+<nav class="side" aria-label="Chức năng">
+  <button id="bPass" title="Sổ hành hương">📜</button>
+  <button id="bProf" title="Hồ sơ">👤</button>
+  <button id="miniBtn" title="Bản đồ chùa"><canvas id="mini" width="80" height="80"></canvas></button>
+  <button id="bStory" title="Nghe truyện">📖</button>
+  <button id="bWish" title="Đèn nguyện">🏮</button>
+  <button id="setBtn" title="Cài đặt">⚙️</button>
+</nav>
+<div class="zoom"><button id="zIn" aria-label="Phóng to">+</button><button id="zOut" aria-label="Thu nhỏ">−</button></div>
 <div id="banner" class="banner"></div>
 <div id="toasts" class="toasts"></div>
 
 <!-- dưới -->
 <div id="joy" class="joy" aria-hidden="true"><div id="joyKnob"></div></div>
-<div class="keyhint">WASD / ← ↑ ↓ → đi · Shift chạy · kéo chuột xoay · E tương tác · B lạy · T tràng hạt · M bản đồ</div>
+<div class="keyhint">WASD đi · Shift chạy · kéo chuột xoay · cuộn phóng to · E tương tác · B lạy · T tràng hạt · M bản đồ</div>
 <button id="ctx" class="ctx" hidden>Tương tác</button>
 <nav id="acts" class="acts" aria-label="Hành động"></nav>
+
+<!-- tràng hạt -->
+<div id="malaUI" class="malaui" hidden>
+  <button id="malaBack" class="pill-btn back">← Quay lại</button>
+  <canvas id="malaCv"></canvas>
+  <div class="mcount"><b id="mNum">0</b><span>/ 108</span><small id="mSub">Vòng thứ nhất · tổng 0 chuỗi</small></div>
+  <div class="mhint">Chạm hoặc vuốt xuống để lần hạt<br><b>+1 hạt</b> mỗi lần lần</div>
+</div>
 
 <!-- tụng kinh -->
 <div id="chant" class="chant" hidden>

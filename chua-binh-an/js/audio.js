@@ -56,9 +56,24 @@ CBA.Audio = (() => {
     return b;
   }
 
+  /* ---------- MẪU ÂM THANH THẬT (audio/sfx/) ---------- */
+  const SAMPLES = {};
+  const SAMPLE_URLS = { mo: 'audio/sfx/mo.mp3', moSoft: 'audio/sfx/mo-nhe.mp3', bell: 'audio/sfx/chuong-chua.mp3', bowl: 'audio/sfx/chuong-khanh.mp3', chant: 'audio/sfx/tung-kinh-nen.mp3' };
+  function loadSamples() {
+    if (!ensure() || loadSamples.done) return; loadSamples.done = true;
+    Object.entries(SAMPLE_URLS).forEach(([k, u]) => fetch(u).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => ctx.decodeAudioData(b)).then(buf => { SAMPLES[k] = buf; if (k === 'chant' && ambience.on) ambience.restart(); }).catch(() => {}));
+  }
+  function playSample(k, vol = 1, when = 0, rate = 1, dest = null) {
+    const b = SAMPLES[k]; if (!b) return false;
+    const src = ctx.createBufferSource(); src.buffer = b; src.playbackRate.value = rate;
+    const g = ctx.createGain(); g.gain.value = vol; src.connect(g).connect(dest || sfxGain); src.start(ctx.currentTime + when); return true;
+  }
+
   /* Tiếng mõ gỗ: "cốc" */
   function mo(vol = 1, when = 0) {
     if (!ensure() || !st.sfxOn) return;
+    loadSamples();
+    if (playSample(vol < 0.7 ? 'moSoft' : 'mo', Math.min(1, vol * 1.1), when, 0.97 + Math.random() * 0.06)) return;
     const t = ctx.currentTime + when;
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sine';
@@ -96,9 +111,9 @@ CBA.Audio = (() => {
     n.connect(lp).connect(ng).connect(sfxGain); n.start(t);
     duckFor(dur * 0.5);
   }
-  const bigBell = (when = 0) => bell(98, 9, 0.85, when);
-  const smallBell = (when = 0) => bell(520, 3.5, 0.45, when);
-  const khanh = (when = 0) => bell(330, 5, 0.5, when);
+  const bigBell = (when = 0) => { if (ensure() && st.sfxOn && playSample('bell', 0.9, when)) { duckFor(4); return; } bell(98, 9, 0.85, when); };
+  const smallBell = (when = 0) => { if (ensure() && st.sfxOn && playSample('bowl', 0.55, when, 1.25)) return; bell(520, 3.5, 0.45, when); };
+  const khanh = (when = 0) => { if (ensure() && st.sfxOn && playSample('bowl', 0.7, when)) return; bell(330, 5, 0.5, when); };
 
   function duckFor(sec) {
     st.duck = 0.55; applyVolume();
@@ -267,7 +282,7 @@ CBA.Audio = (() => {
      Edge: "Microsoft HoaiMy / NamMinh Online (Natural)"; Windows: "Microsoft An";
      Android/Chrome: "Google tiếng Việt". Không có giọng Việt thì KHÔNG đọc (tránh giọng tiếng Anh). */
   let viVoice = null, viVoices = [];
-  const NORTH = [/hoaimy/i, /namminh/i, /google.*(vi|việt)/i, /\ban\b|microsoft an/i, /linh/i];
+  const NORTH = [/namminh/i, /\ban\b|microsoft an/i, /hoaimy/i, /google.*(vi|việt)/i, /linh/i];   // ưu tiên giọng nam
   function pickVoice() {
     if (!window.speechSynthesis) return;
     viVoices = speechSynthesis.getVoices().filter(v => /^vi/i.test(v.lang) || /vietnam|việt/i.test(v.name));
@@ -276,8 +291,9 @@ CBA.Audio = (() => {
   }
   if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
   function speak(text, kind) {
+    if (kind === 'cancel') { stopVoice(); return; }
+    if (kind === 'story' && st.storyTtsOn && hasVoiceFile(text)) { say(text); return; }
     if (!window.speechSynthesis) return;
-    if (kind === 'cancel') { speechSynthesis.cancel(); return; }
     if (!viVoice) pickVoice();
     if (!viVoice) return;                         // không có giọng tiếng Việt: không đọc bằng giọng tiếng Anh
     if (kind === 'story') {                      // đọc truyện: bật/tắt riêng, đọc nối tiếp
@@ -388,13 +404,18 @@ CBA.Audio = (() => {
     }
     function phrase() {
       if (!on) return;
-      const t0 = ctx.currentTime + 0.05, beat = 0.62, base = 110;
-      SYL.forEach(([v, st], i) => { const t = t0 + i * beat; voice(t, base * Math.pow(2, st / 12), v, beat * (i === 5 ? 1.6 : 0.95), 0.05); woodTap(t, 0.35); });
-      timer = setTimeout(phrase, (SYL.length * beat + 1.0) * 1000);
+      const t0 = ctx.currentTime + 0.05, beat = 1.05, base = 110;   // nhịp chậm như tụng thật
+      SYL.forEach(([v, st], i) => { const t = t0 + i * beat; voice(t, base * Math.pow(2, st / 12), v, beat * (i === 5 ? 1.6 : 0.95), 0.05); if (i % 2 === 0) woodTap(t, 0.3); });
+      timer = setTimeout(phrase, (SYL.length * beat + 2.0) * 1000);
+    }
+    let loop = null;
+    function startLoop() {   // bản thu tụng kinh thật, phát lặp
+      if (!SAMPLES.chant || loop) return false;
+      loop = ctx.createBufferSource(); loop.buffer = SAMPLES.chant; loop.loop = true; const g = ctx.createGain(); g.gain.value = 0.9; loop.connect(g).connect(out); loop.start(); return true;
     }
     function distantBell() {
       if (!on) return;
-      const prev = sfxGain; sfxGain = out; bell(92, 9, 0.6); sfxGain = prev;
+      if (!playSample('bell', 0.55, 0, 1, out)) { const prev = sfxGain; sfxGain = out; bell(92, 9, 0.6); sfxGain = prev; }
       bellT = setTimeout(distantBell, 60000 + Math.random() * 30000);
     }
     const apply = () => { if (out) out.gain.setTargetAtTime(on ? lvl * (ducked ? 0.18 : 1) * 0.9 : 0, ctx.currentTime, 0.4); };
@@ -405,15 +426,42 @@ CBA.Audio = (() => {
         const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
         const dl = ctx.createDelay(1); dl.delayTime.value = 0.23; const fb = ctx.createGain(); fb.gain.value = 0.35;   // vang trong điện
         out.connect(lp).connect(master); lp.connect(dl); dl.connect(fb).connect(dl); dl.connect(master);
-        phrase(); bellT = setTimeout(distantBell, 8000); apply();
+        loadSamples(); if (!startLoop()) phrase(); bellT = setTimeout(distantBell, 8000); apply();
       },
-      stop() { on = false; clearTimeout(timer); clearTimeout(bellT); apply(); },
+      restart() { if (!on) return; clearTimeout(timer); startLoop(); },
+      stop() { on = false; clearTimeout(timer); clearTimeout(bellT); if (loop) { try { loop.stop(); } catch (e) {} loop = null; } apply(); },
       level(v) { lvl = Math.max(0, Math.min(1, v)); apply(); },
       duck(d) { ducked = !!d; apply(); },
       get on() { return on; }
     };
   })();
   function voices() { pickVoice(); return viVoices.map(v => v.name); }
+  /* file giọng đọc thu sẵn: audio/voice/manifest.json = { "câu chữ": "tên-file.mp3" } (tạo bằng tools/tao_giong_doc.py hoặc tự thu) */
+  let VOICE = null, voiceEl = null;
+  fetch('audio/voice/manifest.json').then(r => r.ok ? r.json() : {}).then(m => { VOICE = m || {}; }).catch(() => { VOICE = {}; });
+  const vkey = (t) => t.normalize('NFC').replace(/\s+/g, ' ').trim();
+  function hasVoiceFile(text) { return !!(VOICE && VOICE[vkey(text)]); }
+  /* đọc một câu, trả về Promise khi đọc xong (dùng để tụng từng câu theo nhịp mõ) */
+  function say(text, opts = {}) {
+    return new Promise((done) => {
+      const est = () => setTimeout(done, Math.max(1500, text.length * 85));
+      if (!st.storyTtsOn && !opts.force) return est();
+      const f = VOICE && VOICE[vkey(text)];
+      if (f) {
+        if (voiceEl) voiceEl.pause();
+        voiceEl = new Audio('audio/voice/' + f); voiceEl.volume = Math.min(1, (opts.vol || 1));
+        voiceEl.onended = () => done(); voiceEl.onerror = () => est();
+        st.duck = 0.35; applyVolume(); voiceEl.addEventListener('ended', () => { st.duck = 1; applyVolume(); });
+        voiceEl.play().catch(() => est()); return;
+      }
+      if (!window.speechSynthesis) return est();
+      if (!viVoice) pickVoice(); if (!viVoice) return est();
+      const u = new SpeechSynthesisUtterance(text); u.lang = viVoice.lang || 'vi-VN'; u.voice = viVoice; u.rate = opts.rate || 0.92; u.pitch = opts.pitch || 0.9;
+      u.onend = () => { st.duck = 1; applyVolume(); done(); }; u.onerror = () => done();
+      st.duck = 0.35; applyVolume(); speechSynthesis.speak(u);
+    });
+  }
+  function stopVoice() { if (voiceEl) voiceEl.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); }
   function setVoice(name) { try { localStorage.setItem('cba_voice', name); } catch (e) {} pickVoice(); }
 
   /* ---------- cài đặt ---------- */
@@ -442,7 +490,7 @@ CBA.Audio = (() => {
   return {
     ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
-    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '',
+    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '', say, stopVoice, hasVoiceFile, loadSamples,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();

@@ -47,11 +47,75 @@ function roof(w, d, h, color = null, gold = true) {
 /* điện thờ: nền đá, cột đỏ, tường, 1–2 tầng mái */
 let INTERIOR = null;   // game 3D: { set: 'hoanh'|'thu'|'nam' } → chánh điện mở cửa, có bàn thờ & đệm
 export const HALLS = [];
+export const ANIM = [];   // hàm cập nhật hiệu ứng mỗi khung hình (game gọi)
+/* ảnh tượng thật (đã tách nền) + màu hào quang */
+const PHOTO = { duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
+const texLoader = new THREE.TextureLoader();
+function glowTex(color, kind = 'glow') {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  if (kind === 'rays') {
+    g.translate(128, 128);
+    for (let i = 0; i < 28; i++) { g.rotate(Math.PI * 2 / 28); const gr = g.createLinearGradient(0, 0, 0, -128); gr.addColorStop(0, color); gr.addColorStop(1, 'rgba(255,220,140,0)'); g.fillStyle = gr; g.globalAlpha = i % 2 ? 0.35 : 0.6; g.beginPath(); g.moveTo(-3, 0); g.lineTo(-9, -128); g.lineTo(9, -128); g.lineTo(3, 0); g.fill(); }
+  } else {
+    const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128); gr.addColorStop(0, 'rgba(255,250,225,1)'); gr.addColorStop(0.35, color); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const addMat = (map, op = 1) => new THREE.MeshBasicMaterial({ map, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+function photoBuddha(g, key, x, y, z, h) {
+  const [src, asp, col] = PHOTO[key]; const w = h * asp;
+  // hào quang phía sau: vầng sáng + tia xoay + vòng sáng sau đầu
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(w * 2.2, h * 1.7), addMat(glowTex(col), 0.75)); glow.position.set(x, y + h * 0.55, z - 0.08); glow.userData.noCollide = true; g.add(glow);
+  const rays = new THREE.Mesh(new THREE.PlaneGeometry(h * 1.9, h * 1.9), addMat(glowTex(col, 'rays'), 0.5)); rays.position.set(x, y + h * 0.78, z - 0.06); rays.userData.noCollide = true; g.add(rays);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(h * 0.16, h * 0.18, 48), new THREE.MeshBasicMaterial({ color: 0xffe7a0, transparent: true, opacity: 0.85, toneMapped: false })); ring.position.set(x, y + h * 0.82, z - 0.04); ring.userData.noCollide = true; g.add(ring);
+  const tex = texLoader.load(src); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const img = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.35, toneMapped: false })); img.position.set(x, y + h / 2, z); img.userData.noCollide = true; g.add(img);
+  const ph = Math.random() * 6;
+  ANIM.push((t) => { rays.rotation.z = t * 0.12 + ph; const k = 0.85 + 0.15 * Math.sin(t * 1.3 + ph); glow.material.opacity = 0.65 * k; rays.material.opacity = 0.42 * k; glow.scale.setScalar(0.96 + 0.06 * k); });
+}
+function altarFx(g, x0, x1, y, z) {   // cánh sen rơi & đốm sáng trước bàn thờ
+  const N = 60, pos = new Float32Array(N * 3), vel = [];
+  for (let i = 0; i < N; i++) { pos[i * 3] = x0 + Math.random() * (x1 - x0); pos[i * 3 + 1] = y + Math.random() * 3; pos[i * 3 + 2] = z + Math.random() * 1.5; vel.push(0.15 + Math.random() * 0.25); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const petals = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffb3c6, size: 0.09, transparent: true, opacity: 0.9, depthWrite: false })); g.add(petals);
+  const M = 40, mp = new Float32Array(M * 3); for (let i = 0; i < M; i++) { mp[i * 3] = x0 + Math.random() * (x1 - x0); mp[i * 3 + 1] = y + Math.random() * 3; mp[i * 3 + 2] = z - 0.3 + Math.random() * 0.6; }
+  const mgeo = new THREE.BufferGeometry(); mgeo.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+  const motes = new THREE.Points(mgeo, new THREE.PointsMaterial({ color: 0xffe08a, size: 0.06, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })); g.add(motes);
+  let last = 0;
+  ANIM.push((t) => {
+    const dt = Math.min(0.05, t - last); last = t;
+    for (let i = 0; i < N; i++) { pos[i * 3 + 1] -= vel[i] * dt; pos[i * 3] += Math.sin(t + i) * dt * 0.15; if (pos[i * 3 + 1] < y - 0.6) pos[i * 3 + 1] = y + 3; }
+    for (let i = 0; i < M; i++) { mp[i * 3 + 1] += dt * 0.25; if (mp[i * 3 + 1] > y + 3.2) mp[i * 3 + 1] = y; }
+    geo.attributes.position.needsUpdate = true; mgeo.attributes.position.needsUpdate = true;
+    motes.material.opacity = 0.6 + 0.3 * Math.sin(t * 2);
+  });
+}
+/* Bảng Vàng trên tường (canvas, cập nhật bởi game) */
+export const BOARDS = [];
+function goldBoard(g, x, y, z, ry, title) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 340;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.73), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); m.position.set(x, y, z); m.rotation.y = ry; m.userData.noCollide = true; g.add(m);
+  const fr = box(1.42, 1.85, 0.06, GOLD(), x, y, z - 0.04 * Math.cos(ry)); fr.rotation.y = ry; fr.userData.noCollide = true; g.add(fr);
+  BOARDS.push({ c, tex, title, draw(rows) {
+    const k = c.getContext('2d'); k.fillStyle = '#3a0d05'; k.fillRect(0, 0, 256, 340); k.strokeStyle = '#e9b949'; k.lineWidth = 6; k.strokeRect(8, 8, 240, 324);
+    k.fillStyle = '#ffd36b'; k.font = '900 22px Georgia, serif'; k.textAlign = 'center'; k.fillText(title, 128, 44); k.font = '12px sans-serif'; k.fillStyle = '#e8c99a'; k.fillText('Tinh tấn trong chùa', 128, 64);
+    k.textAlign = 'left'; rows.slice(0, 7).forEach(([n, v], i) => { const yy = 96 + i * 34; k.fillStyle = i < 3 ? ['#ffd36b', '#e6e6f0', '#f0b07a'][i] : '#c9a888'; k.beginPath(); k.arc(30, yy - 6, 9, 0, 7); k.fill(); k.fillStyle = '#3a0d05'; k.font = '800 11px sans-serif'; k.fillText(String(i + 1), 26.5, yy - 2); k.fillStyle = '#fff1c2'; k.font = '700 15px sans-serif'; k.fillText(n.slice(0, 14), 46, yy); k.fillStyle = '#ffd36b'; k.textAlign = 'right'; k.fillText(String(v), 236, yy); k.textAlign = 'left'; });
+    tex.needsUpdate = true;
+  } });
+}
 function altarFigures(g, w, d, base, set) {
   const z = -d / 2 + 0.9;
   g.add(box(w * 0.7, 0.9, 1.1, mat('altar', 0x7a1a0e), 0, base + 0.45, z));
   g.add(box(w * 0.72, 0.08, 1.2, GOLD(), 0, base + 0.92, z));
-  const figs = set === 'nam' ? [['thich', 0, 1]] : set === 'thu' ? [['adida', -1, 0.75], ['thich', 0, 0.95], ['dilac', 1, 0.75]] : [['duoc', -1, 0.75], ['thich', 0, 0.95], ['adida', 1, 0.75]];
+  if (INTERIOR && INTERIOR.photos !== false) {   // ảnh tượng thật thay mô hình
+    const keys = set === 'nam' ? [['thichca', 0, 2.1]] : set === 'thu' ? [['adida', -1, 1.6], ['thichca', 0, 2.0], ['dilac', 1, 1.6]] : [['duocsu', -1, 1.6], ['thichca', 0, 2.0], ['adida', 1, 1.6]];
+    keys.forEach(([k, xi, hh]) => photoBuddha(g, k, xi * w * 0.25, base + 0.96, z - 0.05, Math.min(hh, (3.2 - 0.6))));
+    altarFx(g, -w * 0.35, w * 0.35, base + 0.9, z + 0.4);
+    goldBoard(g, -w / 2 + 0.35, base + 1.9, z + 1.6, Math.PI / 2, 'Bảng Vàng');
+    goldBoard(g, w / 2 - 0.35, base + 1.9, z + 1.6, -Math.PI / 2, 'Bia Công Đức');
+  }
+  const figs = (INTERIOR && INTERIOR.photos !== false) ? [] : set === 'nam' ? [['thich', 0, 1]] : set === 'thu' ? [['adida', -1, 0.75], ['thich', 0, 0.95], ['dilac', 1, 0.75]] : [['duoc', -1, 0.75], ['thich', 0, 0.95], ['adida', 1, 0.75]];
   figs.forEach(([k, xi, sc]) => {
     const f = k === 'dilac' ? maitreya(sc, GOLD()) : seatedBuddha(sc, GOLD());
     f.position.set(xi * w * 0.22, base + 0.96, z - 0.05); g.add(f);
@@ -421,7 +485,7 @@ CBA.Temple3D = { mount };
 
 /* dùng lại cho game 3D (js/g3d) */
 export function buildLandmark(g, model, opts = {}) {
-  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh' } : null; HALLS.length = 0;
+  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh' } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; }
 }
 export function interiorHall(opts, set) { INTERIOR = { set }; try { return hall(opts); } finally { INTERIOR = null; } }
