@@ -1014,6 +1014,16 @@ setTimeout(() => { if (P.name && SHOP.dailyReady()) toast('🎁 Có quà hằng 
   .forEach(([i, t, fn]) => { const b = el('button', 'act'); b.append(el('span', 'ic', i), el('span', 'lb', t)); b.onclick = () => { A.ensure(); fn(); }; $('acts').append(b); });
 $('miniBtn').onclick = () => openTemplePicker(); $('setBtn').onclick = openSettings; $('pChip').onclick = openProfile;
 $('tName').onclick = () => openTemplePicker(); $('bPass').onclick = openProfile; $('bProf').onclick = openProfile; $('bStory').onclick = openStories; $('bWish').onclick = openWish;
+/* menu chức năng gọn trên điện thoại: nút ☰ mở/đóng bảng icon bên phải */
+(() => {
+  const mb = $('menuBtn'), side = document.querySelector('.side');
+  if (!mb || !side) return;
+  const close = () => { side.classList.remove('open'); mb.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); };
+  const toggle = () => { const open = !side.classList.contains('open'); side.classList.toggle('open', open); mb.classList.toggle('open', open); mb.setAttribute('aria-expanded', String(open)); mb.textContent = open ? '✕' : '☰'; };
+  mb.onclick = (e) => { e.stopPropagation(); toggle(); };
+  side.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (document.body.classList.contains('touch')) close(); }));
+  document.addEventListener('pointerdown', (e) => { if (document.body.classList.contains('touch') && side.classList.contains('open') && !side.contains(e.target) && e.target !== mb) close(); });
+})();
 $('zIn').onclick = () => { cam.dist = Math.max(2.5, cam.dist * 0.8); }; $('zOut').onclick = () => { cam.dist = Math.min(16, cam.dist * 1.25); };
 $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
   const h = W.halls[0]; if (!h) return;
@@ -1025,7 +1035,7 @@ $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
     updGo();
   });
 };
-function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; $('goBtn').textContent = inHall ? '🌳 Ra sân ngắm cảnh' : '🛕 Vào chánh điện'; }
+function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; const sm = document.body.classList.contains('touch'); $('goBtn').textContent = inHall ? (sm ? '🌳 Ra sân' : '🌳 Ra sân ngắm cảnh') : (sm ? '🛕 Vào điện' : '🛕 Vào chánh điện'); }
 setInterval(() => { if (W) { updGo(); $('online').textContent = NET.online ? `👥 ${NET.count} người chơi thật · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; } }, 1000);
 /* dòng tin chạy */
 function ticker(t) { const e = $('tickerText'); e.textContent = t; e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }

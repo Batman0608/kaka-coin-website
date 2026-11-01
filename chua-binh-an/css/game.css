@@ -299,3 +299,41 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .lunarbar:hover { background: rgba(40, 16, 8, .85); }
 @media (max-width: 640px) { .lunarbar { font-size: 10.5px; padding: 3px 9px; max-width: 72vw; gap: 5px; } }
 .contact { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ====== GỌN GIAO DIỆN TRÊN ĐIỆN THOẠI ====== */
+.menu-btn { display: none; }
+body.touch .menu-btn {
+  display: flex; align-items: center; justify-content: center; position: fixed; z-index: 8;
+  top: calc(44px + env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+  width: 50px; height: 50px; border-radius: 14px; border: 1px solid rgba(240, 192, 80, .6);
+  background: rgba(42, 16, 8, .9); color: #ffd36b; font-size: 24px; cursor: pointer; box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+}
+body.touch .menu-btn.open { background: var(--gold); color: #2a1406; }
+/* cột chức năng → bảng menu thả xuống, mặc định ẩn */
+body.touch .side {
+  top: calc(156px + env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+  gap: 4px; padding: 6px; border-radius: 14px; background: rgba(28, 11, 5, .94);
+  border: 1px solid rgba(240, 192, 80, .4); box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+  max-height: 62vh; overflow-y: auto;
+  transform-origin: top right; transform: scale(.9); opacity: 0; pointer-events: none; transition: transform .16s, opacity .16s;
+}
+body.touch .side.open { transform: none; opacity: 1; pointer-events: auto; }
+body.touch .side button { flex-direction: row; width: 162px; height: 44px; justify-content: flex-start; gap: 10px; padding: 0 12px; font-size: 20px; }
+body.touch .side button .si { font-size: 20px; width: 24px; text-align: center; }
+body.touch .side button small { font-size: 13px; white-space: nowrap; margin: 0; }
+body.touch .side #miniBtn { justify-content: flex-start; }
+body.touch .side #miniBtn canvas { width: 28px; height: 28px; flex: 0 0 auto; border-radius: 7px; }
+/* nút Vào chánh điện: nhỏ lại, nằm ngay dưới nút menu */
+body.touch #goBtn {
+  position: fixed; z-index: 7; top: calc(100px + env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+  padding: 7px 12px; font-size: 12px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* dòng kênh & số người: xuống cạnh joystick, nhỏ hơn */
+body.touch .online {
+  position: fixed; z-index: 5; left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: calc(158px + env(safe-area-inset-bottom, 0px)); font-size: 11px; gap: 5px;
+  background: rgba(20, 8, 4, .62); padding: 3px 9px; border-radius: 11px; max-width: 58vw;
+}
+body.touch .online i { width: 7px; height: 7px; }
+/* nhiệm vụ: nhỏ hơn nữa */
+body.touch .obj { font-size: 10.5px; padding: 3px 8px; line-height: 1.25; }
