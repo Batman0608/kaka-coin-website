@@ -988,23 +988,44 @@ function autoStep(dt) {
 }
 
 /* ---------------- mưa hoa mỗi 5 phút ---------------- */
-let shower = null;
-function petalShower() {
-  if (!W || shower) return;
-  const N = 420, pos = new Float32Array(N * 3), vel = [];
-  for (let i = 0; i < N; i++) { pos[i * 3] = me.pos.x + (Math.random() - 0.5) * 26; pos[i * 3 + 1] = me.y + 6 + Math.random() * 10; pos[i * 3 + 2] = me.pos.z + (Math.random() - 0.5) * 26; vel.push(0.6 + Math.random() * 0.9); }
+const showers = [];
+/* mưa hoa: kind 'big' (mặc định, cả chùa) · 'hall' (nhẹ, trong chánh điện) · 'dragon' (rất nhiều cánh sen rơi đồng loạt) */
+function petalShower(kind = 'big') {
+  if (!W) return;
+  if (kind === 'big' && showers.some(s => s.kind === 'big')) return;
+  const hall = W.halls.find(h => insideHall(h));
+  const ceil = hall ? hall.ceilY - 0.25 : Infinity;
+  const conf = { big: { N: 420, R: 26, H0: 6, HR: 10, size: 0.28, life: 22, loop: 14 }, hall: { N: 90, R: 9, H0: 1.6, HR: 2.6, size: 0.17, life: 11, loop: 0 }, dragon: { N: 900, R: 18, H0: 2.5, HR: 5, size: 0.3, life: 13, loop: 0 } }[kind];
+  const N = conf.N, pos = new Float32Array(N * 3), vel = [], sway = [];
+  for (let i = 0; i < N; i++) {
+    pos[i * 3] = me.pos.x + (Math.random() - 0.5) * conf.R;
+    pos[i * 3 + 1] = Math.min(ceil - Math.random() * 0.4, me.y + conf.H0 + Math.random() * conf.HR);
+    pos[i * 3 + 2] = me.pos.z + (Math.random() - 0.5) * conf.R;
+    vel.push(kind === 'dragon' ? 0.55 + Math.random() * 0.35 : 0.45 + Math.random() * 0.8); sway.push(0.2 + Math.random() * 0.6);
+  }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ map: PETAL_TEX(), size: 0.28, transparent: true, alphaTest: 0.25, depthWrite: false })); pts.userData.tmp = true; scene.add(pts);
-  shower = { pts, pos, vel, t: 0, y0: me.y }; A.khanh(); ticker('🌸 Mưa hoa sen rơi khắp chùa · nguyện cho tất cả được an lạc');
+  const mt = new THREE.PointsMaterial({ map: PETAL_TEX(), size: conf.size, transparent: true, alphaTest: 0.25, depthWrite: false, opacity: 1 });
+  const pts = new THREE.Points(geo, mt); pts.userData.tmp = true; scene.add(pts);
+  showers.push({ kind, pts, pos, vel, sway, t: 0, y0: me.y, conf });
+  if (kind === 'big') { A.khanh(); ticker('🌸 Mưa hoa sen rơi khắp chùa · nguyện cho tất cả được an lạc'); }
+  if (kind === 'hall') ticker('🌸 Cánh hoa nhẹ rơi trong chánh điện');
 }
 function showerStep(dt) {
-  if (!shower) return; shower.t += dt; const { pos, vel } = shower;
-  for (let i = 0; i < vel.length; i++) { pos[i * 3 + 1] -= vel[i] * dt; pos[i * 3] += Math.sin(shower.t * 1.3 + i) * dt * 0.4; if (pos[i * 3 + 1] < shower.y0 && shower.t < 14) pos[i * 3 + 1] += 14; }
-  shower.pts.geometry.attributes.position.needsUpdate = true;
-  if (shower.t > 22) { scene.remove(shower.pts); shower = null; }
+  for (let k = showers.length - 1; k >= 0; k--) {
+    const sh = showers[k], { pos, vel, sway, conf } = sh; sh.t += dt;
+    for (let i = 0; i < vel.length; i++) {
+      pos[i * 3 + 1] -= vel[i] * dt; pos[i * 3] += Math.sin(sh.t * 1.3 + i) * dt * sway[i]; pos[i * 3 + 2] += Math.cos(sh.t * 0.9 + i * 0.7) * dt * sway[i] * 0.6;
+      if (pos[i * 3 + 1] < sh.y0) { if (conf.loop && sh.t < conf.loop) pos[i * 3 + 1] += conf.loop; else pos[i * 3 + 1] = sh.y0 + 0.02; }   // cánh rơi xuống nằm lại trên sàn
+    }
+    sh.pts.geometry.attributes.position.needsUpdate = true;
+    if (sh.t > conf.life - 2) sh.pts.material.opacity = Math.max(0, (conf.life - sh.t) / 2);
+    if (sh.t > conf.life) { scene.remove(sh.pts); sh.pts.geometry.dispose(); sh.pts.material.dispose(); showers.splice(k, 1); }
+  }
 }
 setInterval(() => { if (W && !paused) petalShower(); }, 5 * 60000);
 setTimeout(() => { if (W) petalShower(); }, 40000);
+// trong chánh điện: cứ 3 phút có một đợt hoa rơi nhẹ
+setInterval(() => { if (W && !paused && W.halls.some(h => insideHall(h))) petalShower('hall'); }, 3 * 60000);
 
 /* ---------------- rồng chuỗi hạt khi có người lên hạng Bảng Công Đức ---------------- */
 const fx = $('fx2d'), fg = fx.getContext('2d'); let dragon = null, lastRanks = null, lastDragon = 0;
@@ -1027,6 +1048,7 @@ function launchDragon(name, rank) {
   // 3 kiểu bay ngẫu nhiên nối nhau: lượn sóng · vòng tròn · số 8 · xoắn ốc · chữ S
   const kinds = ['wave', 'circle', 'eight', 'spiral', 'zig'].sort(() => Math.random() - 0.5).slice(0, 3);
   dragon = { t: 0, sx, sy, hist: [], who, kinds, sparks: [], dir: Math.random() < 0.5 ? 1 : -1 };
+  setTimeout(() => petalShower('dragon'), 900);   // rồng bay lên · cánh sen rơi đồng loạt
   A.bigBell(); A.khanh(0.6);
   banner('🐉 Bảng Công Đức', `${name} lên hạng ${rank}`, 'Chuỗi hạt hóa rồng bay lên chúc mừng');
   ticker(`🐉 ${name} vừa lên hạng ${rank} Bảng Công Đức`);
@@ -1196,11 +1218,12 @@ function loop() {
     }
     drawMini();
   }
+  if (window.__freeCam) { const f = window.__freeCam; camera.position.set(f[0], f[1], f[2]); camera.lookAt(f[3], f[4], f[5]); }   // chỉ dùng khi kiểm thử
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 
-window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: () => petalShower() };   // hỗ trợ kiểm thử
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k) };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
