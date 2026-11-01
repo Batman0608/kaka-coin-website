@@ -19,6 +19,7 @@ const ROOM_CAP = +process.env.ROOM_CAP || 30;        // người / kênh (giới
 const UPLOAD_MBPS = +process.env.UPLOAD_MBPS || 0;
 const MAX_PLAYERS = +process.env.MAX_PLAYERS || (UPLOAD_MBPS ? Math.max(20, Math.floor(UPLOAD_MBPS * 0.7 / 0.04)) : 300);
 const TICK_HZ = +process.env.TICK_HZ || 5;           // số lần gửi vị trí mỗi giây
+const ADMIN_KEY = process.env.ADMIN_KEY || '';          // mã để xem /server từ xa
 const ROOT = path.resolve(__dirname, '..');
 const TEMPLES = new Set(['binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi']);
 const POSES = new Set(['idle', 'kneel', 'bow', 'lotus', 'incense', 'carry']);
@@ -31,7 +32,7 @@ function serveFile(req, res) {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p === '/') p = '/game.html';
   const file = path.normalize(path.join(ROOT, p));
-  if (!file.startsWith(ROOT) || file.includes(`${path.sep}server${path.sep}`) || /\/\.|node_modules/.test(p)) { res.writeHead(403); return res.end('Không được phép'); }
+  if (!file.startsWith(ROOT) || file.includes(`${path.sep}server${path.sep}`) || /\/\.|node_modules|\.(bat|ps1|yml|yaml|exe|log)$|Caddyfile|firestore\.rules/i.test(p)) { res.writeHead(403); return res.end('Không được phép'); }
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Không tìm thấy'); }
     const ext = path.extname(file).toLowerCase(), type = TYPES[ext] || 'application/octet-stream';
@@ -91,6 +92,11 @@ function cleanLook(l) { l = l || {}; return { g: l.g === 'nam' ? 'nam' : 'nu', h
 /* ---------------- WebSocket ---------------- */
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
+  if (u === '/status' || u === '/server') {   // trang quản trị: chỉ trên chính PC, hoặc qua tên miền khi có ?key=ADMIN_KEY
+    const remote = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || !/^(::1|127\.|::ffff:127\.|192\.168\.|10\.|::ffff:192\.168\.|::ffff:10\.)/.test(req.socket.remoteAddress || '');
+    const key = new URL(req.url, 'http://x').searchParams.get('key');
+    if (remote && !(ADMIN_KEY && key === ADMIN_KEY)) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Trang quản trị chỉ mở trên máy chủ (hoặc thêm ?key=... theo ADMIN_KEY trong cau-hinh-may-chu.bat)'); }
+  }
   if (u === '/status') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'cache-control': 'no-store' }); return res.end(JSON.stringify(status())); }
   if (u === '/server') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(DASH); }
   serveFile(req, res);
@@ -166,7 +172,7 @@ setInterval(() => { const s = status(); if (s.online) console.log(`[${new Date()
 const DASH = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Máy chủ Chùa Bình An</title>
 <style>body{margin:0;padding:16px;font:15px system-ui,sans-serif;background:#1c0b05;color:#fbeed6}h1{font:700 22px Georgia,serif;color:#ffd36b}.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.c{background:#2e1408;border:1px solid #5a2c14;border-radius:12px;padding:10px 12px}.c small{color:#d9b98a;display:block}.c b{font-size:24px;color:#ffd36b}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:6px;border-bottom:1px solid #4a2410;text-align:left}.bar{height:8px;background:#4a2410;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:#e3a63a}</style></head>
 <body><h1>🛕 Máy chủ Chùa Bình An</h1><div class="g" id="g"></div><table><thead><tr><th>Chùa</th><th>Kênh</th><th>Số người</th></tr></thead><tbody id="t"></tbody></table>
-<script>async function u(){const s=await (await fetch('/status')).json();const c=(k,v)=>'<div class="c"><small>'+k+'</small><b>'+v+'</b></div>';
+<script>const K=new URLSearchParams(location.search).get('key');async function u(){const s=await (await fetch('/status'+(K?'?key='+encodeURIComponent(K):''))).json();const c=(k,v)=>'<div class="c"><small>'+k+'</small><b>'+v+'</b></div>';
 document.getElementById('g').innerHTML=c('Đang chơi',s.online+' / '+s.max)+c('Cao nhất',s.peak)+c('Mạng gửi đi (game)',s.net.wsMbps+' Mbps')+c('Tải file game',(s.net.httpKBps/128).toFixed(2)+' Mbps')+c('CPU (1 nhân)',s.cpuPct+' %')+c('RAM',s.ramMB+' MB')+c('Bị từ chối (đầy)',s.rejected);
 let h='';for(const[t,l]of Object.entries(s.temples))for(const r of l)h+='<tr><td>'+t+'</td><td>Kênh '+r.ch+'</td><td><div class="bar"><i style="width:'+(r.n/s.roomCap*100)+'%"></i></div>'+r.n+' / '+s.roomCap+'</td></tr>';
 document.getElementById('t').innerHTML=h||'<tr><td colspan=3>Chưa có ai</td></tr>';}u();setInterval(u,3000)</script></body></html>`;

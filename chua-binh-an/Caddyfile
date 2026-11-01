@@ -1,0 +1,6 @@
+# CACH DU PHONG (khong dung Cloudflare): mo cong 80 & 443 tren modem tro ve may nay,
+# tro ten mien ve IP nha ban o Mat Bao (ban ghi A), roi chay:  caddy run
+# Caddy tu xin chung chi HTTPS (Let's Encrypt) va chuyen ca WebSocket vao may chu game.
+dichua.id.vn, www.dichua.id.vn {
+	reverse_proxy localhost:8080
+}

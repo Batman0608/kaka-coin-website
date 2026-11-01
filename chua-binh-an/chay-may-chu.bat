@@ -1,16 +1,12 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0server"
+cd /d "%~dp0"
 title May chu Chua Binh An
-where node >nul 2>nul || (echo Chua cai Node.js. Tai ban LTS tai https://nodejs.org/ roi chay lai file nay. & pause & exit /b)
-if not exist node_modules (echo Dang cai thu vien lan dau... & call npm install --no-audit --no-fund)
-rem ===== CAU HINH =====
-rem Toc do TAI LEN (upload) cua mang nha ban, do o https://www.speedtest.net  (Mbps)
-set UPLOAD_MBPS=20
-rem So nguoi toi da moi kenh (dien thoai yeu thi giam xuong 20)
-set ROOM_CAP=30
-set PORT=8080
-rem ====================
+call "%~dp0cau-hinh-may-chu.bat"
+where node >nul 2>nul || (echo [!] Chua cai Node.js. Hay chay CAI_DAT_MAY_CHU.bat truoc. & pause & exit /b)
+netstat -ano | findstr /r /c:":%PORT% .*LISTENING" >nul && (echo May chu dang chay roi. Mo bang dieu khien... & start "" http://localhost:%PORT%/server & timeout /t 3 >nul & exit /b)
+cd server
+if not exist node_modules\ws (echo Dang cai thu vien... & call npm install --no-audit --no-fund)
 start "" http://localhost:%PORT%/server
 node server.js
 pause
