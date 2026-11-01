@@ -18,7 +18,14 @@
    rồi nhấp chuột phải vào "KET_NOI_TEN_MIEN.bat" và chọn "Run as administrator".
    Mọi người vào chơi tại: https://dichua.id.vn
 
-5) CẬP NHẬT BẢN MỚI (an toàn, có chạy thử trước):
+5) CẬP NHẬT TỰ ĐỘNG (dễ nhất — khuyên dùng):
+   - Nhấp CHUỘT PHẢI vào "TU_CAP_NHAT.bat", chọn "Run as administrator".
+   - Máy TỰ tải bản mới nhất từ GitHub, nén mã, chạy thử ở cổng 8081.
+     Xem thử ở http://localhost:8081/game.html rồi:
+       Y = đưa lên chính thức (tự sao lưu bản cũ)   N = huy
+   - Khong can keo-tha file zip. Lan sau co ban moi chi can bam lai file nay.
+
+5b) CẬP NHẬT BẰNG FILE ZIP (nếu không có mạng tới GitHub):
    - Tải file zip bản mới về.
    - Nhấp chuột phải vào "CAP_NHAT.bat" (trong thư mục đang chạy), chọn
      "Run as administrator", rồi kéo-thả file zip bản mới vào cửa sổ và bấm Enter.
