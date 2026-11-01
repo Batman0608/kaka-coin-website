@@ -751,6 +751,68 @@ $('lunar').onclick = () => {
     else b.append(el('p', 'note', 'Ngày Rằm (15) và Mùng Một (1) âm lịch, cùng các ngày vía Phật, lên chùa sẽ được nhân điểm công đức.'));
   });
 };
+/* ---------------- tụng kinh tự động theo giờ (5h & 19h) ---------------- */
+let kinhAudio = null, kinhNotified = '', kinhWinNow = null, kinhBlocked = false;
+function kinhVN() { return new Date(Date.now() + (new Date().getTimezoneOffset() + 420) * 60000); }
+function currentKinhWindow() {
+  const K = CBA.kinh; if (!K || K.enabled === false || !K.tracks || !K.tracks.length) return null;
+  const vn = kinhVN(), dayNum = Math.floor(Date.UTC(vn.getFullYear(), vn.getMonth(), vn.getDate()) / 86400000);
+  for (let i = 0; i < K.slots.length; i++) {
+    const sl = K.slots[i], start = new Date(vn); start.setHours(sl.h, sl.m || 0, 0, 0);
+    const diff = (vn - start) / 1000;
+    if (diff >= 0 && diff < (K.windowMin || 60) * 60) {
+      const slotIndex = dayNum * K.slots.length + i, n = K.tracks.length;
+      const trackIdx = ((slotIndex % n) + n) % n, tr = K.tracks[trackIdx];
+      const dur = tr.dur || (kinhAudio && kinhAudio.__d) || 600;
+      return { id: dayNum + ':' + i, trackIdx, track: tr, posSec: diff % dur, startSec: diff };
+    }
+  }
+  return null;
+}
+const kinhMuteKey = (id) => 'cba_kinh_mute_' + id;
+const kinhMuted = (id) => { try { return localStorage.getItem(kinhMuteKey(id)) === '1'; } catch (e) { return false; } };
+function playKinh(win) {
+  const path = 'audio/kinh/' + win.track.file;
+  if (!kinhAudio) { kinhAudio = new Audio(); window.__kinhA = kinhAudio; kinhAudio.loop = true; kinhAudio.preload = 'auto'; kinhAudio.addEventListener('loadedmetadata', () => { kinhAudio.__d = kinhAudio.duration; }); }
+  if (kinhAudio.__src !== path) { kinhAudio.__src = path; kinhAudio.src = path; kinhAudio.__trackIdx = win.trackIdx; try { kinhAudio.currentTime = win.posSec; } catch (e) {} }
+  else { const want = win.posSec; if (Math.abs(kinhAudio.currentTime - want) > 8) { try { kinhAudio.currentTime = want; } catch (e) {} } }   // đồng bộ theo đồng hồ cho mọi người nghe gần cùng đoạn
+  kinhAudio.volume = 1;
+  if (kinhAudio.paused) kinhAudio.play().then(() => { kinhBlocked = false; }).catch(() => { kinhBlocked = true; });
+  if (A.ambience && A.ambience.duck) A.ambience.duck(true);
+}
+function pauseKinh() { if (kinhAudio && !kinhAudio.paused) { kinhAudio.pause(); if (A.ambience && A.ambience.duck) A.ambience.duck(false); } }
+function stopKinh() { if (kinhAudio) { kinhAudio.pause(); kinhAudio.__src = ''; kinhAudio.removeAttribute('src'); } if (A.ambience && A.ambience.duck) A.ambience.duck(false); }
+function showKinhBar(win, muted) {
+  const bar = $('kinhBar'); bar.hidden = false; bar.classList.toggle('muted', muted); bar.innerHTML = '';
+  const blocked = !muted && kinhBlocked && (!kinhAudio || kinhAudio.paused);
+  const ic = muted ? '🔇' : '🔊', txt = muted ? 'Đã tắt tụng kinh · chạm để nghe lại' : blocked ? 'Chạm để nghe tụng kinh' : 'Đang tụng kinh · chạm để tắt tiếng';
+  bar.append(el('span', 'ic', ic), el('span', '', txt));
+}
+$('kinhBar').onclick = () => {
+  const win = kinhWinNow; if (!win) return;
+  if (kinhMuted(win.id)) { try { localStorage.setItem(kinhMuteKey(win.id), '0'); } catch (e) {} playKinh(win); }   // đang tắt → bật (có cử chỉ chạm nên iPhone cho phát)
+  else if (kinhBlocked && (!kinhAudio || kinhAudio.paused)) { playKinh(win); }                                      // bị chặn tự phát → chạm để phát
+  else { try { localStorage.setItem(kinhMuteKey(win.id), '1'); } catch (e) {} pauseKinh(); }                        // đang nghe → tắt
+  kinhTick(true);
+};
+function kinhTick(force) {
+  if (!W) { if (kinhAudio) stopKinh(); $('kinhBar').hidden = true; kinhWinNow = null; return; }
+  const win = currentKinhWindow(); kinhWinNow = win;
+  if (!win) { stopKinh(); $('kinhBar').hidden = true; return; }
+  // thông báo cho mọi người khi tới giờ (mỗi khung một lần)
+  if (win.id !== kinhNotified) {
+    kinhNotified = win.id;
+    const vn = kinhVN(); banner('🔔 Đến giờ tụng kinh', `${vn.getHours()}h · Mời quý Phật tử vào chánh điện`, win.track.title);
+    ticker(`🔔 Đến giờ tụng kinh · mời vào chánh điện nghe "${win.track.title}"`);
+    A.khanh && A.khanh();
+  }
+  const inHall = W.halls.some(h => insideHall(h)), muted = kinhMuted(win.id);
+  if (!inHall) { pauseKinh(); $('kinhBar').hidden = true; return; }
+  showKinhBar(win, muted);
+  if (muted) pauseKinh(); else playKinh(win);
+}
+setInterval(() => kinhTick(), 1000);
+
 setInterval(() => { const l = Math.max(0, pqNext - Date.now()); $('pq').textContent = `☀️ ${Math.floor(l / 60000)}:${String(Math.floor(l / 1000) % 60).padStart(2, '0')}`; if (l <= 0 && W) phatQuang(); }, 1000);
 
 /* ---------------- bản đồ nhỏ ---------------- */
