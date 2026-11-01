@@ -219,6 +219,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     g.userData.mainHall.plaqueAt = { x: 0, y: base + h - 0.05, z: d / 2 + 1.3, w: Math.min(w * 0.42, 6.5), h: Math.min(1.1, Math.max(0.8, w * 0.07)) };   // treo ở mép mái hiên trước, giữa hai cột
   }
   // bậc thềm
+  g.userData.hallSteps = { z: d / 2 + 2.95, base, w: w * 0.3 };
   for (let i = 0; i < 4; i++) g.add(box(w * 0.3, (i + 1) * base / 4, 0.4, STONE(), 0, (i + 1) * base / 8, d / 2 + 0.8 + 1.6 - i * 0.4));
   return g;
 }
@@ -245,6 +246,7 @@ function tower({ tiers = 7, sides = 8, r = 2.2, th = 2, taper = 0.45, wall = nul
 function stairs(w, n, rise, run, m = STONE()) {
   const g = new THREE.Group();
   for (let i = 0; i < n; i++) g.add(box(w, rise, run, m, 0, rise / 2 + i * rise, -i * run));
+  g.userData.stairs = { n, rise, run, w };   // để kiểm tra bậc nối liền nền trên
   return g;
 }
 function lotusBase(r, m = WHITE()) {
@@ -315,8 +317,8 @@ function tree(h, m = LEAF(), x = 0, z = 0, kind = 'round') {
   else { for (let i = 0; i < 4; i++) { const s = mesh(new THREE.IcosahedronGeometry(h * (0.28 - i * 0.03), 0), m, (Math.random() - 0.5) * h * 0.35, h * (0.62 + i * 0.1), (Math.random() - 0.5) * h * 0.35); g.add(s); } }
   return g;
 }
-function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0) {
-  const geo = new THREE.ConeGeometry(r, h, 28, 8);
+function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0, top = 0) {
+  const geo = top ? new THREE.CylinderGeometry(top, r, h, 28, 8) : new THREE.ConeGeometry(r, h, 28, 8);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i); if (y > h / 2 - 0.01) continue;
@@ -325,7 +327,9 @@ function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0) {
     p.setX(i, p.getX(i) * n); p.setZ(i, p.getZ(i) * n);
   }
   geo.computeVertexNormals();
-  return mesh(geo, mat('mt' + color, color, { flatShading: true }), x, h / 2, z);
+  const m = mesh(geo, mat('mt' + color, color, { flatShading: true }), x, h / 2, z);
+  if (top) m.userData.mesa = { r, h, top };   // đỉnh bằng phẳng để dựng chùa
+  return m;
 }
 function water(w, d, x = 0, z = 0) { const o = mesh(new THREE.PlaneGeometry(w, d, 1, 1), WATER(), x, 0.05, z, false); o.rotation.x = -Math.PI / 2; return o; }
 function lotusPads(g, n, w, d, cx = 0, cz = 0) {
@@ -383,8 +387,7 @@ const SCENES = {
     [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz]) => g.add(cyl(0.1, 0.1, 2, 8, RED(), sx * 1.4, 5.4, sz * 1.4)));
     g.add(box(2.4, 1.6, 2.4, mat('mcwall', 0xb3401f), 0, 5.2, 0));
     const r = roof(4.6, 4.6, 1.5); r.position.y = 6.4; g.add(r);
-    const st = stairs(1.6, 14, 0.3, 0.5); st.position.set(0, 0.5, 6.8); st.rotation.y = 0; g.add(st);
-    g.add(box(1.6, 0.25, 4.5, STONE(), 0, 4.2, 2.6));
+    const st = stairs(1.6, 12, 0.3, 0.5); st.position.set(0, 0.5, 1.95 + 11 * 0.5); g.add(st);   // bậc cuối chạm mép sàn đài sen
     [-10, 10, -9, 9].forEach((x, i) => g.add(tree(5, mat('frangi', 0x4d7a3a, { flatShading: true }), x, i < 2 ? -6 : 7)));
     return { cam: [13, 9, 16], target: [0, 4, 0] };
   },
@@ -399,7 +402,7 @@ const SCENES = {
     const st = stairs(6, 10, 0.3, 0.6); st.position.set(0, 0, 8.8); g.add(st);
     const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-14, 0, 6); g.add(bell);
     const tw = tower({ tiers: 13, sides: 4, r: 2.4, th: 1.5, taper: 0.5 }); tw.position.set(16, 0, -6); g.add(tw);
-    courtyard(g, 30, 10, 12); g.add(burner(0, 12));
+    courtyard(g, 30, 10, 12); g.add(burner(0, 14));
     [-20, -10, 10, 22].forEach((x, i) => g.add(tree(5.5, LEAF(), x, 14 + (i % 2) * 3)));
     return { cam: [26, 16, 34], target: [0, 6, -2] };
   },
@@ -419,26 +422,29 @@ const SCENES = {
   },
   yentu(g) {
     ground(g, 200, 0x3f6a35);
-    g.add(mountain(30, 34, 0x35602f, 1, 0, 0)); g.add(mountain(22, 24, 0x3f6a35, 7, -26, -14)); g.add(mountain(20, 22, 0x45703a, 9, 24, -18));
-    const t = hall({ w: 5, d: 4, h: 2.4, tiers: 2, wall: BRONZE(), roofColor: 0x8a5a24, base: 0.5 }); t.position.set(0, 34, 0); g.add(t);
+    g.add(mountain(30, 33, 0x35602f, 1, 0, 0, 6.5)); g.add(mountain(22, 24, 0x3f6a35, 7, -26, -14)); g.add(mountain(20, 22, 0x45703a, 9, 24, -18));   // đỉnh núi bằng để đặt chùa Đồng
+    const t = hall({ w: 5, d: 4, h: 2.4, tiers: 2, wall: BRONZE(), roofColor: 0x8a5a24, base: 0.5 }); t.position.set(0, 33, -0.6); g.add(t);
     for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2, rr = 14 + (i % 3) * 5, y = 34 - rr * 1.05; const tr = tree(3.5, LEAF2(), Math.cos(a) * rr, Math.sin(a) * rr, 'pine'); tr.position.y = Math.max(0, y * 0.95); g.add(tr); }
     const upd = clouds(g, 10, 22, 20);
     return { cam: [30, 38, 34], target: [0, 30, 0], update: upd };
   },
   thienmu(g) {
-    ground(g, 160, 0x5a8a45); g.add(water(160, 22, 0, 22));
-    g.add(box(30, 1.6, 18, mat('hill', 0x6a8a4a), 0, 0.8, -4));
+    ground(g, 160, 0x5a8a45); g.add(water(160, 22, 0, 24.5));
     const tw = tower({ tiers: 7, sides: 8, r: 2.6, th: 2.2, taper: 0.42, wall: mat('tmwall', 0xd9b89a), roofColor: 0x5a4a3a }); tw.position.set(0, 1.6, 2); g.add(tw);
-    const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); h.position.set(0, 1.6, -9); g.add(h);
-    [-6, 6].forEach(x => { const p = hall({ w: 2.6, d: 2.6, h: 2, tiers: 1 }); p.position.set(x, 1.6, 3); g.add(p); });
-    const st = stairs(5, 6, 0.27, 0.5); st.position.set(0, 0, 10.8); g.add(st);
+    // chánh điện sau tháp: lùi đủ xa để cửa điện không bị tháp chắn; đồi kéo dài đỡ trọn điện
+    const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); const hd = h.userData.mainHall ? h.userData.mainHall.d : 5, hz = -1.9 - (hd / 2 + 2.9);
+    h.position.set(0, 1.6, hz); g.add(h);
+    const back = Math.min(-13, hz - hd / 2 - 2);
+    g.add(box(30, 1.6, 8 - back, mat('hill', 0x6a8a4a), 0, 0.8, (8 + back) / 2));   // mép đồi ra gần sông, chừa sân trước tháp
+    [-6.5, 6.5].forEach(x => { const p = hall({ w: 2.6, d: 2.6, h: 2, tiers: 1 }); p.position.set(x, 1.6, 0.2); g.add(p); });
+    const st = stairs(5, 6, 0.27, 0.5); st.position.set(0, 0, 8.25 + 5 * 0.5); g.add(st);   // bậc cuối áp sát mép đồi
     [-12, 12, -10, 11].forEach((x, i) => g.add(tree(5, LEAF(), x, i < 2 ? -6 : 6)));
-    g.add(boat(-10, 20, 0.1));
+    g.add(boat(-10, 22, 0.1));
     return { cam: [22, 14, 30], target: [0, 8, 0] };
   },
   linhung(g) {
     ground(g, 200, 0x55804a); g.add(water(260, 120, 0, 85));
-    g.add(box(40, 1, 22, mat('cliff', 0x8a8a7a), 0, 0.5, 4));
+    g.add(box(40, 1, 30, mat('cliff', 0x8a8a7a), 0, 0.5, 0));
     const s = standingGuanyin(24); s.position.set(0, 1, 8); s.rotation.y = 0; g.add(s);
     const h = hall({ w: 12, d: 7, h: 3.6, tiers: 2, wall: YWALL(), roofColor: 0x2f5a7a }); h.position.set(-12, 1, -6); g.add(h);
     [10, 16, -20, 20].forEach((x, i) => g.add(tree(5, LEAF(), x, -4 - (i % 2) * 4)));
@@ -450,7 +456,7 @@ const SCENES = {
     const hill = mountain(20, 14, 0x5f8a45, 4, 0, -6); hill.scale.y = 1; g.add(hill);
     g.add(cyl(6, 7.5, 1.2, 24, STONE(), 0, 12.8, -6));
     const b = seatedBuddha(7.5); b.position.set(0, 13.4, -6); g.add(b);
-    const st = stairs(2.4, 30, 0.42, 0.42); st.position.set(0, 0, 10); g.add(st);
+    const st = stairs(2.4, 30, 0.42, 0.42); st.position.set(0, 0, 1.6 + 0.21 + 29 * 0.42); g.add(st);   // bậc trên cùng chạm mép bệ tượng
     const h = hall({ w: 10, d: 6, h: 3, tiers: 2 }); h.position.set(-13, 0, 10); g.add(h);
     [10, 14, -20].forEach(x => g.add(tree(5, LEAF(), x, 9)));
     return { cam: [20, 20, 30], target: [0, 17, -5] };
@@ -459,7 +465,7 @@ const SCENES = {
     ground(g, 140, 0x8a8a7a); courtyard(g, 34, 14, 9);
     const h = hall({ w: 16, d: 9, h: 4, tiers: 2, roofColor: 0x5a2a1a }); h.position.set(-3, 0, -3); g.add(h);
     const tw = tower({ tiers: 7, sides: 4, r: 2.2, th: 2, taper: 0.4, wall: mat('vnwall', 0xe8e0d0), roofColor: 0x3a3a3a }); tw.position.set(13, 0, -2); g.add(tw);
-    g.add(burner(-3, 9));
+    g.add(burner(-3, 12));
     [-16, -12, 18].forEach(x => g.add(tree(5, LEAF(), x, 10)));
     return { cam: [24, 13, 30], target: [2, 6, 0] };
   },
@@ -468,7 +474,7 @@ const SCENES = {
     const h = hall({ w: 13, d: 8, h: 3.2, tiers: 1, roofColor: 0x5a3a2a }); h.position.set(-3, 0, -2); g.add(h);
     const tw = tower({ tiers: 7, sides: 6, r: 2, th: 2, taper: 0.45, wall: mat('glwall', 0xeadbbf), roofColor: 0x4a3a2a }); tw.position.set(12, 0, 2); g.add(tw);
     const bodhi = tree(10, mat('bodhi', 0x3a7a32, { flatShading: true }), -14, 8); g.add(bodhi);
-    g.add(burner(-3, 8));
+    g.add(burner(-3, 12));
     return { cam: [20, 12, 28], target: [0, 5, 0] };
   },
   khmer(g) {

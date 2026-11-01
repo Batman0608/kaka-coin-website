@@ -67,6 +67,10 @@ export class Collision {
       if (!o.isMesh || o.userData.noCollide) return;
       const t = o.geometry.type;
       if (['PlaneGeometry', 'CircleGeometry', 'TorusGeometry'].includes(t)) { if (o.material && o.material.transparent && o.material.opacity < 0.95 && t === 'PlaneGeometry') { bb.setFromObject(o); this.waters.push(bb.clone()); } return; }
+      if (o.userData.mesa) {   // núi đỉnh bằng: địa hình leo được, mặt trên phẳng
+        const p = o.getWorldPosition(new THREE.Vector3()), m = o.userData.mesa;
+        this.cones.push({ x: p.x, z: p.z, r: m.r * 0.92, base: p.y - m.h / 2, h: m.h, top: m.top }); return;
+      }
       if (t === 'ConeGeometry' && o.geometry.parameters.radius > 6) {   // núi: địa hình leo được
         const p = o.getWorldPosition(new THREE.Vector3()), r = o.geometry.parameters.radius * Math.max(o.scale.x, o.scale.z), h = o.geometry.parameters.height * o.scale.y;
         this.cones.push({ x: p.x, z: p.z, r: r * 0.92, base: p.y - h / 2, h }); return;
@@ -84,13 +88,13 @@ export class Collision {
     let ground = 0, blocked = false, onSolid = false;
     for (const c of this.cones) {
       const d = Math.hypot(x - c.x, z - c.z); if (d >= c.r) continue;
-      const h = c.base + c.h * (1 - d / c.r) * 0.98;
+      const h = c.top ? c.base + c.h * Math.min(1, (c.r - d) / (c.r - c.top)) : c.base + c.h * (1 - d / c.r) * 0.98;
       if (h > ground) ground = h;
     }
     for (const b of this.boxes) {
       if (x < b.x0 - rad || x > b.x1 + rad || z < b.z0 - rad || z > b.z1 + rad) continue;
       if (b.bottom > y + 1.6) continue;                    // ở trên đầu (xà, mái thấp)
-      if (b.top <= y + STEP) { if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) { if (b.top > ground) ground = b.top; onSolid = true; } }
+      if (b.top <= y + STEP) { const e = 0.03; if (x >= b.x0 - e && x <= b.x1 + e && z >= b.z0 - e && z <= b.z1 + e) { if (b.top > ground) ground = b.top; onSolid = true; } }   // e: bịt khe sai số giữa hai bậc liền nhau
       else blocked = true;
     }
     if (blocked) return null;
