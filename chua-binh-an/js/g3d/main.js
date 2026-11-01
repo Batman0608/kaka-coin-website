@@ -133,22 +133,39 @@ function placeLabel(lbl, pos, h) {
 /* ---------------- Phật tử khác ---------------- */
 function spawnNpcs() {
   const names = CBA.simData.names;
-  for (let i = 0; i < 6; i++) {
-    const h = hash('npc' + i + temple.id);
-    const av = new Avatar({ look: { g: h % 2 ? 'nu' : 'nam', hair: ['bui', 'dai', 'ngan', 'troc'][(h >>> 3) % 4], robe: ['lam', 'nau', 'xam', 'trang'][(h >>> 5) % 4] }, seed: h });
-    const L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
+  const used = new Set();
+  const pickName = (h) => { let k = (h >>> 7) % names.length, g = 0; while ((used.has(names[k]) || npcs.some(n => n.label.textContent === names[k])) && g++ < names.length) k = (k + 1) % names.length; used.add(names[k]); return names[k]; };
+  const mkAv = (i) => { const h = hash('npc' + i + temple.id); return { h, av: new Avatar({ look: { g: h % 2 ? 'nu' : 'nam', hair: ['bui', 'dai', 'ngan', 'troc'][(h >>> 3) % 4], robe: ['lam', 'nau', 'xam', 'trang'][(h >>> 5) % 4] }, seed: h }) }; };
+  const hall = W.halls[0]; let n = 0;
+  // ~5 Phật tử ngồi lễ trong chánh điện (để chùa luôn có người, thu hút người mới vào)
+  if (hall) {
+    const free = hall.cushions.filter(c => !c.taken).sort((a, b) => a.distanceTo(hall.altar) - b.distanceTo(hall.altar));
+    const want = Math.min(5, free.length);
+    for (let i = 0; i < want; i++, n++) {
+      const { h, av } = mkAv(n), c = free[i]; c.taken = true;
+      av.root.position.set(c.x, c.y, c.z); av.root.rotation.y = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); av.setPose('kneel');
+      scene.add(av.root); av.root.userData.tmp = true;
+      npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: 8 + Math.random() * 18, sit: c, hall: true });
+    }
+  }
+  // vài Phật tử đi lại ngoài sân
+  for (let j = 0; j < 3; j++, n++) {
+    const { h, av } = mkAv(n), L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
-    npcs.push({ av, label: label((() => { let k = (h >>> 7) % names.length; while (npcs.some(n => n.label.textContent === names[k]) && npcs.length < names.length) k = (k + 1) % names.length; return names[k]; })(), 'npc'), target: null, wait: Math.random() * 4, sit: null });
+    npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: Math.random() * 4, sit: null, hall: false });
   }
 }
 function npcThink(n, dt) {
   const p = n.av.root.position;
-  if (n.sit) { n.wait -= dt; if (Math.random() < dt * 0.15) n.av.bow(); if (n.wait <= 0) { n.sit.taken = false; n.sit = null; n.av.setPose('idle'); } return false; }
+  if (n.sit) { n.wait -= dt; if (Math.random() < dt * (n.hall ? 0.22 : 0.15)) n.av.bow(); if (n.wait <= 0) { n.sit.taken = false; n.sit = null; n.av.setPose('idle'); n.wait = n.hall ? 1 + Math.random() * 2 : 0; } return false; }
   if (!n.target) {
     n.wait -= dt; if (n.wait > 0) return false;
     const hall = W.halls[0];
-    if (hall && Math.random() < 0.45) { const free = hall.cushions.filter(c => !c.taken && !(me.seated === c)); if (free.length) { const c = free[(Math.random() * free.length) | 0]; c.taken = true; n.target = c.clone(); n.goSit = c; } }
-    if (!n.target) { const L = W.layout; n.target = new THREE.Vector3(L.spawn[0] + (Math.random() - 0.5) * 22, 0, L.spawn[1] - Math.random() * 18); }
+    if (hall && Math.random() < (n.hall ? 0.92 : 0.45)) { const free = hall.cushions.filter(c => !c.taken && !(me.seated === c)); if (free.length) { const c = free[(Math.random() * free.length) | 0]; c.taken = true; n.target = c.clone(); n.goSit = c; } }
+    if (!n.target) {
+      if (n.hall && hall) { const a = hall.altar; n.target = new THREE.Vector3(a.x + (Math.random() - 0.5) * 4, 0, a.z + 2.5 + Math.random() * 2.5); }   // bot trong điện quanh quẩn gần bàn thờ
+      else { const L = W.layout; n.target = new THREE.Vector3(L.spawn[0] + (Math.random() - 0.5) * 22, 0, L.spawn[1] - Math.random() * 18); }
+    }
   }
   const dx = n.target.x - p.x, dz = n.target.z - p.z, d = Math.hypot(dx, dz);
   if (d < 0.25) {
@@ -1018,7 +1035,7 @@ const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: 
 window.__acc = ACC;
 /* nhiều người chơi thật qua máy chủ (server/server.js), tự chia kênh khi đông */
 const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, badgeOf, chatBubble,
-  onPeers: (k) => { while (npcs.length > Math.max(0, 6 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
+  onPeers: (k) => { while (npcs.length > Math.max(0, 8 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
   remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
@@ -1445,7 +1462,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k) };   // hỗ trợ kiểm thử
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; } };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
