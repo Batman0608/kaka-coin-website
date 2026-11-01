@@ -391,8 +391,11 @@ const SCENES = {
   baidinh(g) {
     ground(g, 160, 0x5f7a45);
     g.add(mountain(28, 26, 0x3f6a35, 1, -6, -30)); g.add(mountain(20, 20, 0x4a7a3a, 3, 18, -26)); g.add(mountain(18, 16, 0x56803f, 5, -24, -20));
-    const base = box(26, 3, 14, STONE(), 0, 1.5, -2); g.add(base);
-    const h = hall({ w: 16, d: 8, h: 4.2, tiers: 2 }); h.position.set(0, 3, -3); g.add(h);
+    // nền cao đủ sâu cho chánh điện (bản vào được rộng hơn) + bậc thềm của điện
+    const h = hall({ w: 16, d: 8, h: 4.2, tiers: 2 });
+    const hd = h.userData.mainHall ? h.userData.mainHall.d : 8, hz = 5 - (hd / 2 + 2.6) - 1.4;   // chừa khoảng sân trước điện, bậc của điện không chạm mép nền
+    const back = hz - hd / 2 - 1.4, base = box(26, 3, 5 - back, STONE(), 0, 1.5, (5 + back) / 2); g.add(base);
+    h.position.set(0, 3, hz); g.add(h);
     const st = stairs(6, 10, 0.3, 0.6); st.position.set(0, 0, 8.8); g.add(st);
     const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-14, 0, 6); g.add(bell);
     const tw = tower({ tiers: 13, sides: 4, r: 2.4, th: 1.5, taper: 0.5 }); tw.position.set(16, 0, -6); g.add(tw);
