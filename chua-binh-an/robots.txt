@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /server/
+Disallow: /tools/
+
+Sitemap: https://dichua.id.vn/sitemap.xml
