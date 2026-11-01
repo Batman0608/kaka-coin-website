@@ -100,20 +100,6 @@ export class Collision {
   }
 }
 
-/* tên trên bảng hoành phi theo tên chính thức của chùa */
-const PLAQUES = {
-  'binh-an': ['BÌNH AN TỰ', 'Chùa Bình An'],
-  'bai-dinh': ['BÁI ĐÍNH TỰ', 'Chùa Bái Đính · Ninh Bình'],
-  'mot-cot': ['DIÊN HỰU TỰ', 'Chùa Một Cột · Hà Nội'],
-  'huong': ['THIÊN TRÙ TỰ', 'Chùa Hương · Hương Sơn'],
-  'yen-tu': ['HOA YÊN TỰ', 'Yên Tử · Quảng Ninh'],
-  'thien-mu': ['THIÊN MỤ TỰ', 'Chùa Thiên Mụ · Huế'],
-  'linh-ung': ['LINH ỨNG TỰ', 'Chùa Linh Ứng Bãi Bụt · Đà Nẵng'],
-  'long-son': ['LONG SƠN TỰ', 'Chùa Long Sơn · Nha Trang'],
-  'vinh-nghiem': ['VĨNH NGHIÊM TỰ', 'Chùa Vĩnh Nghiêm · TP. HCM'],
-  'giac-lam': ['GIÁC LÂM TỰ', 'Chùa Giác Lâm · TP. HCM'],
-  'doi': ['CHÙA DƠI · MAHATUP', 'Sóc Trăng']
-};
 /* ---------------- dựng cảnh ---------------- */
 export function buildWorld(scene, temple) {
   const root = new THREE.Group(); scene.add(root);
@@ -130,10 +116,10 @@ export function buildWorld(scene, temple) {
   for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 55 + (i % 4) * 8; const t = tree(5 + (i % 3) * 2, LEAF(), Math.cos(a) * r, Math.sin(a) * r); root.add(t); }
   const halls = HALLS.slice();
   // bảng tên chùa theo tên thật, treo trên chánh điện chính
-  const PL = PLAQUES[temple.id] || [temple.name.toUpperCase(), ''];
+  const PL = [temple.name.toUpperCase(), temple.place || ''];   // đúng tên chùa như trên bản đồ
   halls.forEach((h, i) => {
     const m = h.userData.mainHall, a = m.plaqueAt; if (!a) return;
-    const [t, sub] = i === 0 ? PL : ['ĐẠI HÙNG BẢO ĐIỆN', temple.name];
+    const [t, sub] = i === 0 ? PL : ['CHÁNH ĐIỆN', temple.name];
     const p = plaque(t, sub, a.w, a.h); p.position.set(a.x, a.y, a.z); h.add(p);
     (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
   });

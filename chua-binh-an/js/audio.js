@@ -68,7 +68,7 @@ CBA.Audio = (() => {
 
   /* ---------- MẪU ÂM THANH THẬT (audio/sfx/) ---------- */
   const SAMPLES = {};
-  const SAMPLE_URLS = { mo: 'audio/sfx/mo.mp3', moSoft: 'audio/sfx/mo-nhe.mp3', bell: 'audio/sfx/chuong-chua.mp3', bowl: 'audio/sfx/chuong-khanh.mp3', chant: 'audio/sfx/tung-kinh-nen.mp3' };
+  const SAMPLE_URLS = { mo: 'audio/sfx/mo.mp3?v=3', moSoft: 'audio/sfx/mo-nhe.mp3?v=3', bell: 'audio/sfx/chuong-chua.mp3?v=3', bowl: 'audio/sfx/chuong-khanh.mp3', chant: 'audio/sfx/tung-kinh-nen.mp3' };
   function loadSamples() {
     if (!ensure() || loadSamples.done) return; loadSamples.done = true;
     Object.entries(SAMPLE_URLS).forEach(([k, u]) => fetch(u).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => ctx.decodeAudioData(b)).then(buf => { SAMPLES[k] = buf; if (k === 'chant' && ambience.on) ambience.restart(); }).catch(() => {}));
