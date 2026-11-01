@@ -32,7 +32,7 @@ function serveFile(req, res) {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p === '/') p = '/game.html';
   const file = path.normalize(path.join(ROOT, p));
-  if (!file.startsWith(ROOT) || file.includes(`${path.sep}server${path.sep}`) || /\/\.|node_modules|\.(bat|ps1|yml|yaml|exe|log)$|Caddyfile|firestore\.rules/i.test(p)) { res.writeHead(403); return res.end('Không được phép'); }
+  if (!file.startsWith(ROOT) || file.includes(`${path.sep}server${path.sep}`) || /\/\.|node_modules|\.(bat|ps1|yml|yaml|exe|log)$|Caddyfile|firestore\.rules|tunnel-token/i.test(p)) { res.writeHead(403); return res.end('Không được phép'); }
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Không tìm thấy'); }
     const ext = path.extname(file).toLowerCase(), type = TYPES[ext] || 'application/octet-stream';

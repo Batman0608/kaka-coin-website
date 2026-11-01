@@ -32,7 +32,7 @@ CBA.shop = {
 
   /* ---- FIREBASE (để trống = chế độ thử trên cùng một trình duyệt) ----
      Dán phần cấu hình web app lấy ở Firebase console → Project settings → Your apps. */
-  firebase: { apiKey: '', authDomain: '', projectId: '', appId: '' },
+  firebase: { apiKey: '', authDomain: 'di-chua-online-1ea45.firebaseapp.com', projectId: 'di-chua-online-1ea45', appId: '' },
 
   // chế độ thử (khi chưa có Firebase): mật khẩu admin tạm để xem bảng duyệt
   demoAdminPassword: 'admin123'

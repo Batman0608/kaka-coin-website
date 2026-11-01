@@ -29,7 +29,9 @@ echo.
 echo Dan TOKEN cua Tunnel - chuoi dai bat dau bang eyJ, lay o buoc 3 trong huong dan -
 echo roi bam Enter. Nhap chuot phai vao cua so de dan.
 set "TOKEN="
-set /p TOKEN=TOKEN: 
+if exist "%~dp0tunnel-token.txt" set /p TOKEN=<"%~dp0tunnel-token.txt"
+if defined TOKEN echo Da co san TOKEN trong tunnel-token.txt - tu dong ket noi.
+if not defined TOKEN set /p TOKEN=TOKEN: 
 if not defined TOKEN (echo Chua nhap token. & pause & exit /b)
 "%CF%" service uninstall >nul 2>nul
 "%CF%" service install %TOKEN%
