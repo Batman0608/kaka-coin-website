@@ -21,6 +21,14 @@ CBA.shop = {
   bank: { bank: '', bankName: '', account: '', owner: '' },
   // tiền tố nội dung chuyển khoản: "HS <mã nhân vật> <số tiền>K"
   contentPrefix: 'HS',
+  // hòm công đức ở các chùa: cùng các mức như gói nạp, nội dung CK "CD <mã nhân vật> <số tiền>K"
+  donatePrefix: 'CD',
+
+  /* ---- TÀI KHOẢN NGƯỜI CHƠI ----
+     chơi đủ số giây này (thời gian thật, tab đang mở) thì mời tạo tài khoản */
+  accountPromptSec: 900,
+  // tên đăng nhập được đổi thành email nội bộ <tên>@<miền này> trên Firebase Authentication
+  accountEmailDomain: 'chuabinhan.game',
 
   /* ---- FIREBASE (để trống = chế độ thử trên cùng một trình duyệt) ----
      Dán phần cấu hình web app lấy ở Firebase console → Project settings → Your apps. */

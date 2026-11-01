@@ -38,10 +38,10 @@ export const LAYOUT = {
     ['Tượng Quán Thế Âm 67 mét', 0, 8, 7, 'Tượng đứng trên tòa sen, mặt hướng ra biển như che chở người đi biển.'],
     ['Chánh điện', -12, -6, 7, 'Chánh điện mái xanh giữa rừng Sơn Trà.'],
     ['Hướng ra biển Đông', 0, 15, 4, 'Ngư dân thường hướng về Bãi Bụt cầu bình an trước mỗi chuyến ra khơi.']] },
-  'long-son': { spawn: [0, 26], abbot: [-9, 14], pois: [
+  'long-son': { spawn: [0, 26], abbot: [-19, 24], pois: [
     ['Bậc đá lên đồi Trại Thủy', 0, 9, 4, 'Hơn 150 bậc đá dẫn lên đỉnh đồi.'],
     ['Kim Thân Phật Tổ', 0, -1, 7, 'Tượng Phật trắng ngồi trên tòa sen, cao 24 mét (tính cả tòa sen), khánh thành năm 1964.'],
-    ['Chánh điện', -13, 10, 7, 'Chùa dựng năm 1886, ban đầu tên Đăng Long tự.']] },
+    ['Chánh điện', -27, 15, 7, 'Chùa dựng năm 1886, ban đầu tên Đăng Long tự.']] },
   'vinh-nghiem': { spawn: [0, 24], abbot: [4, 9], pois: [
     ['Chánh điện', -3, 3, 8, 'Chánh điện lớn theo lối kiến trúc chùa miền Bắc.'],
     ['Tháp Quán Âm 7 tầng', 13, -2, 6, 'Tháp vuông bảy tầng — biểu tượng của chùa giữa Sài Gòn.'],
@@ -127,6 +127,12 @@ export function buildWorld(scene, temple) {
     const p = plaque(t, sub, a.w, a.h); p.position.set(a.x, a.y, a.z); h.add(p);
     (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
   });
+  // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
+  let meritAt = null;
+  if (halls[0]) {
+    const m = halls[0].userData.mainHall, mb = meritBox();
+    mb.position.set(Math.min(m.w / 2 - 1.1, m.w * 0.35 + 1.0, 4.4), m.base, m.altar.z + 1.5); halls[0].add(mb); meritAt = mb;
+  }
   root.updateMatrixWorld(true);
   const hallInfo = halls.map(h => {
     const m = h.userData.mainHall;
@@ -136,7 +142,7 @@ export function buildWorld(scene, temple) {
   });
   const burners = []; root.traverse(o => { if (o.userData.burner) burners.push(o.getWorldPosition(new THREE.Vector3())); });
   const col = new Collision(); col.build(root);
-  return { root, conf, layout: L, halls: hallInfo, burners, col };
+  return { root, conf, layout: L, halls: hallInfo, burners, col, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
 /* khói hương ở lư hương */
@@ -145,4 +151,22 @@ export function smoke(scene, pos) {
   const parts = [];
   for (let i = 0; i < 18; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })); s.userData.t = i / 18 * 6; scene.add(s); parts.push(s); }
   return (dt, boost = 0) => parts.forEach(s => { s.userData.t += dt * (1 + boost); const t = s.userData.t % 6; s.position.set(pos.x + Math.sin(t * 1.3 + s.id) * 0.25 * t, pos.y + 1.2 + t * 0.6, pos.z); const k = t / 6; s.scale.setScalar(0.3 + k * 1.6); s.material.opacity = 0.35 * Math.sin(Math.PI * k) * (1 + boost * 0.5); });
+}
+
+/* hòm công đức: hộp gỗ sơn son, viền vàng, khe bỏ tiền, bảng chữ "CÔNG ĐỨC" */
+function meritBox() {
+  const g = new THREE.Group(), red = mat('mbred', 0x8e1a0e), gold = mat('mbgold', 0xe0a93a, { metalness: 0.6, roughness: 0.35 }), dark = mat('mbdark', 0x2a0d06);
+  g.add(box(0.95, 0.12, 0.7, dark, 0, 0.06, 0));                        // đế
+  g.add(box(0.8, 0.95, 0.58, red, 0, 0.6, 0));                          // thân hòm
+  g.add(box(0.86, 0.06, 0.64, gold, 0, 1.1, 0));                        // nắp viền vàng
+  g.add(box(0.82, 0.08, 0.6, red, 0, 1.16, 0));
+  const slot = box(0.42, 0.02, 0.06, dark, 0, 1.21, 0); slot.userData.noCollide = true; g.add(slot);   // khe bỏ tiền
+  [[-0.41, 0.6, 0.3], [0.41, 0.6, 0.3], [-0.41, 0.6, -0.3], [0.41, 0.6, -0.3]].forEach(([x, y, z]) => g.add(box(0.05, 0.98, 0.05, gold, x, y, z)));
+  const sign = plaque('CÔNG ĐỨC', '', 0.62, 0.3); sign.position.set(0, 0.72, 0.3); g.add(sign);
+  // đóa sen vàng trên nắp
+  const lotus = new THREE.Group(); lotus.position.set(0.28, 1.2, 0.12);
+  for (let i = 0; i < 6; i++) { const pt = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), gold); pt.scale.set(0.6, 1.5, 0.6); const a = i / 6 * Math.PI * 2; pt.position.set(Math.cos(a) * 0.05, 0.06, Math.sin(a) * 0.05); pt.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); lotus.add(pt); }
+  lotus.traverse(o => { o.userData.noCollide = true; }); g.add(lotus);
+  g.userData.meritBox = true;
+  return g;
 }

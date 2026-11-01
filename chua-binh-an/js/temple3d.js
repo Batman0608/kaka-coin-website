@@ -457,8 +457,8 @@ const SCENES = {
     g.add(cyl(6, 7.5, 1.2, 24, STONE(), 0, 12.8, -6));
     const b = seatedBuddha(7.5); b.position.set(0, 13.4, -6); g.add(b);
     const st = stairs(2.4, 30, 0.42, 0.42); st.position.set(0, 0, 1.6 + 0.21 + 29 * 0.42); g.add(st);   // bậc trên cùng chạm mép bệ tượng
-    const h = hall({ w: 10, d: 6, h: 3, tiers: 2 }); h.position.set(-13, 0, 10); g.add(h);
-    [10, 14, -20].forEach(x => g.add(tree(5, LEAF(), x, 9)));
+    const h = hall({ w: 10, d: 6, h: 3, tiers: 2 }); h.position.set(-27, 0, 15); g.add(h);   // đặt xa sườn đồi để đồi không xuyên vào điện
+    [10, 14, -40].forEach(x => g.add(tree(5, LEAF(), x, 9)));
     return { cam: [20, 20, 30], target: [0, 17, -5] };
   },
   vinhnghiem(g) {

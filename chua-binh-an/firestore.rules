@@ -18,7 +18,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // yêu cầu nạp
+    // yêu cầu nạp hoa sen & cúng hòm công đức (kind: 'topup' | 'donate')
     match /topups/{id} {
       // người chơi tạo yêu cầu "chờ duyệt" cho chính mình, đúng gói và đúng tỉ lệ 1 hoa sen = 50đ
       allow create: if signedIn()
@@ -26,9 +26,11 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.claimed == false
         && request.resource.data.amount in [10000, 20000, 50000, 100000, 200000, 500000]
-        && request.resource.data.lotus * 50 == request.resource.data.amount
-        && request.resource.data.keys().hasOnly(['uid', 'pid', 'name', 'amount', 'lotus', 'content', 'status', 'claimed', 'createdAt']);
-      // người chơi chỉ đọc yêu cầu của mình; admin đọc tất cả
+        // nạp hoa sen: đúng tỉ lệ 1 hoa sen = 50đ · cúng hòm công đức: không kèm hoa sen
+        && ((request.resource.data.get('kind', 'topup') == 'topup' && request.resource.data.lotus * 50 == request.resource.data.amount)
+          || (request.resource.data.get('kind', '') == 'donate' && request.resource.data.lotus == 0))
+        && request.resource.data.keys().hasOnly(['kind', 'uid', 'pid', 'name', 'amount', 'lotus', 'content', 'status', 'claimed', 'createdAt', 'temple', 'templeName']);
+      // người chơi chỉ đọc yêu cầu của mình; admin đọc tất cả (kể cả tổng hòm công đức)
       allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       // admin chấp nhận / từ chối; người chơi chỉ được đánh dấu "đã nhận" một lần sau khi được duyệt
       allow update: if (isAdmin()

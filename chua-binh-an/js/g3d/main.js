@@ -6,7 +6,7 @@
  * ========================================================================= */
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
-import { initShop } from './shop.js';
+import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 import { bootAccount, initAccount } from './account.js';
 
@@ -74,11 +74,13 @@ const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, bus
 const cam = { yaw: 0, pitch: 0.38, dist: 6.5 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
 const npcs = []; let abbot = null;
 
+let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
+  if (meritLbl) { meritLbl.remove(); meritLbl = null; }
   [...scene.children].forEach(o => { if (o.isSprite || (o.userData && o.userData.tmp)) scene.remove(o); });
 }
 function loadTemple(id) {
@@ -89,7 +91,7 @@ function loadTemple(id) {
   W = buildWorld(scene, temple);
   const L = W.layout;
   // người chơi
-  if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name, 'me'); }
+  if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
   scene.add(me.av.root);
   me.pos.set(L.spawn[0], 0, L.spawn[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.seated = null; me.av.setPose('idle');
   me.yaw = Math.PI; cam.yaw = 0;
@@ -98,6 +100,7 @@ function loadTemple(id) {
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
   abbot = { av: ab, label: label(C.storyteller.replace('Sư Ông', 'Sư trụ trì') || 'Sư trụ trì', 'abbot') }; abbot.av.root.userData.tmp = true;
+  if (W.merit) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
   if (S.npc) spawnNpcs();
   // âm thanh của chùa
@@ -195,6 +198,7 @@ let ctxAction = null;
 const near = (p, r) => Math.hypot(me.pos.x - p.x, me.pos.z - p.z) < r && Math.abs(me.y - (p.y || 0)) < 2.5;
 function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
+  if (W.merit && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
   if (hall) { const c = hall.cushions.filter(c => !c.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]; if (c && near(c, 1.4)) return { label: '🧘 Ngồi lên đệm', fn: () => sitOn(c, hall) }; }
   if (abbot && near(abbot.av.root.position, 2.6)) return { label: '📜 Nghe sự tích chùa', fn: legend };
@@ -471,7 +475,7 @@ function openOffer(tab = 'free') {
     const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); };
     bar.append(gift, top); b.append(bar);
     const tabs = el('div', 'tabs'), list = el('div', 'list');
-    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); openOffer(k); }; tabs.append(x); });
+    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['merit', '💝 Hòm công đức']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
     b.append(tabs, list);
     if (tab === 'free') {
       OFFERS.forEach(o => {
@@ -690,7 +694,7 @@ function phatQuang() {
 function hud() {
   if (!P.name) return;
   const lv = levelOf(P.beads), L = C.levels, nxt = L[lv + 1];
-  $('pName').textContent = P.name; $('pLv').textContent = `Cấp ${lv + 1} · ${L[lv].name}`;
+  const bd = badgeOf(P); $('pName').textContent = P.name + (bd ? ' ' + bd : ''); if (me.label) me.label.textContent = P.name + (bd ? ' ' + bd : ''); $('pLv').textContent = `Cấp ${lv + 1} · ${L[lv].name}`;
   $('pBar').style.width = (nxt ? Math.min(100, (P.beads - L[lv].at) / (nxt.at - L[lv].at) * 100) : 100) + '%';
   $('pBeads').textContent = fmt(P.beads) + ' hạt'; $('pLotus').textContent = '🪷 ' + fmt(P.lotus || 0); $('pInit').textContent = P.name.trim().split(' ').pop()[0] || '🙏';
 }
@@ -781,6 +785,7 @@ function openProfile() {
     const lv = levelOf(P.beads);
     const rows = [['Mã nhân vật', P.id || '—'], ['Hoa sen', '🪷 ' + fmt(P.lotus || 0)], ['Cấp', `${lv + 1} · ${C.levels[lv].name}`], ['Hạt', fmt(P.beads)], ['Công đức', fmt(P.merit)], ['Số lạy', fmt(P.lay)], ['Chuỗi tràng hạt', fmt(P.rounds)], ['Phút thiền', fmt(P.medMin)], ['Chuỗi ngày', P.streak + ' ngày'], ['Truyện đã nghe', `${P.stories.length}/${CBA.stories.length}`], ['Câu đố đúng', fmt(P.quiz)]];
     const ul = el('ul', 'stats'); rows.forEach(([k, v]) => { const li = el('li'); li.append(el('span', '', k), el('b', '', v)); ul.append(li); }); b.append(ul);
+    b.append(SHOP.certList());
     b.append(el('h3', '', '📜 Ấn hành hương'));
     const g = el('div', 'stamps'); TEMPLES.filter(t => !t.home).forEach(t => { const s = el('div', 'stamp' + ((P.temples[t.id] || {}).stamp ? ' on' : ''), t.name.replace('Chùa ', '')); g.append(s); }); b.append(g);
   });
@@ -848,7 +853,7 @@ function characterForm(first) {
     go.onclick = () => {
       const n = name.value.trim().replace(/\s+/g, ' '); if (n.length < 2) { err.textContent = 'Nhập pháp danh (ít nhất 2 ký tự).'; return name.focus(); }
       P.name = n; P.look = Object.assign({}, look); save(); if (pvR) pvR.dispose();
-      if (me.av) { me.av.setLook(look); me.label.textContent = n; }
+      if (me.av) { me.av.setLook(look); me.label.textContent = n + (badgeOf(P) ? ' ' + badgeOf(P) : ''); }
       closeModal(); hud();
       if (first) { A.ensure(); checkIn(); openTemplePicker(true); }
     };
@@ -869,7 +874,7 @@ function previewRenderer(host) {
 
 /* ---------------- thanh hành động ---------------- */
 /* cửa hàng hoa sen & nạp */
-const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt });
+const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert: (r, t) => { hud(); ticker(`${t.icon} ${P.name} vừa nhận chứng nhận ${t.title} tại ${r.templeName || temple.name}`); petalShower(); } });
 /* tài khoản người chơi */
 const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: () => { store.set('profile', P); saveS(); } });
 window.__acc = ACC;
@@ -941,7 +946,7 @@ function drawRank(rows) {
   if (mine >= 5) show.push(rows[mine]);
   show.forEach(([n, v]) => {
     const k = rows.findIndex(r => r[0] === n), li = el('li', n === P.name ? 'me' : '');
-    li.append(el('b', '', String(k + 1)), el('span', '', n), el('em', '', fmt(v)));
+    li.append(el('b', '', String(k + 1)), el('span', '', n === P.name && badgeOf(P) ? `${n} ${badgeOf(P)}` : n), el('em', '', fmt(v)));
     const was = rankPrev.indexOf(n); if (rankPrev.length && (was === -1 || was > k) && k < 5) li.classList.add('up');
     ol.append(li);
   });
@@ -1179,6 +1184,7 @@ function loop() {
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
     if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
+    if (meritLbl) { placeLabel(meritLbl, W.merit, 1.6); if (W.merit.distanceTo(me.av.root.position) > 12) meritLbl.style.display = 'none'; }
     ANIM.forEach(f => f(t));
     smokes.forEach(s => s.update(dt, smokeBoost)); smokeBoost = Math.max(0, smokeBoost - dt);
     lanternStep(dt);

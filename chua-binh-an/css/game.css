@@ -251,3 +251,21 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .acct input { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #1f0d06; color: var(--fg); font: 15px var(--sans); }
 .acct .btn { margin-top: 6px; }
 .isteps { margin: 6px 0 0 18px; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+/* hòm công đức */
+.nlabel.merit { background: linear-gradient(90deg, #8e1a0e, #c98a1c); color: #fff3c4; border: 1px solid rgba(255, 210, 120, .7); }
+.tiers .tier { border-color: var(--tc); position: relative; }
+.tiers .tier .ti { font-size: 26px; line-height: 1; }
+.tiers .tier small { color: var(--tc); font-weight: 700; }
+.certs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.cert { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--tc); background: rgba(255, 220, 150, .06); color: var(--fg); cursor: pointer; }
+.cert .ti { grid-row: span 2; font-size: 28px; } .cert b { font: 700 14px var(--serif); color: var(--tc); } .cert small { color: var(--mut); font-size: 12px; }
+.certimg { width: 100%; border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .45); }
+.mstats { border: 1px solid rgba(255, 200, 100, .35); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: rgba(255, 200, 100, .05); }
+.mstats h3 { margin-top: 0; }
+.mtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.mtile { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .25); }
+.mtile small { color: var(--mut); font-size: 12px; } .mtile b { font: 800 22px var(--serif); color: #ffd36b; } .mtile span { font-size: 12px; color: var(--mut); }
+.mcap { display: block; margin: 10px 0 4px; color: var(--mut); font-weight: 700; }
+.mtable { display: grid; gap: 2px; font-size: 13px; } .mtable > div { display: flex; justify-content: space-between; gap: 10px; padding: 4px 6px; border-bottom: 1px dashed rgba(255, 255, 255, .08); }
+.mstats .btn { margin-top: 8px; }
+.req.don { border-left: 4px solid #e9a23b; }

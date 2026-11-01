@@ -1,6 +1,6 @@
 /* Service worker: cho phép cài game về điện thoại và chơi được khi mạng yếu.
    Đổi VER mỗi lần cập nhật lớn để máy người chơi tải bản mới. */
-const VER = 'cba-v1';
+const VER = 'cba-v2';
 const CORE = [
   'game.html', 'manifest.webmanifest', 'css/game.css',
   'js/config.js', 'js/content.js', 'js/stories.js', 'js/temples.js', 'js/audio.js', 'js/shop-config.js', 'js/temple3d.js',

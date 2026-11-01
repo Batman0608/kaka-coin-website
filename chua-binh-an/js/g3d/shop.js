@@ -15,12 +15,26 @@ export const SHOP_ITEMS = [
   { id: 'dendau', mesh: 'nen', icon: '🪔', n: 'Đèn dầu trường minh', price: 150, m: 700 }
 ];
 
+/* hòm công đức: mức cúng dường theo các mức nạp, mỗi mức một chứng nhận & biểu tượng cạnh tên */
+export const MERIT_TIERS = [
+  { amount: 10000, icon: '🪷', title: 'Tùy Hỷ Công Đức', color: '#e78aa3' },
+  { amount: 20000, icon: '🌸', title: 'Thiện Tâm Công Đức', color: '#f2a5c0' },
+  { amount: 50000, icon: '🏵️', title: 'Hộ Pháp Công Đức', color: '#e9a23b' },
+  { amount: 100000, icon: '📿', title: 'Công Đức Viên Mãn', color: '#c9772a' },
+  { amount: 200000, icon: '🏮', title: 'Đại Thí Chủ', color: '#d9332a' },
+  { amount: 500000, icon: '☸️', title: 'Hộ Trì Tam Bảo', color: '#f5c542' }
+];
+export const tierOf = (amount) => MERIT_TIERS.slice().reverse().find(t => amount >= t.amount) || MERIT_TIERS[0];
+/* biểu tượng hiển thị cạnh tên: chứng nhận cao nhất đã có */
+export function badgeOf(P) { const c = P.certs || []; if (!c.length) return ''; return tierOf(Math.max(...c.map(x => x.amount))).icon; }
+
 export function initShop(ctx) {
-  const { P, save, modal, closeModal, el, $, toast, banner, A, fmt } = ctx;
+  const { P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert } = ctx;
+  P.certs = P.certs || [];
   if (!P.id) { let s = 'CBA'; for (let i = 0; i < 6; i++) s += ID_CHARS[(Math.random() * ID_CHARS.length) | 0]; P.id = s; }
   P.lotus = P.lotus || 0; P.credited = P.credited || {}; save();
   const lotusOf = (vnd) => Math.round(vnd / (CFG.vndPerLotus || 50));
-  const contentOf = (vnd) => `${CFG.contentPrefix || 'HS'} ${P.id} ${vnd / 1000}K`;
+  const contentOf = (vnd, kind) => `${kind === 'donate' ? (CFG.donatePrefix || 'CD') : (CFG.contentPrefix || 'HS')} ${P.id} ${vnd / 1000}K`;
   const vnd = (n) => n.toLocaleString('vi-VN') + 'đ';
   const today = () => { const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 420) * 60000); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   const hasFb = hasFirebase;
@@ -52,8 +66,17 @@ export function initShop(ctx) {
   async function creditApproved() {
     for (const r of myReqs) {
       if (r.status !== 'approved' || r.claimed || P.credited[r.id]) continue;
-      P.credited[r.id] = true; addLotus(r.lotus);
-      banner('🪷 Nạp thành công', `+${fmt(r.lotus)} hoa sen`, `Đã nhận ${vnd(r.amount)} · cảm ơn quý Phật tử đã hộ trì`);
+      P.credited[r.id] = true;
+      if (r.kind === 'donate') {
+        const t = tierOf(r.amount);
+        P.certs.push({ id: r.id, amount: r.amount, temple: r.temple || '', templeName: r.templeName || '', at: r.createdAt || Date.now(), name: P.name });
+        P.merit = (P.merit || 0) + Math.round(r.amount / 100); changed();
+        banner(`${t.icon} Chứng nhận công đức`, t.title, `Đã nhận ${vnd(r.amount)} cúng dường ${r.templeName || ''} · biểu tượng ${t.icon} đã hiện cạnh tên bạn`);
+        if (onCert) onCert(r, t);
+      } else {
+        addLotus(r.lotus);
+        banner('🪷 Nạp thành công', `+${fmt(r.lotus)} hoa sen`, `Đã nhận ${vnd(r.amount)} · cảm ơn quý Phật tử đã hộ trì`);
+      }
       A.bigBell && A.bigBell();
       try { await backend.claim(r.id); } catch (e) { console.warn('[Nạp] claim', e); }
     }
@@ -72,6 +95,7 @@ export function initShop(ctx) {
       async adminLogin(email, pw) { if (pw !== (CFG.demoAdminPassword || 'admin123')) throw new Error('Sai mật khẩu'); return true; },
       async adminLogout() {},
       watchAll(cb) { const f = (l) => cb(l); subs.push(f); f(read()); },
+      watchDonations(cb) { const f = (l) => cb(l.filter(r => r.kind === 'donate' && r.status === 'approved')); subs.push(f); f(read()); return () => { const i = subs.indexOf(f); if (i >= 0) subs.splice(i, 1); }; },
       async decide(id, ok, by) { const l = read(); const r = l.find(x => x.id === id); if (r && r.status === 'pending') { r.status = ok ? 'approved' : 'rejected'; r.decidedAt = Date.now(); r.decidedBy = by; write(l); } }
     };
   }
@@ -98,14 +122,15 @@ export function initShop(ctx) {
       },
       async adminLogout() { await au.signOut(auth); await au.signInAnonymously(auth); backend.watchMine(P.id, (l) => { myReqs = l; creditApproved(); }); window.dispatchEvent(new Event('cba-auth-changed')); },
       watchAll(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('status', '==', 'pending')), (s) => cb(rows(s)), (e) => toast('⚠️ Không đọc được yêu cầu nạp: ' + e.message)); },
+      watchDonations(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('kind', '==', 'donate'), fs.where('status', '==', 'approved')), (s) => cb(rows(s)), (e) => toast('⚠️ Không đọc được hòm công đức: ' + e.message)); },
       async decide(id, ok, by) { await fs.updateDoc(fs.doc(db, 'topups', id), { status: ok ? 'approved' : 'rejected', decidedAt: fs.serverTimestamp(), decidedBy: by || 'admin' }); }
     };
   }
 
   /* ---------- nạp hoa sen ---------- */
-  function qrUrl(amount) {
+  function qrUrl(amount, kind) {
     const b = CFG.bank; if (!bankOk) return '';
-    return `https://img.vietqr.io/image/${encodeURIComponent(b.bank)}-${encodeURIComponent(b.account)}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(contentOf(amount))}&accountName=${encodeURIComponent(b.owner || '')}`;
+    return `https://img.vietqr.io/image/${encodeURIComponent(b.bank)}-${encodeURIComponent(b.account)}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(contentOf(amount, kind))}&accountName=${encodeURIComponent(b.owner || '')}`;
   }
   const copyBtn = (text) => { const c = el('button', 'btn sm', '📋 Chép'); c.onclick = () => { (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Đã chép: ' + text), () => toast(text)); }; return c; };
   function openTopup() {
@@ -119,10 +144,10 @@ export function initShop(ctx) {
       b.append(myList());
     }, { wide: true });
   }
-  function payStep(b, amount) {
+  function payStep(b, amount, don) {
     [...b.children].forEach((c, i) => { if (i) c.remove(); });
-    const content = contentOf(amount), L = lotusOf(amount), box = el('div', 'pay');
-    const qr = qrUrl(amount);
+    const kind = don ? 'donate' : 'topup', content = contentOf(amount, kind), L = don ? 0 : lotusOf(amount), box = el('div', 'pay');
+    const qr = qrUrl(amount, kind);
     if (qr) { const im = el('img', 'qr'); im.alt = 'Mã QR chuyển khoản'; im.src = qr; im.onerror = () => { im.replaceWith(el('p', 'note warn', 'Không tải được ảnh QR · vui lòng chuyển khoản theo thông tin bên dưới.')); }; box.append(im); }
     else box.append(el('p', 'note warn', 'Chùa chưa điền tài khoản nhận tiền (js/shop-config.js → bank).'));
     const rows = el('div', 'payinfo');
@@ -132,21 +157,26 @@ export function initShop(ctx) {
     row('Chủ tài khoản', CFG.bank.owner || '—');
     row('Số tiền', vnd(amount), String(amount));
     row('Nội dung CK', content, content);
-    box.append(rows, el('p', 'note', `Nhận ${fmt(L)} hoa sen sau khi chùa xác nhận đã nhận tiền. Ghi đúng nội dung chuyển khoản để được duyệt nhanh.`));
+    box.append(rows, el('p', 'note', don ? `Sau khi chùa xác nhận đã nhận, bạn được cấp chứng nhận "${tierOf(amount).title}" ${tierOf(amount).icon} và biểu tượng hiện cạnh tên. Ghi đúng nội dung chuyển khoản để được duyệt nhanh.` : `Nhận ${fmt(L)} hoa sen sau khi chùa xác nhận đã nhận tiền. Ghi đúng nội dung chuyển khoản để được duyệt nhanh.`));
     const done = el('button', 'btn gold', '✅ Tôi đã chuyển khoản');
     done.onclick = async () => {
       done.disabled = true; done.textContent = 'Đang gửi…';
-      try { await backend.create({ pid: P.id, name: P.name, amount, lotus: L, content }); toast('📨 Đã gửi yêu cầu · chờ chùa xác nhận'); closeModal(); openTopup(); }
+      try {
+        const req = { kind, pid: P.id, name: P.name, amount, lotus: L, content };
+        if (don) Object.assign(req, { temple: don.id, templeName: don.name });
+        await backend.create(req); toast(don ? '🙏 Đã ghi nhận tâm cúng dường · chờ chùa xác nhận' : '📨 Đã gửi yêu cầu · chờ chùa xác nhận'); closeModal(); don ? openDonate(don) : openTopup();
+      }
       catch (e) { done.disabled = false; done.textContent = '✅ Tôi đã chuyển khoản'; toast('⚠️ Không gửi được: ' + e.message); }
     };
-    const back = el('button', 'btn', '← Chọn gói khác'); back.onclick = () => { closeModal(); openTopup(); };
+    const back = el('button', 'btn', '← Chọn mức khác'); back.onclick = () => { closeModal(); don ? openDonate(don) : openTopup(); };
     const r2 = el('div', 'row'); r2.append(back, done); box.append(r2); b.append(box);
   }
   function myList() {
-    const w = el('div'); if (!myReqs.length) return w;
+    const mine = myReqs.filter(r => r.kind !== 'donate');
+    const w = el('div'); if (!mine.length) return w;
     w.append(el('h3', '', '📜 Yêu cầu nạp của bạn'));
     const ul = el('div', 'reqs');
-    myReqs.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8).forEach(r => {
+    mine.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8).forEach(r => {
       const st = { pending: '⏳ Chờ duyệt', approved: '✅ Đã cộng', rejected: '❌ Từ chối' }[r.status] || r.status;
       const it = el('div', 'req ' + r.status); it.append(el('b', '', `${vnd(r.amount)} → 🪷 ${fmt(r.lotus)}`), el('small', '', `${new Date(r.createdAt).toLocaleString('vi-VN')} · ${r.content}`), el('em', '', st)); ul.append(it);
     });
@@ -178,16 +208,18 @@ export function initShop(ctx) {
   }
   function openAdmin() {
     if (!isAdmin) return adminLogin();
-    modal('🛡 Duyệt nạp hoa sen', (b) => {
+    modal('🛡 Duyệt nạp & công đức', (b) => {
       const box = el('div');
       const paint = () => {
         box.innerHTML = '';
         if (!pending.length) box.append(el('p', 'note', 'Chưa có yêu cầu nạp nào đang chờ. Bảng tự cập nhật khi có người bấm "Tôi đã chuyển khoản".'));
         pending.forEach(r => {
           const it = el('div', 'req pending'); const info = el('div');
-          info.append(el('b', '', `${r.name || '—'} · ${r.pid}`), el('small', '', `${vnd(r.amount)} → 🪷 ${fmt(r.lotus)} · ${new Date(r.createdAt).toLocaleString('vi-VN')}`), el('code', '', r.content));
+          const what = r.kind === 'donate' ? `💝 Cúng hòm công đức ${r.templeName || ''} → chứng nhận ${tierOf(r.amount).icon} ${tierOf(r.amount).title}` : `🪷 Nạp → ${fmt(r.lotus)} hoa sen`;
+          info.append(el('b', '', `${r.name || '—'} · ${r.pid} · ${vnd(r.amount)}`), el('small', '', `${what} · ${new Date(r.createdAt).toLocaleString('vi-VN')}`), el('code', '', r.content));
+          if (r.kind === 'donate') it.classList.add('don');
           const ok = el('button', 'btn gold sm', '✅ Chấp nhận'), no = el('button', 'btn sm', '❌ Từ chối');
-          ok.onclick = async () => { ok.disabled = no.disabled = true; try { await backend.decide(r.id, true, P.name); toast(`✅ Đã cộng ${fmt(r.lotus)} hoa sen cho ${r.name}`); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
+          ok.onclick = async () => { ok.disabled = no.disabled = true; try { await backend.decide(r.id, true, P.name); toast(r.kind === 'donate' ? `✅ Đã cấp chứng nhận ${tierOf(r.amount).title} cho ${r.name}` : `✅ Đã cộng ${fmt(r.lotus)} hoa sen cho ${r.name}`); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
           no.onclick = async () => { if (!confirm(`Từ chối yêu cầu ${vnd(r.amount)} của ${r.name}?`)) return; ok.disabled = no.disabled = true; try { await backend.decide(r.id, false, P.name); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
           const act = el('div', 'row'); act.append(ok, no); it.append(info, act); box.append(it);
         });
@@ -200,9 +232,100 @@ export function initShop(ctx) {
   }
   backend.ready.then(() => { if (isAdmin) startAdmin(); });
 
+  /* ---------- hòm công đức ---------- */
+  function openDonate(temple) {
+    if (CFG.topupEnabled === false) return toast('Hòm công đức đang tạm đóng');
+    modal(`💝 Hòm công đức · ${temple.name}`, (b) => {
+      b.append(el('p', 'note', 'Phát tâm cúng dường tùy hỷ để duy trì hương đăng, tu bổ chùa. Mỗi mức cúng dường được cấp một chứng nhận công đức và biểu tượng cạnh tên nhân vật.'));
+      if (isAdmin) b.append(adminStats(temple));
+      const grid = el('div', 'packs tiers');
+      MERIT_TIERS.forEach(t => {
+        const p = el('button', 'pack tier'); p.style.setProperty('--tc', t.color);
+        p.append(el('span', 'ti', t.icon), el('b', '', vnd(t.amount)), el('small', '', t.title));
+        p.onclick = () => payStep(b, t.amount, temple); grid.append(p);
+      });
+      b.append(grid);
+      const wait = myReqs.filter(r => r.kind === 'donate' && r.status === 'pending');
+      if (wait.length) b.append(el('p', 'note', `⏳ ${wait.length} lần cúng dường đang chờ chùa xác nhận: ${wait.map(r => vnd(r.amount)).join(', ')}`));
+      if (backend.mode === 'demo') b.append(el('p', 'note warn', 'Chế độ thử (chưa cấu hình Firebase): yêu cầu chỉ lưu trong trình duyệt này.'));
+      b.append(certList());
+    }, { wide: true });
+  }
+  function certList() {
+    const w = el('div'); if (!P.certs.length) return w;
+    w.append(el('h3', '', '📜 Chứng nhận công đức của bạn'));
+    const ul = el('div', 'certs');
+    P.certs.slice().sort((a, b) => b.at - a.at).forEach(c => {
+      const t = tierOf(c.amount), it = el('button', 'cert'); it.style.setProperty('--tc', t.color);
+      it.append(el('span', 'ti', t.icon), el('b', '', t.title), el('small', '', `${vnd(c.amount)} · ${c.templeName || ''} · ${new Date(c.at).toLocaleDateString('vi-VN')}`));
+      it.onclick = () => showCert(c); ul.append(it);
+    });
+    w.append(ul); return w;
+  }
+  function showCert(c) {
+    const cv = certCanvas(c), url = cv.toDataURL('image/png');
+    modal('📜 Giấy chứng nhận công đức', (b) => {
+      const im = el('img', 'certimg'); im.src = url; im.alt = 'Giấy chứng nhận công đức'; b.append(im);
+      const r = el('div', 'row'), dl = el('a', 'btn gold', '⬇️ Lưu ảnh chứng nhận'); dl.href = url; dl.download = `chung-nhan-cong-duc-${P.id}-${c.amount / 1000}k.png`;
+      r.append(dl); b.append(r);
+    }, { wide: true });
+  }
+  function certCanvas(c) {
+    const t = tierOf(c.amount), W = 1400, H = 990, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const k = cv.getContext('2d');
+    const bg = k.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, W * 0.7); bg.addColorStop(0, '#fff8e6'); bg.addColorStop(1, '#f0d9a6'); k.fillStyle = bg; k.fillRect(0, 0, W, H);
+    k.strokeStyle = '#8e1a0e'; k.lineWidth = 26; k.strokeRect(30, 30, W - 60, H - 60);
+    k.strokeStyle = '#d4a03a'; k.lineWidth = 6; k.strokeRect(62, 62, W - 124, H - 124); k.lineWidth = 2; k.strokeRect(76, 76, W - 152, H - 152);
+    // hoa văn góc
+    [[90, 90], [W - 90, 90], [90, H - 90], [W - 90, H - 90]].forEach(([x, y]) => { k.save(); k.translate(x, y); k.fillStyle = '#d4a03a'; for (let i = 0; i < 8; i++) { k.rotate(Math.PI / 4); k.beginPath(); k.ellipse(0, 18, 7, 18, 0, 0, 7); k.fill(); } k.fillStyle = '#8e1a0e'; k.beginPath(); k.arc(0, 0, 8, 0, 7); k.fill(); k.restore(); });
+    // bánh xe pháp mờ ở nền
+    k.save(); k.globalAlpha = 0.07; k.translate(W / 2, H / 2 + 40); k.strokeStyle = '#8e1a0e'; k.lineWidth = 18; k.beginPath(); k.arc(0, 0, 260, 0, 7); k.stroke(); k.beginPath(); k.arc(0, 0, 60, 0, 7); k.stroke();
+    for (let i = 0; i < 8; i++) { k.rotate(Math.PI / 4); k.beginPath(); k.moveTo(0, 60); k.lineTo(0, 260); k.stroke(); } k.restore();
+    k.textAlign = 'center'; k.textBaseline = 'middle'; const serif = "Georgia, 'Times New Roman', serif";
+    k.fillStyle = '#8e1a0e'; k.font = `700 30px ${serif}`; k.fillText('NAM MÔ BỔN SƯ THÍCH CA MÂU NI PHẬT', W / 2, 140);
+    k.font = `900 76px ${serif}`; k.fillText('GIẤY CHỨNG NHẬN CÔNG ĐỨC', W / 2, 230);
+    k.fillStyle = '#6a4a1a'; k.font = `italic 30px ${serif}`; k.fillText(`${c.templeName || 'Chùa'} trân trọng chứng nhận Phật tử`, W / 2, 315);
+    k.fillStyle = '#8e1a0e'; k.font = `900 82px ${serif}`; k.fillText(c.name || P.name, W / 2, 410);
+    k.fillStyle = '#6a4a1a'; k.font = `600 26px ${serif}`; k.fillText(`Mã nhân vật: ${P.id}`, W / 2, 470);
+    k.font = `30px ${serif}`; k.fillText(`đã phát tâm cúng dường vào hòm công đức số tịnh tài ${vnd(c.amount)}`, W / 2, 535);
+    // danh hiệu
+    k.fillStyle = t.color; k.beginPath(); k.roundRect ? k.roundRect(W / 2 - 330, 585, 660, 110, 55) : k.rect(W / 2 - 330, 585, 660, 110); k.fill();
+    k.fillStyle = '#fff'; k.font = `900 54px ${serif}`; k.shadowColor = 'rgba(0,0,0,.35)'; k.shadowBlur = 6; k.fillText(`${t.icon} ${t.title}`, W / 2, 642); k.shadowBlur = 0;
+    k.fillStyle = '#6a4a1a'; k.font = `italic 28px ${serif}`;
+    k.fillText('Nguyện đem công đức này hướng về khắp tất cả, đệ tử và chúng sanh đều trọn thành Phật đạo.', W / 2, 760);
+    const d = new Date(c.at); k.font = `26px ${serif}`; k.textAlign = 'left'; k.fillText(`Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`, 150, 860);
+    k.textAlign = 'center'; k.fillText(`Mã chứng nhận: ${String(c.id).slice(-10).toUpperCase()}`, W / 2, 900);
+    // con dấu đỏ
+    k.save(); k.translate(W - 260, 850); k.rotate(-0.12); k.strokeStyle = '#c0261b'; k.fillStyle = 'rgba(192,38,27,.1)'; k.lineWidth = 8; k.beginPath(); k.arc(0, 0, 92, 0, 7); k.fill(); k.stroke(); k.lineWidth = 3; k.beginPath(); k.arc(0, 0, 76, 0, 7); k.stroke();
+    k.fillStyle = '#c0261b'; k.textAlign = 'center'; k.font = `900 26px ${serif}`; k.fillText('CÔNG ĐỨC', 0, -22); k.font = `900 38px ${serif}`; k.fillText('☸', 0, 18); k.font = `700 16px ${serif}`; k.fillText((c.templeName || '').toUpperCase().slice(0, 18), 0, 52); k.restore();
+    return cv;
+  }
+  /* admin bấm vào hòm công đức: xem tổng đã nhận */
+  function adminStats(temple) {
+    const w = el('div', 'mstats'); let un = null;
+    const paint = (list) => {
+      w.innerHTML = '';
+      const all = list.reduce((s, r) => s + r.amount, 0), here = list.filter(r => r.temple === temple.id), sum = here.reduce((s, r) => s + r.amount, 0);
+      const pend = pending.filter(r => r.kind === 'donate');
+      const tiles = el('div', 'mtiles');
+      [[`💝 ${temple.name}`, vnd(sum), `${here.length} lượt cúng dường`], ['🏯 Tất cả các chùa', vnd(all), `${list.length} lượt · ${new Set(list.map(r => r.pid)).size} Phật tử`], ['⏳ Chờ xác nhận', String(pend.length), pend.length ? vnd(pend.reduce((s, r) => s + r.amount, 0)) : 'không có']]
+        .forEach(([k, v, sub]) => { const t = el('div', 'mtile'); t.append(el('small', '', k), el('b', '', v), el('span', '', sub)); tiles.append(t); });
+      w.append(el('h3', '', '🛡 Quản trị · tổng công đức đã nhận'), tiles);
+      const byT = {}; list.forEach(r => { const n = r.templeName || r.temple || '—'; byT[n] = (byT[n] || 0) + r.amount; });
+      const rowsT = Object.entries(byT).sort((a, b) => b[1] - a[1]);
+      if (rowsT.length) { const tb = el('div', 'mtable'); rowsT.forEach(([n, v]) => { const r = el('div', ''); r.append(el('span', '', n), el('b', '', vnd(v))); tb.append(r); }); w.append(el('small', 'mcap', 'Theo từng chùa'), tb); }
+      const recent = here.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+      if (recent.length) { const tb = el('div', 'mtable'); recent.forEach(r => { const x = el('div', ''); x.append(el('span', '', `${tierOf(r.amount).icon} ${r.name} · ${new Date(r.createdAt).toLocaleDateString('vi-VN')}`), el('b', '', vnd(r.amount))); tb.append(x); }); w.append(el('small', 'mcap', `Gần đây tại ${temple.name}`), tb); }
+      if (pend.length) { const go = el('button', 'btn sm gold', `Duyệt ${pend.length} yêu cầu đang chờ`); go.onclick = () => { closeModal(); openAdmin(); }; w.append(go); }
+    };
+    paint([]);
+    un = backend.watchDonations(paint);
+    setTimeout(() => { const v = $('veil'); const obs = new MutationObserver(() => { if (v.hidden || !w.isConnected) { if (un) un(); obs.disconnect(); } }); obs.observe(v, { attributes: true, childList: true }); }, 0);
+    return w;
+  }
+
   return {
     get lotus() { return P.lotus; }, get mode() { return backend.mode; }, get isAdmin() { return isAdmin; },
-    items: SHOP_ITEMS, spend, addLotus, dailyReady, claimDaily, openTopup, openAdmin, adminLogin,
+    items: SHOP_ITEMS, spend, addLotus, dailyReady, claimDaily, openTopup, openAdmin, adminLogin, openDonate, certList, showCert,
     onChange(f) { listeners.add(f); }, myList
   };
 }
