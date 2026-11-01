@@ -8,12 +8,15 @@ import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { initShop } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
+import { bootAccount, initAccount } from './account.js';
+
+await bootAccount();   // máy đã đăng nhập → lấy tiến trình mới nhất từ tài khoản trước khi đọc dữ liệu
 
 const C = CBA.config, A = CBA.Audio;
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const fmt = (n) => Math.round(n || 0).toLocaleString('vi-VN');
-const store = { get(k, d) { try { const v = localStorage.getItem('cba3d_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('cba3d_' + k, JSON.stringify(v)); } catch (e) {} } };
+const store = { get(k, d) { try { const v = localStorage.getItem('cba3d_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set(k, v) { if (window.__cbaLock) return; try { localStorage.setItem('cba3d_' + k, JSON.stringify(v)); } catch (e) {} } };
 const TEMPLES = CBA.temples;
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 
@@ -810,10 +813,12 @@ function openSettings() {
       setTimeout(() => { const ok = A.unlocked(); res.className = 'note' + (ok ? '' : ' warn'); res.textContent = ok ? `✅ Âm thanh đang bật · giọng đọc: ${A.voiceName() || 'máy chưa có giọng tiếng Việt'}. Nếu vẫn không nghe: kiểm tra loa, âm lượng máy và tab trình duyệt có bị tắt tiếng (biểu tượng loa trên tab).` : '⚠️ Trình duyệt đang chặn âm thanh. Bấm vào màn hình game một lần rồi thử lại; trên iPhone hãy gạt nút im lặng (bên hông máy) sang bật chuông.'; }, 600);
     };
     b.append(tst, res);
+    ACC.section(b);
     b.append(el('h3', '', '🪷 Hoa sen & nạp'));
     { const r = el('div', 'row'); const t1 = el('button', 'btn', '➕ Nạp hoa sen'); t1.onclick = () => { closeModal(); SHOP.openTopup(); };
       const t2 = el('button', 'btn', SHOP.isAdmin ? '🛡 Bảng duyệt nạp' : '🛡 Đăng nhập quản trị'); t2.onclick = () => { closeModal(); SHOP.openAdmin(); };
       r.append(t1, t2); b.append(el('p', 'note', `Mã nhân vật: ${P.id} · Số dư: 🪷 ${fmt(P.lotus || 0)} · Chế độ: ${SHOP.mode === 'firebase' ? 'Firebase' : 'thử (chưa cấu hình Firebase)'}`), r); }
+    if (!isStandalone()) { b.append(el('h3', '', '📲 Cài game về máy')); const ib = el('button', 'btn', '📲 Cài game'); ib.onclick = () => { closeModal(); installApp(); }; b.append(el('p', 'note', 'Đưa Chùa Bình An ra màn hình chính điện thoại (hoặc máy tính) để mở nhanh, toàn màn hình như ứng dụng.'), ib); }
     b.append(el('h3', '', '🎮 Trò chơi'),
       tg('Phật tử khác trong chùa (mô phỏng, không phát tiếng mõ)', S.npc, v => { S.npc = v; saveS(); toast('Áp dụng khi đổi chùa'); }),
       tg('Đồ họa nhẹ (máy yếu) — áp dụng khi tải lại', S.low, v => { S.low = v; saveS(); }));
@@ -847,7 +852,9 @@ function characterForm(first) {
       closeModal(); hud();
       if (first) { A.ensure(); checkIn(); openTemplePicker(true); }
     };
-    f.append(err, go, el('p', 'note', 'Tiến trình tu tập lưu trên trình duyệt này.')); box.append(f);
+    f.append(err, go);
+    if (first) { const li = el('button', 'btn ghost', '🔑 Đã có tài khoản? Đăng nhập'); li.onclick = () => { if (pvR) pvR.dispose(); ACC.openAccount('login'); closeHook = () => setTimeout(() => { if (!P.name) characterForm(true); }, 0); }; f.append(li); }
+    f.append(el('p', 'note', ACC.user ? `Tiến trình lưu vào tài khoản ${ACC.user.user}.` : 'Tiến trình tạm lưu trên trình duyệt này · chơi 15 phút sẽ được mời tạo tài khoản để lưu lại.')); box.append(f);
     setTimeout(preview, 30);
   }, { noClose: first });
 }
@@ -863,6 +870,34 @@ function previewRenderer(host) {
 /* ---------------- thanh hành động ---------------- */
 /* cửa hàng hoa sen & nạp */
 const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt });
+/* tài khoản người chơi */
+const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: () => { store.set('profile', P); saveS(); } });
+window.__acc = ACC;
+/* cài game về điện thoại (PWA) */
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const UA = navigator.userAgent, isIOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isMobile = isIOS || /Android|Mobile/i.test(UA) || matchMedia('(pointer: coarse)').matches;
+const inAppBrowser = /FBAN|FBAV|FB_IAB|Zalo|Instagram|TikTok|musical_ly|Line\/|Messenger/i.test(UA);
+let inFrame = false; try { inFrame = window.top !== window; } catch (e) { inFrame = true; }
+function refreshInstall() { $('bInstall').hidden = isStandalone() || !(window.__bip || isMobile); }
+addEventListener('cba-installable', refreshInstall);
+addEventListener('appinstalled', () => { window.__bip = null; refreshInstall(); toast('📲 Đã cài Chùa Bình An · mở game từ màn hình chính'); });
+refreshInstall();
+async function installApp() {
+  if (window.__bip) { const e = window.__bip; e.prompt(); try { const r = await e.userChoice; if (r.outcome === 'accepted') { window.__bip = null; refreshInstall(); } } catch (x) {} return; }
+  modal('📲 Cài game về điện thoại', (b) => {
+    b.append(el('p', 'note', 'Cài xong, game có biểu tượng riêng trên màn hình chính, mở toàn màn hình như ứng dụng, không cần vào cửa hàng ứng dụng.'));
+    const step = (t) => el('li', '', t), ol = el('ol', 'isteps');
+    if (inFrame) b.append(el('p', 'note warn', 'Bạn đang xem game trong khung xem trước nên không cài trực tiếp được. Hãy mở trang game riêng (địa chỉ web của game) bằng Safari hoặc Chrome rồi bấm "Cài game".'));
+    if (inAppBrowser) { b.append(el('p', 'note warn', 'Bạn đang mở game trong trình duyệt của Zalo / Facebook / TikTok — trình duyệt này không cài được. Bấm ⋯ ở góc màn hình → "Mở bằng trình duyệt" (Safari hoặc Chrome) rồi làm theo hướng dẫn.')); }
+    if (isIOS) { b.append(el('h3', '', '🍎 iPhone / iPad')); ol.append(step('Mở game bằng Safari.'), step('Bấm nút Chia sẻ (ô vuông có mũi tên ⬆️) ở thanh dưới.'), step('Kéo xuống, chọn "Thêm vào MH chính" (Add to Home Screen).'), step('Bấm "Thêm" — biểu tượng Chùa Bình An xuất hiện trên màn hình chính.')); }
+    else { b.append(el('h3', '', '🤖 Android')); ol.append(step('Mở game bằng Chrome.'), step('Bấm nút ⋮ ở góc trên bên phải.'), step('Chọn "Cài đặt ứng dụng" hoặc "Thêm vào màn hình chính".'), step('Bấm "Cài đặt" — mở game từ biểu tượng Chùa Bình An.')); }
+    b.append(ol);
+    if (!ACC.user) b.append(el('p', 'note', '💡 Nên tạo tài khoản (Cài đặt → 👤 Tài khoản) để tiến trình trên trình duyệt và trên ứng dụng đã cài là một.'));
+  });
+}
+$('bInstall').onclick = installApp;
+setTimeout(() => { if (isMobile && !isStandalone() && !store.get('installAsk', 0) && P.name) { store.set('installAsk', 1); toast('📲 Mẹo: bấm "Cài game" ở cột bên phải để đưa Chùa Bình An ra màn hình chính'); } }, 120000);
 SHOP.onChange(hud);
 $('bAdmin').onclick = () => SHOP.openAdmin();
 setTimeout(() => { if (P.name && SHOP.dailyReady()) toast('🎁 Có quà hằng ngày: vào "Dâng lễ" để nhận hoa sen'); }, 6000);
@@ -1163,7 +1198,7 @@ window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loa
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
-if (P.name) {
+function welcome() {
   modal('A Di Đà Phật!', (b) => {
     b.append(el('p', 'big', `Chào ${P.name} trở lại chùa.`), el('p', 'note', `Cấp ${levelOf(P.beads) + 1} · ${C.levels[levelOf(P.beads)].name} · ${fmt(P.beads)} hạt`));
     const row = el('div', 'row');
@@ -1171,7 +1206,10 @@ if (P.name) {
     const pick = el('button', 'btn', '🗺 Chọn chùa khác'); pick.onclick = () => { A.ensure(); checkIn(); openTemplePicker(true); };
     const ch = el('button', 'btn', 'Đổi nhân vật'); ch.onclick = () => characterForm(false);
     row.append(go, pick, ch); b.append(row);
+    if (ACC.user) b.append(el('p', 'note', `👤 Tài khoản: ${ACC.user.user} · tiến trình được lưu tự động`));
+    else { const ar = el('div', 'row'), li = el('button', 'btn ghost', '🔑 Đăng nhập tài khoản'); li.onclick = () => { ACC.openAccount('login'); closeHook = () => setTimeout(welcome, 0); }; ar.append(li); b.append(el('p', 'note warn', '⚠️ Chưa đăng nhập: dữ liệu chỉ lưu tạm trên trình duyệt này.'), ar); }
   }, { noClose: true });
-} else characterForm(true);
+}
+if (P.name) welcome(); else characterForm(true);
 hud();
 loop();

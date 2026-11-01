@@ -245,3 +245,9 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .side .badge { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; border-radius: 9px; background: #e8452c; color: #fff; font: 800 11px/18px var(--sans); font-style: normal; text-align: center; padding: 0 4px; }
 @media (max-width: 640px) { .packs { grid-template-columns: repeat(2, 1fr); } .prow { grid-template-columns: 90px 1fr auto; } }
 .req > div:first-child { display: grid; gap: 3px; }
+/* tài khoản */
+.btn.ghost { background: transparent; border-style: dashed; color: var(--mut); margin-top: 10px; }
+.acct { display: grid; gap: 6px; } .acct label { font-size: 13px; color: var(--mut); font-weight: 700; margin-top: 4px; }
+.acct input { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #1f0d06; color: var(--fg); font: 15px var(--sans); }
+.acct .btn { margin-top: 6px; }
+.isteps { margin: 6px 0 0 18px; padding: 0; display: grid; gap: 6px; font-size: 14px; }

@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#2a0f06">
 <title>Chùa Bình An · Hành hương 3D</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/icons/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chùa Bình An">
+<script>
+  // giữ lời mời cài đặt của trình duyệt để hiện nút "Cài game" đúng lúc
+  window.__bip = null;
+  addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; dispatchEvent(new Event('cba-installable')); });
+  if ('serviceWorker' in navigator && /^https:|^http:\/\/(localhost|127\.)/.test(location.href)) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+</script>
 <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
@@ -34,6 +47,7 @@
   <button id="bStory" title="Nghe truyện"><span class="si">📖</span><small>Truyện Phật</small></button>
   <button id="bWish" title="Đèn nguyện"><span class="si">🏮</span><small>Đèn nguyện</small></button>
   <button id="setBtn" title="Cài đặt"><span class="si">⚙️</span><small>Cài đặt</small></button>
+  <button id="bInstall" title="Cài game về máy" hidden><span class="si">📲</span><small>Cài game</small></button>
   <button id="bAdmin" title="Duyệt nạp" hidden><span class="si">🛡</span><small>Duyệt nạp</small><i id="adminBadge" class="badge" hidden>0</i></button>
 </nav>
 <div class="zoom"><button id="zIn" aria-label="Phóng to">+</button><button id="zOut" aria-label="Thu nhỏ">−</button></div>

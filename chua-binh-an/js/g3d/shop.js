@@ -1,8 +1,8 @@
 /* Cửa hàng hoa sen · quà hằng ngày · nạp tiền (chuyển khoản, admin duyệt)
    Dữ liệu nạp lưu ở Firebase Firestore (khi đã cấu hình trong js/shop-config.js),
    chưa cấu hình thì chạy "chế độ thử" lưu trong trình duyệt này. */
+import { fb, hasFirebase } from './fb.js';
 const CFG = (window.CBA && CBA.shop) || {};
-const FB_VER = '10.12.2';
 const ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /* lễ vật bán bằng hoa sen (mesh: hình dáng đặt trên bàn thờ) */
@@ -23,7 +23,7 @@ export function initShop(ctx) {
   const contentOf = (vnd) => `${CFG.contentPrefix || 'HS'} ${P.id} ${vnd / 1000}K`;
   const vnd = (n) => n.toLocaleString('vi-VN') + 'đ';
   const today = () => { const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 420) * 60000); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
-  const hasFb = !!(CFG.firebase && CFG.firebase.apiKey && CFG.firebase.projectId);
+  const hasFb = hasFirebase;
   const bankOk = !!(CFG.bank && CFG.bank.bank && CFG.bank.account);
 
   /* ---------- ví hoa sen ---------- */
@@ -77,15 +77,11 @@ export function initShop(ctx) {
   }
 
   function firebaseBackend() {
-    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
     let fs, au, db, auth;
     const ready = (async () => {
-      const [appM, authM, fsM] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
-      au = authM; fs = fsM;
-      const app = appM.initializeApp(CFG.firebase); auth = au.getAuth(app); db = fs.getFirestore(app);
-      await new Promise(res => { const off = au.onAuthStateChanged(auth, (u) => { off(); res(u); }); });
+      const F = await fb(); au = F.au; fs = F.fs; auth = F.auth; db = F.db;
       if (!auth.currentUser) await au.signInAnonymously(auth);
-      if (auth.currentUser && !auth.currentUser.isAnonymous) isAdmin = await checkAdmin();
+      if (auth.currentUser && !auth.currentUser.isAnonymous && await checkAdmin()) setTimeout(startAdmin, 0);
     })();
     async function checkAdmin() { try { const s = await fs.getDoc(fs.doc(db, 'admins', auth.currentUser.uid)); return s.exists(); } catch (e) { return false; } }
     const rows = (snap) => snap.docs.map(d => Object.assign({ id: d.id }, d.data(), { createdAt: d.data().createdAt && d.data().createdAt.toMillis ? d.data().createdAt.toMillis() : Date.now() }));
@@ -100,7 +96,7 @@ export function initShop(ctx) {
         if (!(await checkAdmin())) { await au.signOut(auth); await au.signInAnonymously(auth); throw new Error('Tài khoản này chưa được cấp quyền admin (thiếu tài liệu admins/<UID>)'); }
         return true;
       },
-      async adminLogout() { await au.signOut(auth); await au.signInAnonymously(auth); backend.watchMine(P.id, (l) => { myReqs = l; creditApproved(); }); },
+      async adminLogout() { await au.signOut(auth); await au.signInAnonymously(auth); backend.watchMine(P.id, (l) => { myReqs = l; creditApproved(); }); window.dispatchEvent(new Event('cba-auth-changed')); },
       watchAll(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('status', '==', 'pending')), (s) => cb(rows(s)), (e) => toast('⚠️ Không đọc được yêu cầu nạp: ' + e.message)); },
       async decide(id, ok, by) { await fs.updateDoc(fs.doc(db, 'topups', id), { status: ok ? 'approved' : 'rejected', decidedAt: fs.serverTimestamp(), decidedBy: by || 'admin' }); }
     };

@@ -1,0 +1,20 @@
+{
+  "name": "Chùa Bình An · Hành hương 3D",
+  "short_name": "Chùa Bình An",
+  "description": "Hành hương 3D các ngôi chùa Việt: lạy Phật, lần tràng hạt, tụng kinh, dâng lễ, thả đèn nguyện.",
+  "lang": "vi",
+  "id": "./game.html",
+  "start_url": "./game.html?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#2a0f06",
+  "theme_color": "#2a0f06",
+  "categories": ["games", "lifestyle"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
