@@ -1,8 +1,10 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-echo Tao giong doc nam tu nhien (NamMinh - giong Bac) bang Azure Speech.
-set /p KEY=Nhap AZURE KEY: 
-set /p REGION=Nhap REGION (vd southeastasia): 
-node tools\tao-giong-doc.mjs %KEY% %REGION%
+echo Tao lai giong doc tu nhien (Microsoft Neural, mien phi) cho cac cau/truyen moi.
+echo Can: Python 3.9+, Node.js, ffmpeg. Lan dau: pip install edge-tts
+where python >nul 2>nul || (echo Chua cai Python: https://www.python.org/ & pause & exit /b)
+where ffmpeg >nul 2>nul || (echo Chua co ffmpeg: winget install Gyan.FFmpeg & pause & exit /b)
+python -m pip install -q edge-tts
+python tools\tao_giong_doc.py
 pause

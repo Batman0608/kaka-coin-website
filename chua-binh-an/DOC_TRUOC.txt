@@ -18,6 +18,18 @@
    rồi nhấp chuột phải vào "KET_NOI_TEN_MIEN.bat" và chọn "Run as administrator".
    Mọi người vào chơi tại: https://dichua.id.vn
 
+5) CẬP NHẬT BẢN MỚI (an toàn, có chạy thử trước):
+   - Tải file zip bản mới về.
+   - Nhấp chuột phải vào "CAP_NHAT.bat" (trong thư mục đang chạy), chọn
+     "Run as administrator", rồi kéo-thả file zip bản mới vào cửa sổ và bấm Enter.
+   - Bản mới chạy thử ở http://localhost:8081/game.html (bản chính thức vẫn
+     chạy bình thường ở 8080 / dichua.id.vn). Kiểm tra xong:
+       Y = đưa lên chính thức (bản cũ được sao lưu tự động)
+       N = hủy, giữ nguyên bản cũ
+   - Có lỗi sau khi cập nhật: chạy "QUAY_LAI_BAN_CU.bat" để trở về bản trước.
+   - Thông tin riêng (tài khoản ngân hàng…) điền vào js\cau-hinh-rieng.js:
+     file này không bao giờ bị ghi đè khi cập nhật.
+
 CÁC FILE KHÁC
   chay-may-chu.bat      chạy máy chủ có cửa sổ (xem trực tiếp)
   dung-may-chu.bat      tắt máy chủ

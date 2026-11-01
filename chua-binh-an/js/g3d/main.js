@@ -94,7 +94,10 @@ function loadTemple(id) {
   // người chơi
   if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
   scene.add(me.av.root);
-  me.pos.set(L.spawn[0], 0, L.spawn[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.seated = null; me.av.setPose('idle');
+  // mỗi người xuất hiện lệch một chút quanh điểm vào chùa, để người chơi thật không đứng chồng lên nhau
+  me.pos.set(L.spawn[0], 0, L.spawn[1]);
+  for (let k = 0; k < 8; k++) { const x = L.spawn[0] + (Math.random() - 0.5) * 5, z = L.spawn[1] + (Math.random() - 0.5) * 3, h = W.col.heightAt(x, z, 50); if (h != null && Math.abs(h - (W.col.heightAt(L.spawn[0], L.spawn[1], 50) ?? 0)) < 0.3) { me.pos.set(x, 0, z); break; } }
+  me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.seated = null; me.av.setPose('idle');
   me.yaw = Math.PI; cam.yaw = 0;
   // khói hương
   smokes = W.burners.map(b => { const f = smoke(scene, b); return { update: f }; });
@@ -249,7 +252,7 @@ function doBow() {
   me.av.bow(); A.mo(0.8); P.lay++; addBeads(3); NET.act('bow');
   if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
   setTimeout(() => A.mo(0.6), 1100);
-  if (nearAltar()) { const t = tp(temple.id); t.lay++; if (t.lay === 3) { toast('✅ Đã lễ Phật tại chánh điện'); objective(); } }
+  if (nearAltar() || W.halls.some(h => insideHall(h))) { const t = tp(temple.id); t.lay++; if (t.lay <= 3) toast(`🙏 Lễ Phật tại chánh điện ${t.lay}/3`); objective(); }   // ngồi đệm nào trong điện cũng được tính
   if (P.lay % 108 === 0) banner('🙏 Lạy Phật', `Tròn ${fmt(P.lay)} lạy`);
   if (!me.seated && nearAltar()) setTimeout(() => { if (!me.seated) me.av.setPose('idle'); }, 2400);
   save();
@@ -628,14 +631,15 @@ function openStories() {
 function legend() {
   const id = temple.legendStory || (temple.legend ? 'chua_' + temple.id : null);
   const st = CBA.stories.find(s => s.id === id);
-  if (!st) { tell(CBA.stories[(Math.random() * CBA.stories.length) | 0]); return; }
+  if (!st) { abbot.av.bow(); tell(CBA.stories[(Math.random() * CBA.stories.length) | 0], true); return; }   // chùa không có sự tích riêng: nghe sư kể một truyện cũng tính
   abbot.av.bow(); tell(st, true);
 }
 function tell(st, isLegend = false) {
   const pages = st.scenes.concat(['🪷 ' + st.moral]); let i = 0;
   const box = $('story'); box.hidden = false; A.ambience.duck(true);
   $('sTitle').textContent = st.title; $('sSeries').textContent = isLegend ? `📜 Sự tích ${temple.name}` : '📖 Sư trụ trì kể chuyện';
-  const show = () => { $('sText').textContent = pages[i]; $('sPage').textContent = `${i + 1}/${pages.length}`; $('sOpts').innerHTML = ''; $('sNext').hidden = false; $('sNext').textContent = i < pages.length - 1 ? 'Trang sau ›' : 'Câu đố ›'; A.speak(pages[i], 'story'); };
+  const show = () => { if (isLegend && i === pages.length - 1 && !tp(temple.id).legend) { tp(temple.id).legend = true; save(); objective(); }   // nghe tới trang cuối là hoàn thành
+    $('sText').textContent = pages[i]; $('sPage').textContent = `${i + 1}/${pages.length}`; $('sOpts').innerHTML = ''; $('sNext').hidden = false; $('sNext').textContent = i < pages.length - 1 ? 'Trang sau ›' : 'Câu đố ›'; A.speak(pages[i], 'story'); };
   $('sNext').onclick = () => { i++; if (i < pages.length) show(); else quiz(); };
   $('sClose').onclick = () => { box.hidden = true; A.speak('', 'cancel'); A.ambience.duck(false); };
   const quiz = () => {
@@ -646,7 +650,7 @@ function tell(st, isLegend = false) {
       const ok = k === q.answer;
       if (!P.stories.includes(st.id)) { P.stories.push(st.id); addBeads(9); }
       if (ok) { P.quiz++; addBeads(27); A.smallBell(); }
-      if (isLegend) { tp(temple.id).legend = true; objective(); }
+      if (isLegend && !tp(temple.id).legend) { tp(temple.id).legend = true; objective(); }
       $('sText').textContent = ok ? '🎉 Chính xác! +27 hạt' : `Đáp án đúng: ${'ABC'[q.answer]}. ${q.options[q.answer]}`;
       save(); hud();
     }; o.append(b); });
@@ -655,17 +659,37 @@ function tell(st, isLegend = false) {
 }
 
 /* ---------------- Sổ hành hương (mục tiêu mỗi chùa) ---------------- */
+const STEPS = ['Vào chánh điện lạy Phật 3 lạy', 'Khám phá các địa danh trong chùa', 'Gặp sư trụ trì nghe sự tích chùa'];
 function objective() {
-  if (!temple) return;
+  if (!temple || !W) return;
   const t = tp(temple.id), L = W.layout, total = L.pois.length, seen = t.pois.length;
+  const done = [t.lay >= 3, seen >= total, !!t.legend], step = t.stamp ? 4 : done.indexOf(false) + 1 || 4;
   let text;
   if (t.stamp) text = `✅ Đã nhận Ấn ${temple.name} · chọn chùa khác trên bản đồ`;
-  else if (t.lay < 3) text = `1/3 · Vào chánh điện lạy Phật (${t.lay}/3 lạy)`;
-  else if (seen < total) text = `2/3 · Khám phá địa danh (${seen}/${total})`;
-  else if (!t.legend) text = '3/3 · Gặp sư trụ trì nghe sự tích chùa';
-  else { t.stamp = true; save(); text = `✅ Đã nhận Ấn ${temple.name}`; A.bigBell(); banner('📜 Ấn hành hương', temple.name, `Đã đủ ${Object.values(P.temples).filter(x => x.stamp).length}/${TEMPLES.length} ấn · +108 hạt`); addBeads(108); }
+  else if (!done[0]) text = `1/3 · Vào chánh điện lạy Phật (${t.lay}/3 lạy)`;
+  else if (!done[1]) text = `2/3 · Khám phá địa danh (${seen}/${total})`;
+  else if (!done[2]) text = '3/3 · Gặp sư trụ trì nghe sự tích chùa';
+  // báo hoàn thành từng bước (mỗi bước báo một lần)
+  if (!t.done) t.done = done.slice();   // dữ liệu cũ: ghi nhận những bước đã xong, không báo lại
+  done.forEach((ok, k) => { if (ok && !t.done[k]) { t.done[k] = true; save(); if (!(done.every(Boolean) && !t.stamp)) { A.smallBell(); banner('✅ Hoàn thành nhiệm vụ', `${k + 1}/3 · ${STEPS[k]}`, step <= 3 ? `Tiếp theo: ${STEPS[step - 1]}` : ''); } } });
+  if (!t.stamp && done.every(Boolean)) { t.stamp = true; save(); text = `✅ Đã nhận Ấn ${temple.name}`; A.bigBell(); banner('📜 Hoàn thành hành hương · nhận Ấn', temple.name, `Đã đủ ${Object.values(P.temples).filter(x => x.stamp).length}/${TEMPLES.length} ấn · +108 hạt`); addBeads(108); petalShower('hall'); }
   $('obj').textContent = text;
 }
+/* bảng nhiệm vụ: bấm vào dòng nhiệm vụ để xem chi tiết */
+function openQuests() {
+  if (!temple || !W) return;
+  const t = tp(temple.id), L = W.layout;
+  modal(`📜 Nhiệm vụ · ${temple.name}`, (b) => {
+    const st = [[t.lay >= 3, STEPS[0], `${Math.min(3, t.lay)}/3 lạy · ngồi đệm trong chánh điện rồi bấm "Lạy Phật"`], [t.pois.length >= L.pois.length, STEPS[1], `${t.pois.length}/${L.pois.length} địa danh`], [!!t.legend, STEPS[2], 'Đến gần sư trụ trì, bấm "Nghe sự tích chùa", nghe tới trang cuối']];
+    const ul = el('div', 'quests');
+    st.forEach(([ok, n, sub], k) => { const r = el('div', 'quest' + (ok ? ' ok' : '')); r.append(el('b', '', ok ? '✅' : `${k + 1}`), el('span', '', n), el('small', '', sub)); ul.append(r); });
+    b.append(ul, el('h3', '', '📍 Địa danh'));
+    const pl = el('div', 'quests');
+    L.pois.forEach(p => { const ok = t.pois.includes(p[0]); const r = el('div', 'quest' + (ok ? ' ok' : '')); r.append(el('b', '', ok ? '✅' : '○'), el('span', '', p[0]), el('small', '', ok ? 'đã đến' : 'xem chấm vàng trên bản đồ nhỏ')); pl.append(r); });
+    b.append(pl, el('p', 'note', t.stamp ? `🎉 Đã nhận Ấn ${temple.name}.` : 'Hoàn thành cả 3 bước để nhận Ấn hành hương của chùa (+108 hạt).'));
+  });
+}
+$('obj').style.cursor = 'pointer'; $('obj').title = 'Xem nhiệm vụ'; $('obj').onclick = openQuests;
 function checkPois() {
   const t = tp(temple.id);
   W.layout.pois.forEach((p) => {
@@ -805,14 +829,24 @@ function openSettings() {
       tg('Mõ tự động khi tụng kinh', S.autoMo, v => { S.autoMo = v; saveS(); A.set({ autoMo: v }); }),
       tg('Giọng đọc truyện', st.storyTtsOn, v => A.set({ storyTtsOn: v })),
       tg('Niệm "Nam mô A Di Đà Phật" khi lạy', S.voiceBow !== false, v => { S.voiceBow = v; saveS(); }));
-    b.append(el('h3', '', '🗣 Giọng đọc tiếng Việt'));
+    b.append(el('h3', '', '🗣 Giọng đọc'));
+    // 4 giọng tự nhiên thu sẵn (đọc truyện, tụng kinh, niệm Phật) + giọng có sẵn của máy
+    const vl = el('div', 'vlist'), cur = A.voicePack();
+    const SAMPLE = 'A Di Đà Phật. Chào mừng quý Phật tử về thăm chùa.';
+    A.voicePacks().forEach(v => {
+      const r = el('label', 'vopt' + (v.id === cur ? ' on' : '')), rb = el('input'); rb.type = 'radio'; rb.name = 'vpack'; rb.checked = v.id === cur;
+      const play = el('button', 'btn sm', '▶ Nghe');
+      const pick = async () => { await A.setVoicePack(v.id); [...vl.children].forEach(x => x.classList.toggle('on', x === r)); };
+      rb.onchange = pick;
+      play.onclick = async (e) => { e.preventDefault(); await pick(); rb.checked = true; A.unlock && A.unlock(); A.set({ storyTtsOn: true }); A.say(SAMPLE, { force: true }); };
+      r.append(rb, el('span', '', v.id === 'may' ? '📱 ' + v.name : '🎙 ' + v.name), play); vl.append(r);
+    });
+    b.append(vl, el('p', 'note', 'Các giọng 🎙 là giọng đọc tự nhiên thu sẵn, nghe giống nhau trên mọi máy (điện thoại, máy tính). Chọn "Giọng có sẵn của máy" nếu muốn dùng giọng của thiết bị.'));
     const vs = A.voices();
-    if (vs.length) {
+    if (vs.length > 1 && cur === 'may') {
       const sel = el('select'); sel.id = 'voice'; vs.forEach(n => { const o = el('option', '', n); o.value = n; sel.append(o); }); sel.value = A.voiceName();
-      sel.onchange = () => A.setVoice(sel.value);
-      const t = el('button', 'btn', '▶ Nghe thử'); t.onclick = () => { A.set({ storyTtsOn: true }); A.speak('A Di Đà Phật. Chào mừng quý Phật tử về thăm chùa.', 'story'); };
-      b.append(sel, t, el('p', 'note', 'Giọng nam tự nhiên giọng Bắc: "NamMinh" (trình duyệt Microsoft Edge) hoặc "Microsoft An" (Windows). iPhone chỉ có giọng nữ — để có giọng nam tự nhiên trên mọi máy, tạo file giọng đọc bằng tao-giong-doc.bat (xem README).'));
-    } else b.append(el('p', 'note warn', 'Máy chưa có giọng đọc tiếng Việt nên game không đọc truyện (để tránh giọng tiếng Anh). Cách thêm: Windows → Cài đặt → Thời gian & ngôn ngữ → Thêm Tiếng Việt kèm giọng nói; hoặc mở game bằng trình duyệt Microsoft Edge (có sẵn giọng HoaiMy giọng Bắc). Android: Cài đặt → Chuyển văn bản thành giọng nói → Tiếng Việt.'));
+      sel.onchange = () => A.setVoice(sel.value); b.append(el('small', 'note', 'Giọng của máy:'), sel);
+    }
     const tst = el('button', 'btn gold', '🔊 Kiểm tra âm thanh'), res = el('p', 'note');
     tst.onclick = () => {
       A.unlock(); A.set({ sfxOn: true }); A.mo(1); setTimeout(() => A.mo(0.8), 900); setTimeout(() => A.smallBell(), 1800);
@@ -885,7 +919,7 @@ const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A,
   onPeers: (k) => { while (npcs.length > Math.max(0, 6 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
   remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
 window.__net = NET;
-NET.onChange(() => { if (W) $('online').textContent = NET.online ? `${NET.count + npcs.length} đang tu tập · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; });
+NET.onChange(() => { if (W) $('online').textContent = NET.online ? `👥 ${NET.count} người chơi thật · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; });
 function openChannels() {
   if (!NET.enabled) return modal('📡 Kênh chùa', (b) => b.append(el('p', 'note', 'Game đang chơi một mình (chưa nối máy chủ). Những Phật tử khác bạn thấy là mô phỏng. Khi chủ chùa chạy máy chủ (server/server.js), mọi người sẽ gặp nhau thật trong chùa, mỗi kênh tối đa vài chục người.')));
   if (!NET.online) return toast('📡 Đang kết nối máy chủ…');
@@ -903,8 +937,9 @@ function openChannels() {
       });
     };
     paint(); const off = () => paint(); NET.onChange(off);
+    const who = el('p', 'note', '🟢 Cùng kênh với bạn: ' + ([P.name, ...NET.peers().map(p => p.name)].join(', ')) + (npcs.length ? ` · thêm ${npcs.length} Phật tử mô phỏng (nhãn xám)` : ''));
     const nw = el('button', 'btn', '➕ Mở kênh mới (vắng hơn)'); nw.onclick = () => { NET.newChannel(); closeModal(); };
-    b.append(el('p', 'note', `Mỗi kênh tối đa ${NET.cap} người để game mượt. Kênh đầy, máy chủ tự đưa người mới sang kênh khác hoặc mở kênh mới.`), box, nw);
+    b.append(who, el('p', 'note', `Mỗi kênh tối đa ${NET.cap} người để game mượt. Kênh đầy, máy chủ tự đưa người mới sang kênh khác hoặc mở kênh mới.`), box, nw);
   });
 }
 $('online').parentElement.style.cursor = 'pointer'; $('online').parentElement.onclick = openChannels;
@@ -952,7 +987,7 @@ $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
   });
 };
 function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; $('goBtn').textContent = inHall ? '🌳 Ra sân ngắm cảnh' : '🛕 Vào chánh điện'; }
-setInterval(() => { if (W) { updGo(); $('online').textContent = NET.online ? `${NET.count + npcs.length} đang tu tập · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; } }, 1000);
+setInterval(() => { if (W) { updGo(); $('online').textContent = NET.online ? `👥 ${NET.count} người chơi thật · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; } }, 1000);
 /* dòng tin chạy */
 function ticker(t) { const e = $('tickerText'); e.textContent = t; e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
 setInterval(() => {

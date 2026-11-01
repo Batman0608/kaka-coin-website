@@ -447,8 +447,18 @@ CBA.Audio = (() => {
   })();
   function voices() { pickVoice(); return viVoices.map(v => v.name); }
   /* file giọng đọc thu sẵn: audio/voice/manifest.json = { "câu chữ": "tên-file.mp3" } (tạo bằng tools/tao_giong_doc.py hoặc tự thu) */
-  let VOICE = null, voiceEl = null;
-  fetch('audio/voice/manifest.json').then(r => r.ok ? r.json() : {}).then(m => { VOICE = m || {}; }).catch(() => { VOICE = {}; });
+  /* GIỌNG ĐỌC THU SẴN (Microsoft Neural, tự nhiên): audio/voice/<giọng>/manifest.json · danh sách ở audio/voice/voices.json
+     Người chơi chọn trong Cài đặt; 'may' = dùng giọng có sẵn của máy (Web Speech). */
+  let VOICE = null, voiceEl = null, PACKS = [], PACK = 'thay';
+  try { PACK = localStorage.getItem('cba_voicepack') || 'thay'; } catch (e) {}
+  function loadPack(id) {
+    PACK = id; VOICE = null;
+    if (id === 'may') { VOICE = {}; return Promise.resolve(); }
+    return fetch('audio/voice/' + id + '/manifest.json').then(r => r.ok ? r.json() : {}).then(m => { if (PACK === id) VOICE = m || {}; }).catch(() => { VOICE = {}; });
+  }
+  fetch('audio/voice/voices.json').then(r => r.ok ? r.json() : []).then(l => { PACKS = l || []; if (PACK !== 'may' && !PACKS.some(p => p.id === PACK)) PACK = PACKS[0] ? PACKS[0].id : 'may'; loadPack(PACK); }).catch(() => { PACK = 'may'; VOICE = {}; });
+  function voicePacks() { return PACKS.concat([{ id: 'may', name: 'Giọng có sẵn của máy' + (viVoice ? ' (' + viVoice.name.replace(/Microsoft |Google |Online \(Natural\)|- Vietnamese \(Vietnam\)/g, '').trim() + ')' : '') }]); }
+  function setVoicePack(id) { try { localStorage.setItem('cba_voicepack', id); } catch (e) {} stopVoice(); return loadPack(id); }
   const vkey = (t) => t.normalize('NFC').replace(/\s+/g, ' ').trim();
   function hasVoiceFile(text) { return !!(VOICE && VOICE[vkey(text)]); }
   /* đọc một câu, trả về Promise khi đọc xong (dùng để tụng từng câu theo nhịp mõ) */
@@ -459,7 +469,7 @@ CBA.Audio = (() => {
       const f = VOICE && VOICE[vkey(text)];
       if (f) {
         if (voiceEl) voiceEl.pause();
-        voiceEl = new Audio('audio/voice/' + f); voiceEl.volume = Math.min(1, (opts.vol || 1));
+        voiceEl = new Audio('audio/voice/' + PACK + '/' + f); voiceEl.volume = Math.min(1, (opts.vol || 1));
         voiceEl.onended = () => done(); voiceEl.onerror = () => est();
         st.duck = 0.35; applyVolume(); voiceEl.addEventListener('ended', () => { st.duck = 1; applyVolume(); });
         voiceEl.play().catch(() => est()); return;
@@ -504,7 +514,7 @@ CBA.Audio = (() => {
   return {
     ensure, unlocked, unlock, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
-    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '', say, stopVoice, hasVoiceFile, loadSamples,
+    set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '', say, stopVoice, hasVoiceFile, loadSamples, voicePacks, setVoicePack, voicePack: () => PACK,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
   };
 })();

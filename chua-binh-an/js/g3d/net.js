@@ -27,7 +27,7 @@ export function initNet(ctx) {
     if (peers.has(d.id) || d.id === myId) return;
     const av = new Avatar({ look: d.look, seed: hash(d.name + d.id) }); av.root.userData.tmp = true; av.root.userData.peer = true;
     const s = d.s || [0, 0, 0, 0, 'idle', 0];
-    const pe = { av, label: label(d.name + (d.bd ? ' ' + d.bd : ''), 'peer'), name: d.name, b: d.b || 0, m: d.m || 0, bd: d.bd || '', tgt: { x: s[0], y: s[1], z: s[2] }, yaw: s[3], mv: 0, pose: s[4] || 'idle', seen: !!(s[0] || s[2]) };
+    const pe = { av, label: label('🟢 ' + d.name + (d.bd ? ' ' + d.bd : ''), 'peer'), name: d.name, b: d.b || 0, m: d.m || 0, bd: d.bd || '', tgt: { x: s[0], y: s[1], z: s[2] }, yaw: s[3], mv: 0, pose: s[4] || 'idle', seen: !!(s[0] || s[2]) };
     av.root.position.set(s[0], s[1], s[2]); av.root.visible = pe.seen; scene.add(av.root); peers.set(d.id, pe); onPeers(peers.size);
   }
   function delPeer(id) { const p = peers.get(id); if (!p) return; scene.remove(p.av.root); p.label.remove(); peers.delete(id); onPeers(peers.size); }
@@ -50,10 +50,10 @@ export function initNet(ctx) {
     if (m.t === 'welcome') {
       clearPeers(); myId = m.id; ch = m.ch; cap = m.cap; chs = m.chs || []; online = true; wantCh = 0;
       (m.peers || []).forEach(addPeer); changed();
-      toast(`📡 Đã vào ${temple === 'binh-an' ? 'chùa' : 'chùa'} · Kênh ${ch} · ${peers.size + 1}/${cap} người`);
-    } else if (m.t === 'join') { addPeer(m.p); changed(); }
+      toast(peers.size ? `📡 Kênh ${ch} · có ${peers.size} người chơi thật khác đang ở đây (nhãn 🟢 xanh)` : `📡 Đã vào Kênh ${ch} · bạn là người chơi thật đầu tiên ở đây`);
+    } else if (m.t === 'join') { addPeer(m.p); changed(); toast(`👋 ${m.p.name} vừa vào chùa (người chơi thật)`); }
     else if (m.t === 'leave') { delPeer(m.id); changed(); }
-    else if (m.t === 'prof') { const p = peers.get(m.id); if (p) { p.b = m.b; p.m = m.m; p.bd = m.bd; p.label.textContent = p.name + (p.bd ? ' ' + p.bd : ''); } }
+    else if (m.t === 'prof') { const p = peers.get(m.id); if (p) { p.b = m.b; p.m = m.m; p.bd = m.bd; p.label.textContent = '🟢 ' + p.name + (p.bd ? ' ' + p.bd : ''); } }
     else if (m.t === 's') {
       (m.l || []).forEach(([id, x, y, z, yaw, pose, mv]) => {
         const p = peers.get(id); if (!p) return;
