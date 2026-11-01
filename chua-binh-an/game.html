@@ -25,14 +25,15 @@
   <div id="obj" class="obj"></div>
   <button id="goBtn" class="pill-btn">🗺 Ra sân ngắm cảnh</button>
   <div class="online"><i></i><span id="online">1 đang tu tập</span> · <span id="pq" class="pq">☀️</span></div>
+  <div id="rank" class="rank"><button id="rankHead" class="rank-h">🏆 Bảng Công Đức <i>▾</i></button><ol id="rankList"></ol></div>
 </div>
 <nav class="side" aria-label="Chức năng">
-  <button id="bPass" title="Sổ hành hương">📜</button>
-  <button id="bProf" title="Hồ sơ">👤</button>
-  <button id="miniBtn" title="Bản đồ chùa"><canvas id="mini" width="80" height="80"></canvas></button>
-  <button id="bStory" title="Nghe truyện">📖</button>
-  <button id="bWish" title="Đèn nguyện">🏮</button>
-  <button id="setBtn" title="Cài đặt">⚙️</button>
+  <button id="bPass" title="Sổ hành hương"><span class="si">📜</span><small>Sổ ấn</small></button>
+  <button id="bProf" title="Hồ sơ"><span class="si">👤</span><small>Hồ sơ</small></button>
+  <button id="miniBtn" title="Bản đồ chùa"><canvas id="mini" width="80" height="80"></canvas><small>Bản đồ</small></button>
+  <button id="bStory" title="Nghe truyện"><span class="si">📖</span><small>Truyện Phật</small></button>
+  <button id="bWish" title="Đèn nguyện"><span class="si">🏮</span><small>Đèn nguyện</small></button>
+  <button id="setBtn" title="Cài đặt"><span class="si">⚙️</span><small>Cài đặt</small></button>
 </nav>
 <div class="zoom"><button id="zIn" aria-label="Phóng to">+</button><button id="zOut" aria-label="Thu nhỏ">−</button></div>
 <div id="banner" class="banner"></div>
@@ -54,8 +55,20 @@
 
 <!-- tụng kinh -->
 <div id="chant" class="chant" hidden>
-  <small id="chantTitle"></small><b id="chantLine"></b><span id="chantNext"></span>
-  <div class="row"><button id="moBtn" class="mo">🪵 Gõ mõ</button><button id="chantStop" class="btn sm">Dừng tụng</button></div>
+  <button id="chantClose" class="pill-btn back">← Quay lại</button>
+  <div class="cpanel">
+    <div id="chantTabs" class="ctabs" role="tablist"></div>
+    <small id="chantSub" class="csub"></small>
+    <div class="cwin"><div id="chantLines" class="clines"></div></div>
+    <button id="moBtn" class="mobig" aria-label="Gõ mõ"><canvas id="moCv" width="220" height="150"></canvas></button>
+  </div>
+  <div class="ccount"><b id="cNum">0</b><span id="cTot">/ 0</span><small id="cMerit">+0 công đức</small></div>
+  <div class="copts">
+    <label><input type="checkbox" id="optVoice"> Giọng đọc</label>
+    <label><input type="checkbox" id="optAuto"> Mõ tự động</label>
+    <label>Nhịp <input type="range" id="optTempo" min="40" max="96" step="2"></label>
+    <small>Tự tay gõ mõ mới được công đức từng tiếng</small>
+  </div>
 </div>
 <!-- thiền -->
 <div id="med" class="med" hidden><div id="breath" class="breath"></div><b id="medLabel">Hít vào…</b><span id="medTime">00:00</span><button id="medStop" class="btn">Xả thiền</button></div>

@@ -38,6 +38,16 @@ CBA.Audio = (() => {
     return ctx;
   }
   function unlocked() { return !!ctx && ctx.state === 'running'; }
+  /* mở khóa âm thanh ở lần chạm / bấm phím đầu tiên (trình duyệt chặn âm thanh trước khi người dùng tương tác) */
+  function unlock() {
+    if (!ensure()) return;
+    try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch (e) {}
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    loadSamples();
+    if (window.speechSynthesis && speechSynthesis.paused) speechSynthesis.resume();
+  }
+  ['pointerdown', 'touchend', 'keydown', 'click'].forEach(ev => addEventListener(ev, unlock, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); });
 
   function applyVolume() {
     const mv = st.musicOn ? st.musicVol * st.duck : 0;
@@ -458,6 +468,10 @@ CBA.Audio = (() => {
       if (!viVoice) pickVoice(); if (!viVoice) return est();
       const u = new SpeechSynthesisUtterance(text); u.lang = viVoice.lang || 'vi-VN'; u.voice = viVoice; u.rate = opts.rate || 0.92; u.pitch = opts.pitch || 0.9;
       u.onend = () => { st.duck = 1; applyVolume(); done(); }; u.onerror = () => done();
+      if (opts.force && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();   // Chrome hay kẹt hàng đợi → giọng im
+      if (speechSynthesis.paused) speechSynthesis.resume();
+      const guard = setTimeout(() => { done(); }, Math.max(4000, text.length * 160));   // không chờ mãi nếu trình duyệt không báo kết thúc
+      u.onend = () => { clearTimeout(guard); st.duck = 1; applyVolume(); done(); }; u.onerror = () => { clearTimeout(guard); done(); };
       st.duck = 0.35; applyVolume(); speechSynthesis.speak(u);
     });
   }
@@ -488,7 +502,7 @@ CBA.Audio = (() => {
   }
 
   return {
-    ensure, unlocked, mo, bell, bigBell, smallBell, khanh, speak,
+    ensure, unlocked, unlock, mo, bell, bigBell, smallBell, khanh, speak,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
     set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '', say, stopVoice, hasVoiceFile, loadSamples,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }

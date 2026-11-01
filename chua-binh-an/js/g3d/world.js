@@ -2,7 +2,7 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { THREE, buildLandmark, interiorHall, HALLS, box, mat, water, tree, LEAF, STONE } from '../temple3d.js';
+import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, STONE } from '../temple3d.js';
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
@@ -76,7 +76,7 @@ export class Collision {
       const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z;
       if (sx < 0.12 && sz < 0.12) return;
       if (o.userData.cushion) return;
-      this.boxes.push({ x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y });
+      this.boxes.push({ x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y, camSkip: !!o.userData.camSkip });
     });
   }
   /* độ cao mặt đất tại (x,z) cho người đang đứng ở độ cao y; null = bị chặn */
@@ -100,6 +100,20 @@ export class Collision {
   }
 }
 
+/* tên trên bảng hoành phi theo tên chính thức của chùa */
+const PLAQUES = {
+  'binh-an': ['BÌNH AN TỰ', 'Chùa Bình An'],
+  'bai-dinh': ['BÁI ĐÍNH TỰ', 'Chùa Bái Đính · Ninh Bình'],
+  'mot-cot': ['DIÊN HỰU TỰ', 'Chùa Một Cột · Hà Nội'],
+  'huong': ['THIÊN TRÙ TỰ', 'Chùa Hương · Hương Sơn'],
+  'yen-tu': ['HOA YÊN TỰ', 'Yên Tử · Quảng Ninh'],
+  'thien-mu': ['THIÊN MỤ TỰ', 'Chùa Thiên Mụ · Huế'],
+  'linh-ung': ['LINH ỨNG TỰ', 'Chùa Linh Ứng Bãi Bụt · Đà Nẵng'],
+  'long-son': ['LONG SƠN TỰ', 'Chùa Long Sơn · Nha Trang'],
+  'vinh-nghiem': ['VĨNH NGHIÊM TỰ', 'Chùa Vĩnh Nghiêm · TP. HCM'],
+  'giac-lam': ['GIÁC LÂM TỰ', 'Chùa Giác Lâm · TP. HCM'],
+  'doi': ['CHÙA DƠI · MAHATUP', 'Sóc Trăng']
+};
 /* ---------------- dựng cảnh ---------------- */
 export function buildWorld(scene, temple) {
   const root = new THREE.Group(); scene.add(root);
@@ -115,12 +129,20 @@ export function buildWorld(scene, temple) {
   // vài cây quanh rìa
   for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 55 + (i % 4) * 8; const t = tree(5 + (i % 3) * 2, LEAF(), Math.cos(a) * r, Math.sin(a) * r); root.add(t); }
   const halls = HALLS.slice();
+  // bảng tên chùa theo tên thật, treo trên chánh điện chính
+  const PL = PLAQUES[temple.id] || [temple.name.toUpperCase(), ''];
+  halls.forEach((h, i) => {
+    const m = h.userData.mainHall, a = m.plaqueAt; if (!a) return;
+    const [t, sub] = i === 0 ? PL : ['ĐẠI HÙNG BẢO ĐIỆN', temple.name];
+    const p = plaque(t, sub, a.w, a.h); p.position.set(a.x, a.y, a.z); h.add(p);
+    (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
+  });
   root.updateMatrixWorld(true);
   const hallInfo = halls.map(h => {
     const m = h.userData.mainHall;
     return { altar: h.localToWorld(m.altar.clone()), cushions: m.cushions.map(c => h.localToWorld(c.clone())), group: h,
       offerSlots: (m.offerSlots || []).map(c => h.localToWorld(c.clone())), burner: m.burner ? h.localToWorld(m.burner.clone()) : null,
-      roofs: m.roofs || [], w: m.w, d: m.d, yaw: h.getWorldQuaternion(new THREE.Quaternion()) };
+      roofs: m.roofs || [], front: m.front || [], ceilY: h.localToWorld(new THREE.Vector3(0, m.base + (m.h || 4), 0)).y, w: m.w, d: m.d, yaw: h.getWorldQuaternion(new THREE.Quaternion()) };
   });
   const burners = []; root.traverse(o => { if (o.userData.burner) burners.push(o.getWorldPosition(new THREE.Vector3())); });
   const col = new Collision(); col.build(root);

@@ -37,6 +37,10 @@ CBA.texts = {
     'Ma Ha Bát Nhã Ba La Mật Đa. (3 lần)'
   ],
 
+  vangSanh: [
+    'Nam mô A Di Đa Bà Dạ', 'Đa Tha Già Đa Dạ', 'Đa Điệt Dạ Tha', 'A Di Rị Đô Bà Tỳ', 'A Di Rị Đa Tất Đam Bà Tỳ',
+    'A Di Rị Đa Tỳ Ca Lan Đế', 'A Di Rị Đa Tỳ Ca Lan Đa', 'Già Di Nị, Già Già Na', 'Chỉ Đa Ca Lệ Ta Bà Ha.'
+  ],
   niemADiDa: [
     'Nam Mô A Di Đà Phật', 'Nam Mô A Di Đà Phật', 'Nam Mô A Di Đà Phật',
     'Nam Mô Đại Từ Đại Bi Quán Thế Âm Bồ Tát',

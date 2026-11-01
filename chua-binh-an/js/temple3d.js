@@ -146,10 +146,31 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     g.add(box(w, h, 0.3, wm, 0, base + h / 2, -d / 2 + 0.15));
     [-1, 1].forEach(sx => g.add(box(0.3, h, d, wm, sx * (w / 2 - 0.15), base + h / 2, 0)));
     const fl = box(w - 0.6, 0.06, d - 0.3, mat('floor', 0x6a3a1e), 0, base + 0.03, 0.1); fl.userData.floor = true; g.add(fl);
-    g.add(box(w, 0.4, 0.3, DRED(), 0, base + h - 0.2, d / 2 - 0.15));   // xà ngang trước
+    // trần gỗ có xà ngang, đèn lồng treo, cửa sổ chấn song hai bên (nhìn từ trong điện)
+    const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
+    const fill = new THREE.PointLight(0xffd6a0, 1.3, Math.max(w, d) * 1.4, 1.2); fill.position.set(0, base + h - 1.0, 0.15 * d); g.add(fill);
+    const wood = mat('ceil', 0x3a1a0c), beamM = mat('ceilBeam', 0x241008);
+    nc(box(w - 0.3, 0.08, d + 0.4, wood, 0, base + h + 0.02, 0.1));
+    for (let z = -d / 2 + 1.6; z < d / 2; z += 2.4) nc(box(w - 0.4, 0.32, 0.28, beamM, 0, base + h - 0.18, z));
+    [-1, 1].forEach(sx => nc(box(0.26, 0.3, d, beamM, sx * w * 0.28, base + h - 0.48, 0)));
+    const lampM = mat('paperLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 1.1 });
+    [[-0.28, -0.1], [0.28, -0.1], [-0.28, 0.3], [0.28, 0.3]].forEach(([fx, fz]) => {
+      const x = fx * w, z = fz * d, y = base + h - 1.3;
+      nc(cyl(0.01, 0.01, 1.1, 4, beamM, x, y + 0.75, z));
+      nc(cyl(0.22, 0.22, 0.42, 14, lampM, x, y, z));
+      nc(cyl(0.24, 0.24, 0.04, 14, GOLD(), x, y + 0.22, z)); nc(cyl(0.24, 0.24, 0.04, 14, GOLD(), x, y - 0.22, z));
+    });
+    [-1, 1].forEach(sx => { for (let z = -d / 2 + 2.4; z < d / 2 - 1.5; z += 3.2) {
+      const win = new THREE.Group(); win.position.set(sx * (w / 2 - 0.32), base + h * 0.52, z);
+      win.add(box(0.06, 1.5, 1.3, mat('winBg', 0x1c0d06), 0, 0, 0));
+      for (let k = -2; k <= 2; k++) win.add(box(0.08, 1.5, 0.06, RED(), 0, 0, k * 0.26));
+      win.add(box(0.1, 0.08, 1.4, RED(), 0, 0.75, 0)); win.add(box(0.1, 0.08, 1.4, RED(), 0, -0.75, 0));
+      nc(win);
+    } });
+    const beam = box(w, 0.4, 0.3, DRED(), 0, base + h - 0.2, d / 2 - 0.15); beam.userData.camSkip = true; g.add(beam);   // xà ngang trước
     const az = altarFigures(g, w, d, base, INTERIOR.set);
     // lư hương đồng lớn giữa điện, ngay trước Tam Thế Phật
-    const lu = new THREE.Group(); lu.position.set(0, base, az + 2.3); lu.userData.burner = true; g.add(lu);
+    const lu = new THREE.Group(); lu.position.set(0, base, az + 2.6); lu.userData.burner = true; g.add(lu);
     lu.add(cyl(0.75, 0.85, 0.35, 16, STONE(), 0, 0.17, 0));
     lu.add(cyl(0.55, 0.42, 0.75, 20, BRONZE(), 0, 0.72, 0));
     lu.add(cyl(0.68, 0.55, 0.12, 20, BRONZE(), 0, 1.12, 0));
@@ -157,7 +178,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2; lu.add(cyl(0.06, 0.09, 0.4, 8, BRONZE(), Math.cos(a) * 0.38, 0.4, Math.sin(a) * 0.38)); }
     lu.add(mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.04, 20), mat('ash', 0x9a8f80), 0, 1.15, 0));
     for (let k = 0; k < 9; k++) { const st = cyl(0.012, 0.012, 0.45, 5, mat('stick', 0xb3261e), (Math.random() - 0.5) * 0.5, 1.38, (Math.random() - 0.5) * 0.4); st.rotation.z = (Math.random() - 0.5) * 0.25; lu.add(st); }
-    const offerSlots = []; for (let k = 0; k < 8; k++) offerSlots.push(new THREE.Vector3((k - 3.5) * w * 0.08, base + 0.96, az + 0.42));
+    const offerSlots = []; for (let k = 0; k < 9; k++) { const o = k === 0 ? 0 : Math.ceil(k / 2) * (k % 2 ? -1 : 1) * 0.42; offerSlots.push(new THREE.Vector3(o, base + 0.96, az + 0.42 + (k % 3 === 0 ? 0 : 0.06))); }   // lễ vật dồn vào chính giữa, trước Phật Thích Ca
     const cushions = [];
     const cols = Math.max(3, Math.floor((w - 2) / 1.5)), rows = Math.max(2, Math.floor((d - 2.6) / 1.3));
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
@@ -168,15 +189,17 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
       g.add(box(0.5, 0.02, 0.5, mat('cushg', 0xe0a93a), x, base + 0.17, z));
       cushions.push(new THREE.Vector3(x, base + 0.16, z));
     }
-    g.userData.mainHall = { w, d, base, altar: new THREE.Vector3(0, base, az + 1.2), cushions, offerSlots, burner: new THREE.Vector3(0, base, az + 2.3), roofs: [] };
+    g.userData.mainHall = { w, d, base, altar: new THREE.Vector3(0, base, az + 1.2), cushions, offerSlots, burner: new THREE.Vector3(0, base, az + 2.6), roofs: [], front: [] };
     HALLS.push(g);
     // đèn lồng đỏ dưới hiên
-    [-1, 1].forEach(sx => { const l = mesh(new THREE.SphereGeometry(0.28, 12, 10), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), sx * w * 0.3, base + h - 0.7, d / 2 + 0.6, false); l.scale.y = 1.2; g.add(l); });
+    [-1, 1].forEach(sx => { const l = mesh(new THREE.SphereGeometry(0.28, 12, 10), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), sx * w * 0.3, base + h - 0.7, d / 2 + 0.6, false); l.scale.y = 1.2; g.add(l); g.userData.mainHall.front.push(l); });
+    g.userData.mainHall.front.push(beam);
   } else g.add(box(w, h, d, wall || WALL(), 0, base + h / 2, 0));
   const n = Math.max(4, Math.round(w / 1.8));
   for (let i = 0; i <= n; i++) {
     const x = -w / 2 + (w / n) * i;
-    g.add(cyl(0.18, 0.2, h, 10, RED(), x, base + h / 2, d / 2 + 0.55));
+    const pil = cyl(0.18, 0.2, h, 10, RED(), x, base + h / 2, d / 2 + 0.55); g.add(pil);
+    if (g.userData.mainHall) { pil.userData.camSkip = true; g.userData.mainHall.front.push(pil); }   // ẩn cột hiên khi ở trong điện
   }
   if (!(INTERIOR && w >= 9)) {
     g.add(box(w * 0.22, h * 0.7, 0.1, DRED(), 0, base + h * 0.35, d / 2 + 0.05));
@@ -189,7 +212,12 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     const r2 = roof(w * 0.75 + 1.4, d * 0.75 + 1.4, h * 0.65, roofColor); r2.position.y = base + h + h * 0.62; g.add(r2);
     roofs.push(band, r2);
   }
-  if (g.userData.mainHall) g.userData.mainHall.roofs = roofs;   // ẩn mái khi người chơi ở trong điện
+  if (g.userData.mainHall) {
+    g.userData.mainHall.roofs = roofs;   // ẩn mái khi người chơi ở trong điện
+    g.userData.mainHall.h = h;
+    // chỗ treo bảng tên chùa: mặt trước gác mái (2 tầng) hoặc dưới hiên (1 tầng)
+    g.userData.mainHall.plaqueAt = { x: 0, y: base + h - 0.05, z: d / 2 + 1.3, w: Math.min(w * 0.42, 6.5), h: Math.min(1.1, Math.max(0.8, w * 0.07)) };   // treo ở mép mái hiên trước, giữa hai cột
+  }
   // bậc thềm
   for (let i = 0; i < 4; i++) g.add(box(w * 0.3, (i + 1) * base / 4, 0.4, STONE(), 0, (i + 1) * base / 8, d / 2 + 0.8 + 1.6 - i * 0.4));
   return g;
@@ -484,7 +512,9 @@ export function mount(el, templeId, opts = {}) {
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 160 });
   scene.add(sun);
   const g = new THREE.Group(); scene.add(g);
+  const a0 = ANIM.length, b0 = BOARDS.length;
   const conf = (SCENES[model] || SCENES.hall)(g);
+  const myAnim = ANIM.splice(a0); BOARDS.splice(b0);   // hoạt cảnh riêng của khung xem, không lẫn vào game
   const camera = new THREE.PerspectiveCamera(45, W() / H(), 0.1, 500);
   camera.position.set(...conf.cam);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -493,7 +523,7 @@ export function mount(el, templeId, opts = {}) {
   controls.enabled = opts.interactive !== false;
   controls.update();
   let raf = 0, alive = true; const clock = new THREE.Clock();
-  const loop = () => { if (!alive) return; const tt = clock.getElapsedTime(); if (conf.update) conf.update(tt); controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
+  const loop = () => { if (!alive) return; const tt = clock.getElapsedTime(); if (conf.update) conf.update(tt); myAnim.forEach(f => f(tt)); controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
   loop();
   const ro = new ResizeObserver(() => { renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); });
   ro.observe(el);
@@ -510,6 +540,29 @@ window.CBA = window.CBA || {};
 CBA.Temple3D = { mount };
 
 /* dùng lại cho game 3D (js/g3d) */
+/* Bảng tên chùa (hoành phi): nền son đỏ, viền vàng, chữ vàng */
+export function plaque(title, sub = '', W = 5, H = 1) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * H / W);
+  const k = c.getContext('2d'), cw = c.width, ch = c.height;
+  const gr = k.createLinearGradient(0, 0, 0, ch); gr.addColorStop(0, '#8c1a10'); gr.addColorStop(0.5, '#6e1009'); gr.addColorStop(1, '#4a0a05');
+  k.fillStyle = gr; k.fillRect(0, 0, cw, ch);
+  const b = Math.max(10, ch * 0.07); k.strokeStyle = '#e9b949'; k.lineWidth = b; k.strokeRect(b / 2, b / 2, cw - b, ch - b);
+  k.strokeStyle = 'rgba(255,214,120,.55)'; k.lineWidth = 3; k.strokeRect(b * 1.6, b * 1.6, cw - b * 3.2, ch - b * 3.2);
+  [[b * 2.4, b * 2.4], [cw - b * 2.4, b * 2.4], [b * 2.4, ch - b * 2.4], [cw - b * 2.4, ch - b * 2.4]].forEach(([x, y]) => { k.fillStyle = '#e9b949'; k.beginPath(); k.arc(x, y, b * 0.45, 0, 7); k.fill(); });
+  k.textAlign = 'center'; k.textBaseline = 'middle';
+  let fs = ch * (sub ? 0.4 : 0.52); k.font = `900 ${fs}px Georgia, 'Times New Roman', serif`;
+  while (k.measureText(title).width > cw * 0.84 && fs > 12) { fs -= 2; k.font = `900 ${fs}px Georgia, 'Times New Roman', serif`; }
+  k.shadowColor = 'rgba(0,0,0,.6)'; k.shadowBlur = 6; k.shadowOffsetY = 3;
+  const tg = k.createLinearGradient(0, ch * 0.2, 0, ch * 0.7); tg.addColorStop(0, '#fff2b8'); tg.addColorStop(0.5, '#ffd36b'); tg.addColorStop(1, '#d99a2b');
+  k.fillStyle = tg; k.fillText(title, cw / 2, sub ? ch * 0.43 : ch * 0.53);
+  if (sub) { k.shadowBlur = 3; k.font = `700 ${ch * 0.16}px Georgia, serif`; k.fillStyle = '#f3d79a'; k.fillText(sub, cw / 2, ch * 0.77); }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const g = new THREE.Group();
+  const back = box(W + 0.12, H + 0.12, 0.08, GOLD(), 0, 0, -0.05); back.userData.noCollide = true; g.add(back);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); m.userData.noCollide = true; g.add(m);
+  g.traverse(o => { o.userData.noCollide = true; });
+  return g;
+}
 export function buildLandmark(g, model, opts = {}) {
   NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh' } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; }

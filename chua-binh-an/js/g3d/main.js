@@ -4,7 +4,7 @@
  *  ngồi đệm, lạy Phật, lần hạt, tụng kinh, thiền, dâng lễ, thả đèn nguyện,
  *  khám phá địa danh, nghe sư trụ trì kể sự tích, nhận ấn hành hương.
  * ========================================================================= */
-import { THREE, ANIM, BOARDS, PETAL_TEX } from '../temple3d.js';
+import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 
@@ -122,7 +122,7 @@ function spawnNpcs() {
     const av = new Avatar({ look: { g: h % 2 ? 'nu' : 'nam', hair: ['bui', 'dai', 'ngan', 'troc'][(h >>> 3) % 4], robe: ['lam', 'nau', 'xam', 'trang'][(h >>> 5) % 4] }, seed: h });
     const L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
-    npcs.push({ av, label: label(names[(h >>> 7) % names.length], 'npc'), target: null, wait: Math.random() * 4, sit: null });
+    npcs.push({ av, label: label((() => { let k = (h >>> 7) % names.length; while (npcs.some(n => n.label.textContent === names[k]) && npcs.length < names.length) k = (k + 1) % names.length; return names[k]; })(), 'npc'), target: null, wait: Math.random() * 4, sit: null });
   }
 }
 function npcThink(n, dt) {
@@ -203,9 +203,27 @@ function findContext() {
   return null;
 }
 $('ctx').onclick = () => { if (ctxAction) ctxAction.fn(); };
-function sitOn(c, hall) {
+function sitOn(c, hall, quiet) {
   me.seated = c; c.taken = true; me.pos.set(c.x, 0, c.z); me.y = c.y; me.yaw = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); me.av.setPose('kneel'); cam.yaw = me.yaw + Math.PI;
-  toast('Bạn đã ngồi trên đệm trước Tam Thế Phật'); setTimeout(() => me.av.bow(), 400);
+  if (!quiet) { toast('Bạn đã ngồi trên đệm trước Tam Thế Phật'); setTimeout(() => me.av.bow(), 400); }
+}
+/* quay mặt vào Phật, lưng ra ngoài · camera đứng sau lưng */
+function faceAltar(h) { h = h || W.halls[0]; if (!h) return; me.yaw = Math.atan2(h.altar.x - me.pos.x, h.altar.z - me.pos.z); cam.yaw = me.yaw + Math.PI; }
+/* tự đi về đệm trống gần nhất trong chánh điện rồi làm việc tiếp theo */
+function goSit(then) {
+  const h = W.halls[0]; if (!h) return then && then();
+  if (me.seated) { faceAltar(h); return then && then(); }
+  const pref = h.cushions[P.seat ?? -1];
+  const pick = () => (pref && !pref.taken ? pref : h.cushions.filter(x => !x.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]);
+  const sit = (c) => { P.seat = h.cushions.indexOf(c); sitOn(c, h, true); setTimeout(() => then && then(), 450); };
+  if (insideHall(h)) {
+    const c = pick(); if (!c) { faceAltar(h); return then && then(); }
+    c.taken = true;   // giữ chỗ trong lúc đi tới
+    walkTo([new THREE.Vector3(c.x, 0, c.z)], () => { c.taken = false; sit(c); });
+  } else {
+    toast('🛕 Vào chánh điện, về đệm ngồi lạy Phật');
+    fade(() => { const c = pick(); if (c) sit(c); else { me.pos.set(h.altar.x, 0, h.altar.z + 4); me.y = h.altar.y; faceAltar(h); then && then(); } });
+  }
 }
 function standUp() { if (me.seated) me.seated.taken = false; me.seated = null; me.av.setPose('idle'); }
 function nearAltar() { return W.halls.some(h => near(h.altar, 7)); }
@@ -213,8 +231,11 @@ function nearAltar() { return W.halls.some(h => near(h.altar, 7)); }
 /* ---------------- hành động ---------------- */
 let lastBow = 0;
 function doBow() {
-  if (Date.now() - lastBow < 2300) return; lastBow = Date.now();
-  if (!me.seated && nearAltar()) me.av.setPose('kneel');
+  if (Date.now() - lastBow < 2300) return;
+  if (auto) return;
+  if (!me.seated && W.halls[0]) { lastBow = Date.now(); return goSit(() => { lastBow = 0; doBow(); }); }   // về đệm trước rồi mới lạy
+  lastBow = Date.now();
+  if (me.seated) faceAltar();
   me.av.bow(); A.mo(0.8); P.lay++; addBeads(3);
   if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
   setTimeout(() => A.mo(0.6), 1100);
@@ -227,7 +248,7 @@ let lastIncense = 0;
 function offerIncense(bur) {
   if (Date.now() - lastIncense < 60000) { toast(`Nén hương vẫn đang cháy · đợi ${Math.ceil((60000 - (Date.now() - lastIncense)) / 1000)} giây`); return; }
   lastIncense = Date.now();
-  me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); me.av.setPose('incense'); A.mo(1);
+  me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1);
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
   setTimeout(() => { me.av.bow(); }, 600);
   setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; P.merit += 10; addBeads(10); toast('🕯️ Đã thắp nén hương · +10 công đức'); }, 2800);
@@ -241,7 +262,12 @@ function fade(fn) { const f = $('fade'); f.classList.add('on'); setTimeout(() =>
 
 /* Tràng hạt: chuỗi hạt gỗ hiện ngay trên màn chơi, nhân vật tự về đệm ngồi */
 let malaOn = false, malaAnim = 0;
-function insideHall(h) { return h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75) && Math.abs(me.y - h.altar.y) < 1.5; }
+const _lp = new THREE.Vector3();
+function inHallBox(h, pos, y) {   // trong lòng chánh điện (tọa độ riêng của điện)
+  if (!h) return false; _lp.set(pos.x, y, pos.z); h.group.worldToLocal(_lp);
+  return Math.abs(_lp.x) < (h.w || 12) / 2 + 0.3 && _lp.z > -(h.d || 10) / 2 - 0.3 && _lp.z < (h.d || 10) / 2 + 1.2 && Math.abs(y - h.altar.y) < 1.5;
+}
+function insideHall(h) { return inHallBox(h, me.pos, me.y); }
 function openMala() {
   if (malaOn) return;
   const h = W.halls[0];
@@ -303,41 +329,104 @@ function paintMala() {
 
 /* Tụng kinh */
 let chanting = false;
+/* các bài tụng: chữ kinh hiện cuộn, câu đang tụng sáng lên */
+const CHANTS = [
+  { key: 'niemADiDa', name: 'Niệm Phật', sub: 'Niệm hồng danh A Di Đà Phật & chư Bồ Tát', bpm: 60, loop: true },
+  { key: 'batNha', name: 'Bát Nhã Tâm Kinh', sub: 'Bản Hán Việt · ngài Huyền Trang dịch', bpm: 66 },
+  { key: 'vangSanh', name: 'Chú Vãng Sanh', sub: 'Bạt nhất thiết nghiệp chướng căn bản đắc sanh Tịnh Độ đà-ra-ni', bpm: 62, repeat: 3 },
+  { key: 'tamTheNiem', name: 'Tam Thế Phật', sub: 'Niệm hồng danh chư Phật ba đời', bpm: 60 },
+  { key: 'hoiHuong', name: 'Kệ Hồi Hướng', sub: 'Hồi hướng công đức đến khắp chúng sanh', bpm: 56 }
+];
+let chantRun = 0, moTimer = null, ch = null;   // ch = { c, lines, idx, beats, taps }
+function chantLinesOf(c) { let L = (CBA.texts[c.key] || []).slice(); if (c.repeat) { const one = L; L = []; for (let k = 0; k < c.repeat; k++) L.push(...one); } return L; }
 function openChant() {
-  modal('Tụng kinh', (b) => {
-    const list = el('div', 'list');
-    CBA.playlist.map((t, i) => ({ t, i })).filter(x => x.t.text || x.t.type === 'file').forEach(({ t, i }) => {
-      const r = el('button', 'item'); r.append(el('b', '', t.title), el('small', '', t.temple ? 'Bài niệm riêng của chùa' : t.type === 'file' ? 'Bài thu âm' : 'Chữ kinh chạy theo nhịp mõ'));
-      r.onclick = () => { closeModal(); startChant(i); }; list.append(r);
-    });
-    b.append(list, el('p', 'note', 'Mõ tự động gõ theo nhịp. Muốn tự gõ: bấm nút "Gõ mõ" — mõ tự động sẽ tắt để chỉ còn tiếng mõ của bạn.'));
-  });
+  if (chanting) return;
+  A.ensure();
+  const start = () => { const pref = CHANTS.findIndex(c => c.key === S.chantKey); startChant(pref >= 0 ? pref : 0); };
+  if (W.halls[0]) goSit(start); else start();
 }
-let chantRun = 0, moTimer = null;
-async function startChant(i) {
-  A.ensure(); chanting = true; A.ambience.duck(true); $('chant').hidden = false;
-  const tr = CBA.playlist[i], lines = tr.text ? (CBA.texts[tr.text] || []) : [];
-  if (tr.type === 'file' || !lines.length) { A.set({ autoMo: S.autoMo }); A.play(i); return; }   // bản thu âm: phát nguyên bài
-  A.stop(); const run = ++chantRun;
-  $('chantTitle').textContent = '🪵 Đang tụng: ' + tr.title;
-  clearInterval(moTimer); if (S.autoMo) moTimer = setInterval(() => A.mo(0.7), 1100);   // mõ chậm, đều ~55 nhịp/phút
-  for (let k = 0; k < lines.length && run === chantRun; k++) {
-    $('chantLine').textContent = lines[k]; $('chantNext').textContent = lines[k + 1] || '';
-    await A.say(lines[k], { force: true, rate: 0.8, pitch: 0.85 });
-    addBeads(2);
-    await new Promise(r => setTimeout(r, 450));
+function renderChantTabs() {
+  const t = $('chantTabs'); t.innerHTML = '';
+  CHANTS.forEach((c, i) => { const b = el('button', ch && ch.c === c ? 'on' : '', c.name); b.onclick = () => { if (!ch || ch.c !== c) startChant(i); }; t.append(b); });
+}
+function startChant(i) {
+  const c = CHANTS[i]; S.chantKey = c.key; saveS();
+  chantRun++; clearInterval(moTimer); A.stopVoice(); A.stop && A.stop();
+  chanting = true; document.body.classList.add('focus'); $('chant').hidden = false; A.ambience.duck(true);
+  ch = { c, lines: chantLinesOf(c), idx: 0, beats: 0, taps: ch ? ch.taps : 0 };
+  renderChantTabs(); $('chantSub').textContent = c.sub;
+  const box = $('chantLines'); box.innerHTML = ''; ch.lines.forEach(l => box.append(el('p', '', l)));
+  $('optVoice').checked = S.chantVoice !== false; $('optAuto').checked = !!S.autoMo; $('optTempo').value = S.tempo || c.bpm;
+  me.av.setPose(me.seated ? 'kneel' : 'idle'); faceAltar();
+  showChantLine(); restartMo(); runVoice(chantRun);
+}
+function showChantLine() {
+  const ps = $('chantLines').children, k = ch.idx, hgt = ps[0] ? ps[0].offsetHeight || 39 : 39, win = $('chantLines').parentElement.offsetHeight || 196;
+  for (let j = 0; j < ps.length; j++) ps[j].className = j === k ? 'cur' : Math.abs(j - k) === 1 ? 'near' : '';
+  $('chantLines').style.transform = `translateY(${win / 2 - hgt / 2 - k * hgt}px)`;
+  $('cNum').textContent = k + 1; $('cTot').textContent = '/ ' + ch.lines.length; $('cMerit').textContent = `+${ch.taps} công đức`;
+}
+function nextChantLine() {
+  if (!ch) return; addBeads(2);
+  if (ch.idx < ch.lines.length - 1) { ch.idx++; ch.beats = 0; showChantLine(); return true; }
+  // viên mãn một biến
+  A.smallBell(); addBeads(27); banner('🪵 Tụng kinh', 'Viên mãn: ' + ch.c.name, '+27 hạt');
+  ch.idx = 0; ch.beats = 0; showChantLine(); return true;   // tụng tiếp biến sau
+}
+/* giọng đọc: đọc xong câu mới sang câu kế tiếp */
+async function runVoice(run) {
+  if (!$('optVoice').checked) return;
+  while (run === chantRun && ch && $('optVoice').checked) {
+    await A.say(ch.lines[ch.idx], { force: true, rate: 0.8, pitch: 0.85 });
+    if (run !== chantRun || !$('optVoice').checked) return;
+    await new Promise(r => setTimeout(r, 380));
+    if (run !== chantRun) return;
+    nextChantLine();
   }
-  if (run === chantRun) { clearInterval(moTimer); A.smallBell(); addBeads(27); banner('🪵 Tụng kinh', 'Viên mãn: ' + tr.title, '+27 hạt'); stopChant(); }
 }
-function stopChant() { chantRun++; clearInterval(moTimer); A.stopVoice(); chanting = false; $('chant').hidden = true; A.ambience.duck(false); }
+/* không có giọng đọc: mỗi câu = 4 tiếng mõ (tự động hoặc tự gõ) */
+function chantBeat(manual) {
+  if (!ch) return;
+  A.mo(manual ? 1 : 0.7); paintMo(1);
+  if (manual) { ch.taps++; P.merit += 1; addBeads(1); $('cMerit').textContent = `+${ch.taps} công đức`; }
+  if (!$('optVoice').checked && ++ch.beats >= 4) nextChantLine();
+}
+function restartMo() { clearInterval(moTimer); if ($('optAuto').checked) moTimer = setInterval(() => chantBeat(false), 60000 / (+$('optTempo').value || 60)); }
+function stopChant() { chantRun++; clearInterval(moTimer); A.stopVoice(); chanting = false; ch = null; $('chant').hidden = true; document.body.classList.remove('focus'); A.ambience.duck(false); save(); }
+$('chantClose').onclick = stopChant;
+$('optVoice').onchange = () => { S.chantVoice = $('optVoice').checked; saveS(); if (S.chantVoice) { chantRun++; ch.beats = 0; runVoice(chantRun); } else { chantRun++; A.stopVoice(); } };
+$('optAuto').onchange = () => { S.autoMo = $('optAuto').checked; saveS(); A.set({ autoMo: S.autoMo }); restartMo(); };
+$('optTempo').oninput = () => { S.tempo = +$('optTempo').value; saveS(); restartMo(); };
 let lastMoTap = 0;
 $('moBtn').onclick = () => {
-  if (S.autoMo) { S.autoMo = false; saveS(); A.set({ autoMo: false }); clearInterval(moTimer); toast('Đã tắt mõ tự động · bạn tự gõ theo nhịp'); }
-  if (Date.now() - lastMoTap < 450) return; lastMoTap = Date.now();   // giữ nhịp chậm, không dồn tiếng
-  A.mo(1); addBeads(1); const b = $('moBtn'); b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit');
+  if (Date.now() - lastMoTap < 280) return; lastMoTap = Date.now();
+  chantBeat(true); const b = $('moBtn'); b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit');
 };
-$('chantStop').onclick = () => { stopChant(); A.play(0); };
-A.onChange(() => { const s = A.state(); $('chantTitle').textContent = s.title; $('chantLine').textContent = s.line || ''; $('chantNext').textContent = s.nextLine || ''; });
+addEventListener('keydown', (e) => { if (!chanting) return; if (e.code === 'Space') { e.preventDefault(); $('moBtn').click(); } if (e.key === 'Escape') stopChant(); });
+/* vẽ mõ gỗ (cá gỗ) + dùi gõ */
+const moCtx = $('moCv').getContext('2d'); let moHit = 0;
+function paintMo(hit) {
+  if (hit) moHit = 1;
+  const k = moCtx, Wc = 220, Hc = 150; k.clearRect(0, 0, Wc, Hc);
+  const cx = 104, cy = 92;
+  // gối lót
+  k.fillStyle = '#8c1a10'; k.beginPath(); k.ellipse(cx, cy + 40, 86, 14, 0, 0, 7); k.fill(); k.fillStyle = '#e9b949'; k.beginPath(); k.ellipse(cx, cy + 36, 80, 10, 0, 0, 7); k.fill();
+  // thân mõ
+  const g = k.createRadialGradient(cx - 26, cy - 30, 6, cx, cy, 82); g.addColorStop(0, '#e59a5a'); g.addColorStop(0.45, '#b4602a'); g.addColorStop(1, '#5e2a0e');
+  k.fillStyle = g; k.beginPath(); k.ellipse(cx, cy, 78, 46, 0, 0, 7); k.fill();
+  k.strokeStyle = 'rgba(60,20,4,.6)'; k.lineWidth = 2; k.stroke();
+  // miệng mõ (khe) + hoa văn
+  k.fillStyle = '#2a0e04'; k.beginPath(); k.ellipse(cx, cy + 10, 60, 6, 0, 0, Math.PI); k.fill();
+  k.strokeStyle = 'rgba(255,220,160,.35)'; k.lineWidth = 2; k.beginPath(); k.arc(cx, cy - 6, 30, Math.PI * 1.1, Math.PI * 1.9); k.stroke();
+  k.fillStyle = 'rgba(255,255,255,.25)'; k.beginPath(); k.ellipse(cx - 30, cy - 26, 20, 8, -0.4, 0, 7); k.fill();
+  // dùi gõ
+  const a = -0.55 + moHit * 0.45; k.save(); k.translate(190, 30); k.rotate(a);
+  k.strokeStyle = '#7a4a1c'; k.lineWidth = 6; k.lineCap = 'round'; k.beginPath(); k.moveTo(0, 0); k.lineTo(-62, 30); k.stroke();
+  const gb = k.createRadialGradient(-66, 30, 2, -66, 32, 14); gb.addColorStop(0, '#f2c27a'); gb.addColorStop(1, '#8a4a1c'); k.fillStyle = gb; k.beginPath(); k.arc(-66, 32, 13, 0, 7); k.fill();
+  k.restore();
+  if (moHit > 0) { k.strokeStyle = `rgba(255,220,140,${moHit * 0.8})`; k.lineWidth = 3; k.beginPath(); k.ellipse(cx, cy, 78 + (1 - moHit) * 30, 46 + (1 - moHit) * 18, 0, 0, 7); k.stroke(); moHit = Math.max(0, moHit - 0.12); requestAnimationFrame(() => paintMo(0)); }
+}
+paintMo(0);
 
 /* Thiền */
 function openMeditate() {
@@ -416,7 +505,7 @@ function carryOffering(o) {
     if (h.burner) { const pass = h.burner.clone().add(side.clone().multiplyScalar(1.6)).add(fwd.clone().multiplyScalar(0.8)); pts.push(pass); pts.push(h.burner.clone().add(side.clone().multiplyScalar(1.6)).sub(fwd.clone().multiplyScalar(0.9))); }
     pts.push(stand);
     walkTo(pts, () => {
-      me.yaw = Math.atan2(slot.x - me.pos.x, slot.z - me.pos.z);
+      me.yaw = Math.atan2(slot.x - me.pos.x, slot.z - me.pos.z); cam.yaw = me.yaw + Math.PI;
       // đặt lễ vật lên bàn thờ
       const wp = item.getWorldPosition(new THREE.Vector3()); me.av.root.remove(item); item.position.copy(wp); item.rotation.y = me.yaw; item.userData.tmp = true; scene.add(item); carrying = null;
       const from = wp.clone(), t0 = performance.now();
@@ -426,7 +515,7 @@ function carryOffering(o) {
       P.merit += o.m; addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · +${o.m} công đức`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`);
     });
   };
-  const inside = Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75);
+  const inside = insideHall(h);
   if (inside) go(); else fade(() => { const c = h.cushions[h.cushions.length - 1] || h.altar; me.pos.set(c.x, 0, c.z + 0.8); me.y = c.y || h.altar.y; go(); });
 }
 
@@ -435,17 +524,60 @@ const lanterns = [];
 function openWish() {
   modal('Thả đèn nguyện', (b) => {
     const ta = el('textarea'); ta.id = 'wish'; ta.rows = 3; ta.maxLength = 80; ta.placeholder = 'VD: Nguyện cho mẹ con mau khỏe, gia đình bình an';
+    const err = el('p', 'note warn'); err.hidden = true;
     const go = el('button', 'btn gold', '🏮 Thả đèn');
-    go.onclick = () => { const t = ta.value.trim(); if (t.length < 4) return ta.focus(); closeModal(); releaseLantern(t); };
-    b.append(ta, go);
+    go.onclick = () => {
+      const t = ta.value.trim().replace(/\s+/g, ' ');
+      if (!t) { err.hidden = false; err.textContent = 'Hãy viết một lời nguyện trước khi thả đèn.'; return ta.focus(); }
+      closeModal(); releaseLantern(t);
+    };
+    ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go.click(); } };
+    b.append(ta, err, go); setTimeout(() => ta.focus(), 50);
   });
 }
+/* đèn lồng giấy: thân đỏ cam phát sáng, viền vàng, tua đỏ, quầng sáng */
+function lanternMesh() {
+  const g = new THREE.Group();
+  const paper = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff6a10, emissiveIntensity: 1.8, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 12), paper); body.scale.set(1, 1.25, 1); g.add(body);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe9b949, metalness: 0.6, roughness: 0.35, emissive: 0x6a4000, emissiveIntensity: 0.4 });
+  [0.3, -0.3].forEach(y => { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 14), gold); r.position.y = y; g.add(r); });
+  for (let k = 0; k < 6; k++) { const rib = new THREE.Mesh(new THREE.TorusGeometry(0.262, 0.006, 4, 24, Math.PI), gold); rib.rotation.set(0, k / 6 * Math.PI, Math.PI / 2); rib.scale.y = 1.25; g.add(rib); }
+  const tas = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0xc0261a, emissive: 0x600000 })); tas.position.y = -0.45; tas.rotation.x = Math.PI; g.add(tas);
+  const c = document.createElement('canvas'); c.width = c.height = 64; const k = c.getContext('2d'); const gr = k.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,190,90,.9)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); k.fillStyle = gr; k.fillRect(0, 0, 64, 64);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1.6, 1.6, 1); g.add(glow);
+  g.add(new THREE.PointLight(0xffa040, 1.4, 7));
+  return g;
+}
 function releaseLantern(text) {
-  const g = new THREE.Group(); g.userData.tmp = true;
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.4, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xff9a3a, emissive: 0xff7a1a, emissiveIntensity: 1.6, side: THREE.DoubleSide, transparent: true, opacity: 0.92 }));
-  g.add(body); const lt = new THREE.PointLight(0xffa040, 1.2, 6); g.add(lt);
-  g.position.set(me.pos.x, me.y + 1.6, me.pos.z); scene.add(g); lanterns.push({ g, t: 0 });
-  P.merit += 5; addBeads(5); toast('🏮 Đèn nguyện đã bay lên: “' + text + '”'); A.khanh();
+  const g = lanternMesh(); g.userData.tmp = true;
+  const h = W.halls[0], inHall = h && insideHall(h);
+  // trong chánh điện: đèn bay lên trước Tam Thế Phật
+  if (inHall) faceAltar(h);
+  me.av.setPose('incense'); setTimeout(() => me.av.setPose(me.seated ? 'kneel' : 'idle'), 1600);
+  const fwd = new THREE.Vector3(Math.sin(me.yaw), 0, Math.cos(me.yaw));
+  g.position.set(me.pos.x + fwd.x * 0.45, me.y + 1.1, me.pos.z + fwd.z * 0.45); scene.add(g);
+  const lbl = label('🏮 ' + text, 'wishlbl'); lbl.title = text;
+  const tgt = inHall ? h.altar.clone().lerp(me.pos, 0.35) : null;
+  lanterns.push({ g, t: 0, lbl, tgt, seed: Math.random() * 6, ceil: inHall ? h.ceilY : 0 });
+  P.merit += 5; addBeads(5); toast('🏮 Đèn nguyện đã bay lên · +5 công đức'); A.khanh();
+  ticker(`🏮 ${P.name} vừa thả đèn nguyện: “${text}”`);
+  if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 700);
+  save();
+}
+function lanternStep(dt) {
+  for (const l of lanterns) {
+    l.t += dt; const g = l.g;
+    const cap = l.ceil ? l.ceil - 0.9 : Infinity; g.position.y = Math.min(cap, g.position.y + dt * (l.t < 2 ? 0.35 : 0.7)) + (g.position.y >= cap ? Math.sin(l.t * 1.6) * 0.002 : 0);
+    if (l.tgt && l.t < 8) { g.position.x += (l.tgt.x - g.position.x) * dt * 0.25; g.position.z += (l.tgt.z - g.position.z) * dt * 0.25; }
+    g.position.x += Math.sin(l.t * 0.9 + l.seed) * dt * 0.25; g.rotation.y += dt * 0.4; g.rotation.z = Math.sin(l.t * 1.3 + l.seed) * 0.08;
+    if (l.lbl) {
+      const life = l.ceil ? 24 : 14;
+      if (l.t > life) { l.lbl.remove(); l.lbl = null; }
+      else { placeLabel(l.lbl, g.position, -0.55); l.lbl.style.opacity = String(Math.min(1, l.t * 2, (life - l.t) / 2)); l.lbl.style.transform += ' translate(0, 100%)'; }
+    }
+  }
+  while (lanterns.length && lanterns[0].t > (lanterns[0].ceil ? 26 : 30)) { const l = lanterns.shift(); scene.remove(l.g); if (l.lbl) l.lbl.remove(); }
 }
 
 /* Nghe truyện / sự tích */
@@ -570,7 +702,7 @@ function openTemplePicker(first = false) {
         const card = el('button', 'tcard' + (temple && temple.id === t.id ? ' cur' : ''));
         const im = el('div', 'timg'); im.style.backgroundImage = `url(assets/temples/${t.id}.jpg)`; im.append(el('span', '', t.home ? '🏠' : '卍'));
         card.append(im, el('b', '', t.name), el('small', '', `${CBA.regions[t.region] || 'Chùa nhà'} · ${t.place}`), el('em', st.stamp ? 'ok' : '', st.stamp ? '📜 Đã có ấn' : `Địa danh ${(st.pois || []).length}/${(LAYOUT[t.id] || LAYOUT['binh-an']).pois.length}`));
-        card.onclick = () => { closeModal(); fade(() => loadTemple(t.id)); };
+        card.onclick = () => templeDetail(b, t, TEMPLES.filter(x => r === 'all' ? true : x.region === r), first);
         list.append(card);
       });
     };
@@ -579,6 +711,40 @@ function openTemplePicker(first = false) {
     b.append(tabs, list, el('p', 'note', `Ấn hành hương: ${Object.values(P.temples).filter(x => x.stamp).length}/${TEMPLES.length} · Mỗi chùa: lễ Phật, khám phá địa danh, nghe sự tích.`), big);
     paint('all');
   }, { wide: true, noClose: first });
+}
+
+/* thẻ thông tin chùa: khung cảnh 3D xoay được + giới thiệu + vào chùa */
+let tdView = null;
+function templeDetail(b, t, list, first) {
+  if (tdView) { tdView.dispose(); tdView = null; }
+  [...b.children].forEach((c, i) => { if (i) c.remove(); });   // giữ thanh tiêu đề
+  const st = P.temples[t.id] || {}, L = LAYOUT[t.id] || LAYOUT['binh-an'];
+  const wrap = el('div', 'tdetail');
+  const v3d = el('div', 'td3d'); const hint = el('small', 'td3dhint', '👆 Kéo để xoay · cuộn / chụm để phóng to'); v3d.append(hint);
+  const nav = el('div', 'tdnav');
+  const back = el('button', 'rb', '←'); back.title = 'Danh sách chùa';
+  const i = list.indexOf(t), prev = el('button', 'rb', '‹'), next = el('button', 'rb', '›');
+  prev.onclick = () => templeDetail(b, list[(i - 1 + list.length) % list.length], list, first);
+  next.onclick = () => templeDetail(b, list[(i + 1) % list.length], list, first);
+  back.onclick = () => { if (tdView) { tdView.dispose(); tdView = null; } closeHook = null; closeModal(); openTemplePicker(first); };
+  nav.append(back, el('h3', '', t.name), prev, next);
+  const chips = el('div', 'tdchips');
+  chips.append(el('span', 'on', `● ${2 + ((t.id.length * 37) % 40)} đang tu tập`), el('span', st.stamp ? 'ok' : '', st.stamp ? '📜 Đã có ấn' : P.temples[t.id] ? '✓ Đã viếng' : 'Chưa viếng'));
+  const place = el('p', 'tdplace', `📍 ${t.place}${t.year ? ' · dựng năm ' + t.year : ''} · ${CBA.regions[t.region] || 'Chùa nhà'}`);
+  const intro = el('p', 'tdintro', t.intro || '');
+  const prog = el('div', 'tdprog'); const n = (st.pois || []).length, tot = L.pois.length;
+  prog.append(el('b', '', st.stamp ? '📜 Ấn hành hương đã nhận' : '📜 Ấn hành hương'), el('div', 'bar', ''), el('small', '', `Địa danh đã khám phá ${n}/${tot} · lễ Phật ${Math.min(3, st.lay || 0)}/3 · nghe sự tích ${st.legend ? '✓' : '✗'}`));
+  prog.children[1].append(el('i')); prog.children[1].firstChild.style.width = `${Math.round(((Math.min(n, tot) / Math.max(1, tot)) * 0.6 + (Math.min(3, st.lay || 0) / 3) * 0.2 + (st.legend ? 0.2 : 0)) * 100)}%`;
+  const pois = el('div', 'tdpois'); L.pois.forEach(pp => pois.append(el('span', (st.pois || []).includes(pp[0]) ? 'ok' : '', pp[0])));
+  const row = el('div', 'row');
+  const go = el('button', 'btn gold', temple && temple.id === t.id ? '🙏 Về chánh điện' : '🙏 Vào chùa');
+  go.onclick = () => { if (tdView) { tdView.dispose(); tdView = null; } closeModal(); if (temple && temple.id === t.id) { const h = W.halls[0]; if (h) fade(() => { me.pos.set(h.altar.x, 0, h.altar.z + 4); me.y = h.altar.y; faceAltar(h); }); } else fade(() => loadTemple(t.id)); };
+  row.append(go);
+  if (t.legend) { const lg = el('button', 'btn', '📖 Sự tích chùa'); lg.onclick = () => { if (tdView) { tdView.dispose(); tdView = null; } closeModal(); const sx = CBA.stories.find(x => x.id === 'chua_' + t.id); if (sx) tell(sx, true); }; row.append(lg); }
+  wrap.append(v3d, nav, chips, place, intro, prog, pois, row); b.append(wrap);
+  b.classList.add('hasdetail');
+  closeHook = () => { if (tdView) { tdView.dispose(); tdView = null; } };
+  requestAnimationFrame(() => { try { tdView = mount(v3d, t.id, { autoRotate: true }); v3d.append(hint); } catch (e) { v3d.style.backgroundImage = `url(assets/temples/${t.id}.jpg)`; } });
 }
 
 /* ---------------- hồ sơ ---------------- */
@@ -612,6 +778,13 @@ function openSettings() {
       const t = el('button', 'btn', '▶ Nghe thử'); t.onclick = () => { A.set({ storyTtsOn: true }); A.speak('A Di Đà Phật. Chào mừng quý Phật tử về thăm chùa.', 'story'); };
       b.append(sel, t, el('p', 'note', 'Giọng nam tự nhiên giọng Bắc: "NamMinh" (trình duyệt Microsoft Edge) hoặc "Microsoft An" (Windows). iPhone chỉ có giọng nữ — để có giọng nam tự nhiên trên mọi máy, tạo file giọng đọc bằng tao-giong-doc.bat (xem README).'));
     } else b.append(el('p', 'note warn', 'Máy chưa có giọng đọc tiếng Việt nên game không đọc truyện (để tránh giọng tiếng Anh). Cách thêm: Windows → Cài đặt → Thời gian & ngôn ngữ → Thêm Tiếng Việt kèm giọng nói; hoặc mở game bằng trình duyệt Microsoft Edge (có sẵn giọng HoaiMy giọng Bắc). Android: Cài đặt → Chuyển văn bản thành giọng nói → Tiếng Việt.'));
+    const tst = el('button', 'btn gold', '🔊 Kiểm tra âm thanh'), res = el('p', 'note');
+    tst.onclick = () => {
+      A.unlock(); A.set({ sfxOn: true }); A.mo(1); setTimeout(() => A.mo(0.8), 900); setTimeout(() => A.smallBell(), 1800);
+      setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 2600);
+      setTimeout(() => { const ok = A.unlocked(); res.className = 'note' + (ok ? '' : ' warn'); res.textContent = ok ? `✅ Âm thanh đang bật · giọng đọc: ${A.voiceName() || 'máy chưa có giọng tiếng Việt'}. Nếu vẫn không nghe: kiểm tra loa, âm lượng máy và tab trình duyệt có bị tắt tiếng (biểu tượng loa trên tab).` : '⚠️ Trình duyệt đang chặn âm thanh. Bấm vào màn hình game một lần rồi thử lại; trên iPhone hãy gạt nút im lặng (bên hông máy) sang bật chuông.'; }, 600);
+    };
+    b.append(tst, res);
     b.append(el('h3', '', '🎮 Trò chơi'),
       tg('Phật tử khác trong chùa (mô phỏng, không phát tiếng mõ)', S.npc, v => { S.npc = v; saveS(); toast('Áp dụng khi đổi chùa'); }),
       tg('Đồ họa nhẹ (máy yếu) — áp dụng khi tải lại', S.low, v => { S.low = v; saveS(); }));
@@ -689,14 +862,31 @@ setInterval(() => {
   const rows = [[P.name, P.beads], ...npcs.map(n => [n.label.textContent, n.beads || (n.beads = 200 + (Math.random() * 3000 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)]);
   const meritRows = [[P.name, P.merit], ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
   BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
-  checkRanks(meritRows);
+  checkRanks(meritRows); drawRank(meritRows);
 }, 3000);
+/* bảng xếp hạng công đức góc trái */
+let rankPrev = [];
+function drawRank(rows) {
+  const ol = $('rankList'); ol.innerHTML = '';
+  const show = rows.slice(0, 5); const mine = rows.findIndex(r => r[0] === P.name);
+  if (mine >= 5) show.push(rows[mine]);
+  show.forEach(([n, v]) => {
+    const k = rows.findIndex(r => r[0] === n), li = el('li', n === P.name ? 'me' : '');
+    li.append(el('b', '', String(k + 1)), el('span', '', n), el('em', '', fmt(v)));
+    const was = rankPrev.indexOf(n); if (rankPrev.length && (was === -1 || was > k) && k < 5) li.classList.add('up');
+    ol.append(li);
+  });
+  rankPrev = rows.map(r => r[0]);
+}
+$('rankHead').onclick = () => { $('rank').classList.toggle('min'); S.rankMin = $('rank').classList.contains('min'); saveS(); };
+if (S.rankMin ?? innerWidth < 640) $('rank').classList.add('min');
 
 /* camera không xuyên tường: tia từ người chơi tới camera cắt hộp va chạm nào gần nhất (0..1) */
+let camInHall = false;
 function rayBoxes(a, b) {
   let best = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   for (const bx of W.col.boxes) {
-    if (bx.top < a.y - 0.6 || bx.top - bx.bottom < 1.2) continue;
+    if (bx.top < a.y - 0.6 || bx.top - bx.bottom < 1.2 || (camInHall && bx.camSkip)) continue;
     let t0 = 0, t1 = 1;
     for (const [o, d, lo, hi] of [[a.x, dx, bx.x0, bx.x1], [a.y, dy, bx.bottom, bx.top], [a.z, dz, bx.z0, bx.z1]]) {
       if (Math.abs(d) < 1e-6) { if (o < lo || o > hi) { t0 = 2; break; } continue; }
@@ -760,43 +950,116 @@ function launchDragon(name, rank) {
   const who = name === P.name ? me.av : (npcs.find(n => n.label.textContent === name) || {}).av;
   let sx = innerWidth / 2, sy = innerHeight * 0.6;
   if (who) { v3.copy(who.root.position); v3.y += who.height - 0.4; v3.project(camera); sx = (v3.x * 0.5 + 0.5) * innerWidth; sy = (-v3.y * 0.5 + 0.5) * innerHeight; who.necklace.visible = false; }
-  dragon = { t: 0, sx, sy, hist: [], who };
+  // 3 kiểu bay ngẫu nhiên nối nhau: lượn sóng · vòng tròn · số 8 · xoắn ốc · chữ S
+  const kinds = ['wave', 'circle', 'eight', 'spiral', 'zig'].sort(() => Math.random() - 0.5).slice(0, 3);
+  dragon = { t: 0, sx, sy, hist: [], who, kinds, sparks: [], dir: Math.random() < 0.5 ? 1 : -1 };
   A.bigBell(); A.khanh(0.6);
   banner('🐉 Bảng Công Đức', `${name} lên hạng ${rank}`, 'Chuỗi hạt hóa rồng bay lên chúc mừng');
   ticker(`🐉 ${name} vừa lên hạng ${rank} Bảng Công Đức`);
 }
+/* quỹ đạo bay theo kiểu, u = thời gian trong kiểu */
+function dragonPath(kind, u, W2, H2, dir) {
+  const cx = W2 * 0.5, cy = H2 * 0.4, ax = W2 * 0.36, ay = H2 * 0.2;
+  switch (kind) {
+    case 'circle': { const a = u * 2.1 * dir; return [cx + Math.cos(a) * ax * 0.75, cy + Math.sin(a) * ay * 1.25]; }
+    case 'eight': { const a = u * 1.7; return [cx + Math.sin(a * dir) * ax, cy + Math.sin(a * 2) * ay]; }
+    case 'spiral': { const a = u * 2.6 * dir, r = 0.25 + 0.75 * Math.abs(Math.sin(u * 0.55)); return [cx + Math.cos(a) * ax * r, cy + Math.sin(a) * ay * 1.2 * r]; }
+    case 'zig': { const k = u * 0.55, x = ((k % 2) < 1 ? k % 1 : 2 - k % 2); return [W2 * 0.1 + x * W2 * 0.8, cy + Math.sin(u * 3.2) * ay * 1.1]; }
+    default: { const a = u * 0.95; return [cx + Math.sin(a * dir) * ax, cy + Math.sin(a * 2.1) * ay * 0.8 + Math.cos(a * 0.7) * 30]; }
+  }
+}
+function drawBead(x, y, r, kind) {
+  const gr = fg.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.08, x, y, r);
+  if (kind === 'gold') { gr.addColorStop(0, '#fffbe0'); gr.addColorStop(0.4, '#ffd76a'); gr.addColorStop(1, '#a8700f'); }
+  else if (kind === 'jade') { gr.addColorStop(0, '#e9fff0'); gr.addColorStop(0.45, '#6fcf97'); gr.addColorStop(1, '#1f6b45'); }
+  else { gr.addColorStop(0, '#f6dcb4'); gr.addColorStop(0.35, '#b77a42'); gr.addColorStop(0.8, '#7a4520'); gr.addColorStop(1, '#4e2810'); }
+  fg.fillStyle = gr; fg.beginPath(); fg.arc(x, y, r, 0, 7); fg.fill();
+  fg.fillStyle = 'rgba(255,255,255,.55)'; fg.beginPath(); fg.ellipse(x - r * 0.35, y - r * 0.42, r * 0.28, r * 0.16, -0.6, 0, 7); fg.fill();
+}
+function drawDragonHead(R, t) {
+  // bờm lửa
+  for (let i = 0; i < 6; i++) {
+    const s = i % 2 ? 1 : -1, w = Math.sin(t * 6 + i) * R * 0.25;
+    fg.fillStyle = i < 2 ? '#e8452c' : i < 4 ? '#f07a2a' : '#ffb347';
+    fg.beginPath(); fg.moveTo(-R * 0.2, s * R * 0.3); fg.quadraticCurveTo(-R * (1.4 + i * 0.25), s * R * (1.2 + i * 0.12) + w, -R * (2.2 + i * 0.3), s * R * (0.5 + i * 0.1) + w); fg.quadraticCurveTo(-R * 1.0, s * R * 0.5, -R * 0.2, s * R * 0.3); fg.fill();
+  }
+  // sừng
+  fg.strokeStyle = '#f8e3a3'; fg.lineWidth = Math.max(2, R * 0.18); fg.lineCap = 'round';
+  [-1, 1].forEach(s => { fg.beginPath(); fg.moveTo(R * 0.1, s * R * 0.75); fg.quadraticCurveTo(-R * 0.9, s * R * 1.6, -R * 2.1, s * R * 1.9); fg.stroke();
+    fg.beginPath(); fg.moveTo(-R * 1.0, s * R * 1.45); fg.lineTo(-R * 0.9, s * R * 2.15); fg.stroke(); });
+  // đầu
+  const hg = fg.createLinearGradient(0, -R, 0, R); hg.addColorStop(0, '#ffe58a'); hg.addColorStop(0.55, '#f0b632'); hg.addColorStop(1, '#b8780e');
+  fg.fillStyle = hg; fg.strokeStyle = '#7a4a08'; fg.lineWidth = Math.max(1.5, R * 0.08);
+  fg.beginPath(); fg.moveTo(-R * 0.6, -R * 0.85); fg.bezierCurveTo(R * 0.2, -R * 1.25, R * 0.9, -R * 1.0, R * 1.3, -R * 0.6);
+  fg.quadraticCurveTo(R * 2.1, -R * 0.62, R * 2.7, -R * 0.3); fg.quadraticCurveTo(R * 3.05, 0, R * 2.65, R * 0.22);
+  fg.lineTo(R * 1.5, R * 0.3); fg.lineTo(R * 2.45, R * 0.55); fg.quadraticCurveTo(R * 1.8, R * 1.0, R * 0.5, R * 0.95); fg.quadraticCurveTo(-R * 0.4, R * 1.0, -R * 0.6, R * 0.6); fg.closePath(); fg.fill(); fg.stroke();
+  // vảy chấm
+  fg.fillStyle = 'rgba(160,90,10,.45)'; for (let i = 0; i < 4; i++) { fg.beginPath(); fg.arc(-R * 0.2 + i * R * 0.35, R * 0.15 + (i % 2) * R * 0.2, R * 0.1, 0, 7); fg.fill(); }
+  // răng
+  fg.fillStyle = '#fff'; for (let i = 0; i < 3; i++) { fg.beginPath(); fg.moveTo(R * (1.75 + i * 0.25), R * 0.32); fg.lineTo(R * (1.85 + i * 0.25), R * 0.5); fg.lineTo(R * (1.95 + i * 0.25), R * 0.34); fg.fill(); }
+  // mắt + mày
+  fg.fillStyle = '#fff'; fg.beginPath(); fg.ellipse(R * 0.85, -R * 0.45, R * 0.3, R * 0.22, 0.15, 0, 7); fg.fill();
+  fg.fillStyle = '#c0261a'; fg.beginPath(); fg.arc(R * 0.92, -R * 0.45, R * 0.15, 0, 7); fg.fill();
+  fg.fillStyle = '#111'; fg.beginPath(); fg.arc(R * 0.95, -R * 0.45, R * 0.07, 0, 7); fg.fill();
+  fg.strokeStyle = '#7a4a08'; fg.lineWidth = Math.max(2, R * 0.12); fg.beginPath(); fg.moveTo(R * 0.45, -R * 0.78); fg.quadraticCurveTo(R * 0.95, -R * 0.95, R * 1.35, -R * 0.68); fg.stroke();
+  fg.fillStyle = '#7a4a08'; fg.beginPath(); fg.arc(R * 2.5, -R * 0.25, R * 0.07, 0, 7); fg.fill();   // lỗ mũi
+  // râu rồng bay
+  fg.strokeStyle = '#fff3c4'; fg.lineWidth = Math.max(1.5, R * 0.09);
+  [-1, 1].forEach(s => { fg.beginPath(); fg.moveTo(R * 2.4, s * R * 0.2); fg.bezierCurveTo(R * 3.4, s * R * 0.9, R * 2.2, s * R * (2.0 + Math.sin(t * 5) * 0.4), R * 0.4, s * R * (2.3 + Math.cos(t * 4) * 0.4)); fg.stroke(); });
+}
 function dragonStep(dt) {
   fg.clearRect(0, 0, innerWidth, innerHeight);
   if (!dragon) return; const d = dragon; d.t += dt;
-  const W2 = innerWidth, H2 = innerHeight, T = 10;
-  // đầu rồng: 1 giây đầu bay lên từ người, sau đó lượn sóng khắp màn hình
+  const W2 = innerWidth, H2 = innerHeight, T = 10, R = Math.max(10, Math.min(W2, H2) * 0.024);
+  // 1 giây đầu: chuỗi hạt bay lên từ người; sau đó lượn theo 3 kiểu, chuyển kiểu mượt
   let hx, hy;
-  if (d.t < 1) { const k = d.t; hx = d.sx + (W2 * 0.5 - d.sx) * k; hy = d.sy + (H2 * 0.3 - d.sy) * k - Math.sin(k * Math.PI) * 80; }
-  else { const th = (d.t - 1) * 0.9; hx = W2 * 0.5 + Math.sin(th) * W2 * 0.38; hy = H2 * 0.36 + Math.sin(th * 2.1) * H2 * 0.16 + Math.cos(th * 0.7) * 30; }
-  d.hist.unshift([hx, hy]); if (d.hist.length > 300) d.hist.pop();
-  const fade = Math.min(1, (T - d.t) / 1.2), N = 34, R = Math.max(9, Math.min(W2, H2) * 0.022);
-  fg.save(); fg.globalAlpha = Math.max(0, fade);
-  for (let i = N - 1; i >= 0; i--) {
-    const p = d.hist[Math.min(d.hist.length - 1, i * 4)]; if (!p) continue;
-    const r = R * (1 - i / N * 0.55);
-    const gr = fg.createRadialGradient(p[0] - r * 0.35, p[1] - r * 0.4, r * 0.1, p[0], p[1], r);
-    gr.addColorStop(0, '#fff6d6'); gr.addColorStop(0.45, i % 6 === 0 ? '#ffd36b' : '#e9c48c'); gr.addColorStop(1, i % 6 === 0 ? '#b87a14' : '#9c6a36');
-    fg.shadowColor = 'rgba(255,210,100,.9)'; fg.shadowBlur = 14; fg.fillStyle = gr; fg.beginPath(); fg.arc(p[0], p[1], r, 0, 7); fg.fill();
+  if (d.t < 1) { const k = d.t, e = k * k * (3 - 2 * k), [tx, ty] = dragonPath(d.kinds[0], 0, W2, H2, d.dir); hx = d.sx + (tx - d.sx) * e; hy = d.sy + (ty - d.sy) * e - Math.sin(k * Math.PI) * 90; }
+  else {
+    const seg = 3, u = d.t - 1, i = Math.min(d.kinds.length - 1, Math.floor(u / seg)), lu = u - i * seg;
+    let [x, y] = dragonPath(d.kinds[i], lu, W2, H2, d.dir);
+    if (i > 0 && lu < 0.8) { const [px, py] = dragonPath(d.kinds[i - 1], lu + seg, W2, H2, d.dir), k = lu / 0.8, e = k * k * (3 - 2 * k); x = px + (x - px) * e; y = py + (y - py) * e; }
+    if (d.t > T - 1.2) { const k = (d.t - (T - 1.2)) / 1.2; y -= k * k * H2 * 0.7; }   // cuối cùng bay vút lên trời
+    hx = x; hy = y;
   }
-  // đầu rồng
-  const h0 = d.hist[0], h1 = d.hist[3] || h0, a = Math.atan2(h0[1] - h1[1], h0[0] - h1[0]);
-  fg.translate(h0[0], h0[1]); fg.rotate(a); fg.shadowBlur = 24;
-  fg.fillStyle = '#f3c047'; fg.beginPath(); fg.ellipse(R * 0.6, 0, R * 1.7, R * 1.1, 0, 0, 7); fg.fill();
-  fg.beginPath(); fg.moveTo(R * 1.6, -R * 0.5); fg.lineTo(R * 3, -R * 0.25); fg.lineTo(R * 3, R * 0.35); fg.lineTo(R * 1.6, R * 0.6); fg.fill();
-  fg.strokeStyle = '#ffe9a0'; fg.lineWidth = 3; fg.lineCap = 'round';
-  fg.beginPath(); fg.moveTo(0, -R * 0.8); fg.quadraticCurveTo(-R * 1.4, -R * 2.6, -R * 2.4, -R * 2.1); fg.stroke();
-  fg.beginPath(); fg.moveTo(0, R * 0.8); fg.quadraticCurveTo(-R * 1.4, R * 2.6, -R * 2.4, R * 2.1); fg.stroke();
-  fg.strokeStyle = '#fff6d0'; fg.lineWidth = 2;
-  fg.beginPath(); fg.moveTo(R * 2.8, -R * 0.1); fg.quadraticCurveTo(R * 4, -R * 1.8, R * 5.2, -R * 0.8); fg.stroke();
-  fg.beginPath(); fg.moveTo(R * 2.8, R * 0.2); fg.quadraticCurveTo(R * 4, R * 1.8, R * 5.2, R * 1.0); fg.stroke();
-  fg.shadowBlur = 0; fg.fillStyle = '#b3261e'; fg.beginPath(); fg.arc(R * 1.2, -R * 0.45, R * 0.22, 0, 7); fg.fill(); fg.beginPath(); fg.arc(R * 1.2, R * 0.45, R * 0.22, 0, 7); fg.fill();
-  fg.rotate(-a); const pg = fg.createRadialGradient(Math.cos(a) * R * 6, Math.sin(a) * R * 6, 0, Math.cos(a) * R * 6, Math.sin(a) * R * 6, R * 1.4);
-  pg.addColorStop(0, '#ffffff'); pg.addColorStop(1, 'rgba(255,230,150,0)'); fg.fillStyle = pg; fg.beginPath(); fg.arc(Math.cos(a) * R * 6, Math.sin(a) * R * 6, R * 1.4, 0, 7); fg.fill();   // ngọc
+  d.hist.unshift([hx, hy]); if (d.hist.length > 900) d.hist.pop();
+  // xếp hạt đều theo chiều dài đường bay
+  const N = 54, gap = R * 1.75, beads = []; let acc = 0, need = gap * 0.9;
+  for (let i = 1; i < d.hist.length && beads.length < N; i++) {
+    const [x0, y0] = d.hist[i - 1], [x1, y1] = d.hist[i], L = Math.hypot(x1 - x0, y1 - y0); if (!L) continue;
+    while (acc + L >= need && beads.length < N) { const k = (need - acc) / L; beads.push([x0 + (x1 - x0) * k, y0 + (y1 - y0) * k]); need += gap; }
+    acc += L;
+  }
+  const alpha = Math.max(0, Math.min(1, d.t * 3, (T - d.t) / 0.6));
+  fg.save(); fg.globalAlpha = alpha;
+  // hào quang + tia lấp lánh
+  if (Math.random() < 0.8) d.sparks.push({ x: hx + (Math.random() - 0.5) * R * 2, y: hy + (Math.random() - 0.5) * R * 2, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 30, l: 1 });
+  d.sparks = d.sparks.filter(s => (s.l -= dt * 0.9) > 0);
+  d.sparks.forEach(s => { s.x += s.vx * dt; s.y += s.vy * dt; fg.fillStyle = `rgba(255,226,140,${s.l})`; fg.beginPath(); fg.arc(s.x, s.y, 1.5 + s.l * 2, 0, 7); fg.fill(); });
+  // dây xâu hạt
+  if (beads.length > 1) { fg.strokeStyle = 'rgba(200,40,30,.9)'; fg.lineWidth = Math.max(1.5, R * 0.14); fg.beginPath(); fg.moveTo(hx, hy); beads.forEach(([x, y]) => fg.lineTo(x, y)); fg.stroke(); }
+  // hạt: gỗ, cứ 9 hạt một hạt vàng, hạt thứ 27 ngọc bích
+  fg.shadowColor = 'rgba(255,200,90,.85)'; fg.shadowBlur = 12;
+  for (let i = beads.length - 1; i >= 0; i--) {
+    const [x, y] = beads[i], wob = 1 + Math.sin(d.t * 8 - i * 0.5) * 0.05, r = R * (1 - i / N * 0.4) * wob;
+    drawBead(x, y, r, (i + 1) % 27 === 0 ? 'jade' : (i + 1) % 9 === 0 ? 'gold' : 'wood');
+  }
+  // đuôi: hạt mẫu lớn + tua đỏ
+  const tl = beads[beads.length - 1];
+  if (tl && beads.length > 4) {
+    const pv = beads[beads.length - 3], ta = Math.atan2(tl[1] - pv[1], tl[0] - pv[0]);
+    fg.save(); fg.translate(tl[0], tl[1]); fg.rotate(ta);
+    drawBead(R * 0.9, 0, R * 0.95, 'gold');
+    fg.shadowBlur = 0; fg.strokeStyle = '#c0261a'; fg.lineWidth = Math.max(1, R * 0.08);
+    for (let k = -4; k <= 4; k++) { fg.beginPath(); fg.moveTo(R * 1.7, k * R * 0.05); fg.quadraticCurveTo(R * 2.8, k * R * 0.18 + Math.sin(d.t * 7 + k) * R * 0.3, R * 3.6, k * R * 0.3 + Math.sin(d.t * 6 + k) * R * 0.5); fg.stroke(); }
+    fg.restore();
+  }
+  // đầu rồng + ngọc
+  const h1 = d.hist[4] || d.hist[0], a = Math.atan2(hy - h1[1], hx - h1[0]);
+  fg.save(); fg.translate(hx, hy); fg.rotate(a); if (Math.cos(a) < 0) fg.scale(1, -1);
+  fg.shadowColor = 'rgba(255,200,90,.9)'; fg.shadowBlur = 22; drawDragonHead(R * 1.15, d.t); fg.restore();
+  const px = hx + Math.cos(a) * R * 5.2, py = hy + Math.sin(a) * R * 5.2 + Math.sin(d.t * 4) * R * 0.4;
+  const pg = fg.createRadialGradient(px, py, 0, px, py, R * 1.6); pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.35, '#fff1b0'); pg.addColorStop(1, 'rgba(255,220,120,0)');
+  fg.fillStyle = pg; fg.beginPath(); fg.arc(px, py, R * 1.6, 0, 7); fg.fill();
   fg.restore();
   if (d.t > T) { if (d.who) d.who.necklace.visible = true; dragon = null; fg.clearRect(0, 0, W2, H2); }
 }
@@ -832,12 +1095,15 @@ function loop() {
     // camera
     const tgt = new THREE.Vector3(me.pos.x, me.y + 1.05, me.pos.z);
     // trong chánh điện: camera thấp & gần để không bị mái che
-    const hallIn = W.halls.find(h => Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < Math.max(8, (h.d || 12) * 0.75) && Math.abs(me.y - h.altar.y) < 1.5);
-    W.halls.forEach(h => h.roofs.forEach(r => { r.visible = h !== hallIn; }));   // ở trong điện: ẩn mái để nhìn bao quát
+    const hallIn = W.halls.find(h => inHallBox(h, me.pos, me.y));
+    W.halls.forEach(h => { h.front.forEach(r => { r.visible = h !== hallIn; }); });   // giữ mái; chỉ ẩn cột hiên & bảng tên khi ở trong điện
+    camInHall = !!hallIn;
     const inHall = !!hallIn;
-    const dist = malaOn ? 3.2 : inHall ? Math.max(6.5, Math.min(cam.dist + 3, 11)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.max(cam.pitch, 0.62) : cam.pitch;
+    // trong điện: camera ở tầm mắt, dưới trần gỗ, nhìn thấy Tam Thế Phật, trần, đèn treo và người chơi
+    const dist = malaOn ? 3.2 : inHall ? Math.max(4.2, Math.min(cam.dist + 1.2, 8)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.42, Math.max(cam.pitch, 0.16)) : cam.pitch;
     let cp = new THREE.Vector3(tgt.x + Math.sin(cam.yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(cam.yaw) * Math.cos(pitch) * dist);
     const hit = rayBoxes(tgt, cp); if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
+    if (inHall && hallIn.ceilY) cp.y = Math.min(cp.y, hallIn.ceilY - 0.75);
     camera.position.lerp(cp, Math.min(1, dt * 8)); camera.lookAt(tgt);
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
@@ -846,7 +1112,7 @@ function loop() {
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
     ANIM.forEach(f => f(t));
     smokes.forEach(s => s.update(dt, smokeBoost)); smokeBoost = Math.max(0, smokeBoost - dt);
-    lanterns.forEach(l => { l.t += dt; l.g.position.y += dt * 1.1; l.g.position.x += Math.sin(l.t) * dt * 0.3; }); while (lanterns.length && lanterns[0].t > 30) scene.remove(lanterns.shift().g);
+    lanternStep(dt);
     // ngữ cảnh, địa danh, âm thanh theo khoảng cách
     if ((t * 10 | 0) % 3 === 0) {
       ctxAction = findContext(); const cb = $('ctx'); cb.hidden = !ctxAction; if (ctxAction) cb.textContent = ctxAction.label;
@@ -859,7 +1125,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__game = { me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: () => petalShower() };   // hỗ trợ kiểm thử
+window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: () => petalShower() };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
