@@ -37,3 +37,9 @@ CBA.shop = {
   // chế độ thử (khi chưa có Firebase): mật khẩu admin tạm để xem bảng duyệt
   demoAdminPassword: 'admin123'
 };
+
+/* ---- MÁY CHỦ NHIỀU NGƯỜI CHƠI (server/server.js, chạy trên máy tính của bạn) ----
+   'auto' = khi game được mở từ chính máy chủ thì tự nối về máy chủ đó.
+   Nếu để file game ở nơi khác (GitHub Pages…), điền địa chỉ máy chủ, ví dụ 'wss://chua.ten-mien-cua-ban.com'.
+   Để trống '' = luôn chơi một mình (Phật tử mô phỏng). */
+CBA.server = { url: 'auto' };

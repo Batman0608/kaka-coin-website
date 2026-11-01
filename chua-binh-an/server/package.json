@@ -1,0 +1,11 @@
+{
+  "name": "chua-binh-an-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Máy chủ nhiều người chơi cho Chùa Bình An: phục vụ game + WebSocket, tự chia kênh khi đông",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": { "start": "node server.js", "test-tai": "node thu-tai.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "8.18.0" }
+}

@@ -269,3 +269,11 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .mtable { display: grid; gap: 2px; font-size: 13px; } .mtable > div { display: flex; justify-content: space-between; gap: 10px; padding: 4px 6px; border-bottom: 1px dashed rgba(255, 255, 255, .08); }
 .mstats .btn { margin-top: 8px; }
 .req.don { border-left: 4px solid #e9a23b; }
+/* kênh máy chủ */
+.nlabel.peer { background: rgba(30, 70, 110, .78); border: 1px solid rgba(140, 200, 255, .5); }
+.chlist { display: grid; gap: 6px; margin: 10px 0; }
+.chan { display: grid; grid-template-columns: 80px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #2e1408; color: var(--fg); cursor: pointer; text-align: left; }
+.chan.on { border-color: var(--gold); background: #4a2410; } .chan.full { opacity: .55; cursor: not-allowed; }
+.chan small { color: var(--mut); font-size: 12px; }
+.cbar { height: 8px; border-radius: 4px; background: rgba(0, 0, 0, .35); overflow: hidden; } .cbar i { display: block; height: 100%; background: #5fe08a; }
+.chan.full .cbar i { background: #e35a3a; }

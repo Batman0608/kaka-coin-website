@@ -9,6 +9,7 @@ import { Avatar } from './avatar.js';
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 import { bootAccount, initAccount } from './account.js';
+import { initNet } from './net.js';
 
 await bootAccount();   // máy đã đăng nhập → lấy tiến trình mới nhất từ tài khoản trước khi đọc dữ liệu
 
@@ -103,6 +104,7 @@ function loadTemple(id) {
   if (W.merit) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
   if (S.npc) spawnNpcs();
+  if (typeof NET !== 'undefined') NET.join(temple.id);   // nhiều người chơi thật (nếu có máy chủ)
   // âm thanh của chùa
   A.setTone(temple.tone); A.setTempleTrack(temple);
   A.ambience.stop();   // không phát tụng kinh nền
@@ -244,7 +246,7 @@ function doBow() {
   if (!me.seated && W.halls[0]) { lastBow = Date.now(); return goSit(() => { lastBow = 0; doBow(); }); }   // về đệm trước rồi mới lạy
   lastBow = Date.now();
   if (me.seated) faceAltar();
-  me.av.bow(); A.mo(0.8); P.lay++; addBeads(3);
+  me.av.bow(); A.mo(0.8); P.lay++; addBeads(3); NET.act('bow');
   if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
   setTimeout(() => A.mo(0.6), 1100);
   if (nearAltar()) { const t = tp(temple.id); t.lay++; if (t.lay === 3) { toast('✅ Đã lễ Phật tại chánh điện'); objective(); } }
@@ -258,11 +260,11 @@ function offerIncense(bur) {
   lastIncense = Date.now();
   me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1);
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
-  setTimeout(() => { me.av.bow(); }, 600);
+  setTimeout(() => { me.av.bow(); }, 600); NET.act('incense');
   setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; P.merit += 10; addBeads(10); toast('🕯️ Đã thắp nén hương · +10 công đức'); }, 2800);
 }
 let smokeBoost = 0;
-function ringBell() { if (Date.now() - (ringBell.t || 0) < 20000) return toast('Tiếng chuông còn đang ngân…'); ringBell.t = Date.now(); A.bigBell(); me.av.bow(); addBeads(9); toast('🔔 Một hồi chuông vang xa · nguyện chúng sanh thức tỉnh'); }
+function ringBell() { if (Date.now() - (ringBell.t || 0) < 20000) return toast('Tiếng chuông còn đang ngân…'); ringBell.t = Date.now(); A.bigBell(); me.av.bow(); NET.act('bell'); addBeads(9); toast('🔔 Một hồi chuông vang xa · nguyện chúng sanh thức tỉnh'); }
 function ferry() {
   const F = W.layout.ferry; fade(() => { me.pos.set(F.to[0], 0, F.to[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; toast('⛵ Thuyền đã cập bến · đi qua cổng tam quan, leo bậc đá lên động'); });
 }
@@ -299,7 +301,7 @@ let lastBead = 0;
 function tickBead() {
   if (Date.now() - lastBead < 170) return; lastBead = Date.now();
   P.mala++; A.mo(0.75); addBeads(1); malaAnim = 1;
-  if (P.mala % 108 === 0) { P.rounds++; addBeads(54); A.smallBell(); banner('📿 Tràng hạt', `Viên mãn chuỗi thứ ${P.rounds}`, '+54 hạt'); ticker(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`); }
+  if (P.mala % 108 === 0) { P.rounds++; addBeads(54); A.smallBell(); banner('📿 Tràng hạt', `Viên mãn chuỗi thứ ${P.rounds}`, '+54 hạt'); ticker(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`); NET.act('mala'); }
   if (P.mala % 108 === 1) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
 }
 {
@@ -358,7 +360,7 @@ function renderChantTabs() {
   CHANTS.forEach((c, i) => { const b = el('button', ch && ch.c === c ? 'on' : '', c.name); b.onclick = () => { if (!ch || ch.c !== c) startChant(i); }; t.append(b); });
 }
 function startChant(i) {
-  const c = CHANTS[i]; S.chantKey = c.key; saveS();
+  const c = CHANTS[i]; S.chantKey = c.key; saveS(); NET.act('chant', c.n || c.title || '');
   chantRun++; clearInterval(moTimer); A.stopVoice(); A.stop && A.stop();
   chanting = true; document.body.classList.add('focus'); $('chant').hidden = false; A.ambience.duck(true);
   ch = { c, lines: chantLinesOf(c), idx: 0, beats: 0, taps: ch ? ch.taps : 0 };
@@ -544,7 +546,7 @@ function carryOffering(o) {
       const fly = () => { const k = Math.min(1, (performance.now() - t0) / 700); item.position.lerpVectors(from, slot, k); item.position.y += Math.sin(k * Math.PI) * 0.25; if (k < 1) requestAnimationFrame(fly); };
       fly();
       me.av.setPose('idle'); setTimeout(() => { me.av.bow(); A.smallBell(); if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }); }, 600);
-      P.merit += o.m; addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · +${o.m} công đức`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`);
+      P.merit += o.m; addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · +${o.m} công đức`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`); NET.act('offer', o.n.toLowerCase());
     });
   };
   const inside = insideHall(h);
@@ -593,7 +595,7 @@ function releaseLantern(text) {
   const tgt = inHall ? h.altar.clone().lerp(me.pos, 0.35) : null;
   lanterns.push({ g, t: 0, lbl, tgt, seed: Math.random() * 6, ceil: inHall ? h.ceilY : 0 });
   P.merit += 5; addBeads(5); toast('🏮 Đèn nguyện đã bay lên · +5 công đức'); A.khanh();
-  ticker(`🏮 ${P.name} vừa thả đèn nguyện: “${text}”`);
+  ticker(`🏮 ${P.name} vừa thả đèn nguyện: “${text}”`); NET.act('lantern');
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 700);
   save();
 }
@@ -874,10 +876,38 @@ function previewRenderer(host) {
 
 /* ---------------- thanh hành động ---------------- */
 /* cửa hàng hoa sen & nạp */
-const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert: (r, t) => { hud(); ticker(`${t.icon} ${P.name} vừa nhận chứng nhận ${t.title} tại ${r.templeName || temple.name}`); petalShower(); } });
+const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert: (r, t) => { hud(); NET.act('cert', t.icon); NET.profile(); ticker(`${t.icon} ${P.name} vừa nhận chứng nhận ${t.title} tại ${r.templeName || temple.name}`); petalShower(); } });
 /* tài khoản người chơi */
 const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: () => { store.set('profile', P); saveS(); } });
 window.__acc = ACC;
+/* nhiều người chơi thật qua máy chủ (server/server.js), tự chia kênh khi đông */
+const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, badgeOf,
+  onPeers: (k) => { while (npcs.length > Math.max(0, 6 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
+  remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
+window.__net = NET;
+NET.onChange(() => { if (W) $('online').textContent = NET.online ? `${NET.count + npcs.length} đang tu tập · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; });
+function openChannels() {
+  if (!NET.enabled) return modal('📡 Kênh chùa', (b) => b.append(el('p', 'note', 'Game đang chơi một mình (chưa nối máy chủ). Những Phật tử khác bạn thấy là mô phỏng. Khi chủ chùa chạy máy chủ (server/server.js), mọi người sẽ gặp nhau thật trong chùa, mỗi kênh tối đa vài chục người.')));
+  if (!NET.online) return toast('📡 Đang kết nối máy chủ…');
+  NET.listChannels();
+  modal(`📡 Kênh · ${temple.name}`, (b) => {
+    const box = el('div', 'chlist');
+    const paint = () => {
+      box.innerHTML = '';
+      NET.chs.forEach(c => {
+        const full = c.n >= NET.cap, it = el('button', 'chan' + (c.ch === NET.ch ? ' on' : '') + (full ? ' full' : ''));
+        const bar = el('span', 'cbar'); const fill = el('i'); fill.style.width = Math.min(100, c.n / NET.cap * 100) + '%'; bar.append(fill);
+        it.append(el('b', '', `Kênh ${c.ch}`), bar, el('small', '', c.ch === NET.ch ? `${c.n}/${NET.cap} · bạn đang ở đây` : full ? `${c.n}/${NET.cap} · đầy` : `${c.n}/${NET.cap} người`));
+        it.disabled = full && c.ch !== NET.ch; it.onclick = () => { if (c.ch !== NET.ch) { NET.switchChannel(c.ch); closeModal(); } };
+        box.append(it);
+      });
+    };
+    paint(); const off = () => paint(); NET.onChange(off);
+    const nw = el('button', 'btn', '➕ Mở kênh mới (vắng hơn)'); nw.onclick = () => { NET.newChannel(); closeModal(); };
+    b.append(el('p', 'note', `Mỗi kênh tối đa ${NET.cap} người để game mượt. Kênh đầy, máy chủ tự đưa người mới sang kênh khác hoặc mở kênh mới.`), box, nw);
+  });
+}
+$('online').parentElement.style.cursor = 'pointer'; $('online').parentElement.onclick = openChannels;
 /* cài game về điện thoại (PWA) */
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
 const UA = navigator.userAgent, isIOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -922,7 +952,7 @@ $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
   });
 };
 function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; $('goBtn').textContent = inHall ? '🌳 Ra sân ngắm cảnh' : '🛕 Vào chánh điện'; }
-setInterval(() => { if (W) { updGo(); $('online').textContent = `${1 + npcs.length} đang tu tập`; } }, 1000);
+setInterval(() => { if (W) { updGo(); $('online').textContent = NET.online ? `${NET.count + npcs.length} đang tu tập · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; } }, 1000);
 /* dòng tin chạy */
 function ticker(t) { const e = $('tickerText'); e.textContent = t; e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
 setInterval(() => {
@@ -933,8 +963,8 @@ setInterval(() => {
 /* bảng vàng trong chánh điện */
 setInterval(() => {
   if (!BOARDS.length) return;
-  const rows = [[P.name, P.beads], ...npcs.map(n => [n.label.textContent, n.beads || (n.beads = 200 + (Math.random() * 3000 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)]);
-  const meritRows = [[P.name, P.merit], ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
+  const rows = [[P.name, P.beads], ...NET.peers().map(p => [p.name, p.beads]), ...npcs.map(n => [n.label.textContent, n.beads || (n.beads = 200 + (Math.random() * 3000 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)]);
+  const meritRows = [[P.name, P.merit], ...NET.peers().map(p => [p.name, p.merit]), ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
   BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
   checkRanks(meritRows); drawRank(meritRows);
 }, 3000);
@@ -1171,7 +1201,7 @@ function loop() {
     const mag = Math.min(1, Math.hypot(ix, iz)), manual = mag > 0.12 && $('med').hidden;
     if (manual && auto) { auto = null; if (me.av.target === 'carry') { dropCarry(); } }
     if (malaOn && !me.seated) closeMala();
-    const autoMoving = !manual && autoStep(dt), moving = manual;
+    const autoMoving = !manual && autoStep(dt), moving = manual; me.moving = moving || autoMoving;
     if (moving && me.seated) standUp();
     if (moving && ['kneel', 'lotus', 'incense'].includes(me.av.target)) me.av.setPose('idle');
     if (moving) {
@@ -1204,6 +1234,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
+    NET.step(dt);
     if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
     if (meritLbl) { placeLabel(meritLbl, W.merit, 1.6); if (W.merit.distanceTo(me.av.root.position) > 12) meritLbl.style.display = 'none'; }
