@@ -30,7 +30,7 @@ export class Avatar {
     this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
     this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk;
-    this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >> 2) % 3];
+    this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >>> 2) % 3];
     this.build();
   }
   build() {

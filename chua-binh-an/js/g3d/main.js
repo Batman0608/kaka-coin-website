@@ -119,10 +119,10 @@ function spawnNpcs() {
   const names = CBA.simData.names;
   for (let i = 0; i < 6; i++) {
     const h = hash('npc' + i + temple.id);
-    const av = new Avatar({ look: { g: h % 2 ? 'nu' : 'nam', hair: ['bui', 'dai', 'ngan', 'troc'][(h >> 3) % 4], robe: ['lam', 'nau', 'xam', 'trang'][(h >> 5) % 4] }, seed: h });
+    const av = new Avatar({ look: { g: h % 2 ? 'nu' : 'nam', hair: ['bui', 'dai', 'ngan', 'troc'][(h >>> 3) % 4], robe: ['lam', 'nau', 'xam', 'trang'][(h >>> 5) % 4] }, seed: h });
     const L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
-    npcs.push({ av, label: label(names[(h >> 7) % names.length], 'npc'), target: null, wait: Math.random() * 4, sit: null });
+    npcs.push({ av, label: label(names[(h >>> 7) % names.length], 'npc'), target: null, wait: Math.random() * 4, sit: null });
   }
 }
 function npcThink(n, dt) {

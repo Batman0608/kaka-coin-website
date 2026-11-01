@@ -23,6 +23,9 @@ chua-binh-an/
 ├── js/temples.js   Dữ liệu 10 chùa: sự tích, câu đối, âm điệu, bài niệm
 ├── js/temple3d.js  Dựng mô hình 3D từng chùa (Three.js)
 ├── vendor/three/   Thư viện Three.js (MIT)
+├── audio/sfx/      Mõ, chuông chùa, chuông khánh, tụng kinh nền (nguồn & giấy phép: CREDITS.md)
+├── audio/voice/    Giọng đọc thu sẵn (tạo bằng tao-giong-doc.bat)
+├── tools/          Công cụ tạo giọng đọc
 ├── assets/temples/ Ảnh thật các chùa (nguồn & giấy phép: CREDITS.md)
 ├── assets/buddha/  Ảnh tượng Tam Thế Phật (nguồn & giấy phép: CREDITS.md)
 ├── js/config.js    ⚙️ Tên chùa, bậc quà, từ khóa, cách tính điểm, chương trình
@@ -34,6 +37,16 @@ chua-binh-an/
 ├── audio/          Chép file mp3 kinh / nhạc của bạn vào đây
 └── assets/         Ảnh nền riêng (tùy chọn)
 ```
+
+## Giọng đọc nam tự nhiên (giọng Bắc)
+
+Trình duyệt chỉ có sẵn giọng nam tiếng Việt trên Microsoft Edge (NamMinh) và Windows (Microsoft An); iPhone chỉ có giọng nữ. Để mọi máy đều nghe **giọng nam tự nhiên** khi lạy Phật, tụng kinh và nghe truyện, tạo sẵn file giọng đọc:
+
+1. Tạo khóa miễn phí Azure Speech: portal.azure.com → *Create a resource* → *Speech service* → gói **F0 (Free)**, chọn khu vực *Southeast Asia*. Lấy **Key** và **Region**.
+2. Cài Node.js, bấm đúp `tao-giong-doc.bat`, nhập Key và Region (khoảng 36.000 ký tự, nằm trong hạn mức miễn phí).
+3. File mp3 được lưu vào `audio/voice/` kèm `manifest.json`; game tự dùng.
+
+Muốn dùng giọng thầy/chùa tự thu: đặt mp3 vào `audio/voice/` và thêm dòng `"câu chữ": "ten-file.mp3"` vào `manifest.json`.
 
 ## Ba cách chơi
 
