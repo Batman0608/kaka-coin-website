@@ -28,7 +28,10 @@ const S = Object.assign({ npc: true, autoMo: true, amb: true, low: false }, stor
 const saveS = () => store.set('settings', S);
 const levelOf = (b) => { let i = 0; C.levels.forEach((l, k) => { if (b >= l.at) i = k; }); return i; };
 const tp = (id) => (P.temples[id] = P.temples[id] || { pois: [], lay: 0, legend: false, stamp: false });
+const lunarMult = () => { try { return (CBA.Lunar && CBA.Lunar.today().mult) || 1; } catch (e) { return 1; } };
+let feastShown = '';
 function addBeads(n, why) {
+  const mult = lunarMult(); if (mult > 1) n = Math.round(n * mult);   // ngày Rằm, Mùng Một, vía Phật: nhân hạt
   const lv0 = levelOf(P.beads); P.beads += n; save(); hud();
   if (levelOf(P.beads) > lv0) { const L = C.levels[levelOf(P.beads)]; banner('🪷 Thăng cấp', `Cấp ${levelOf(P.beads) + 1} · ${L.name}`); A.smallBell(); }
 }
@@ -114,6 +117,7 @@ function loadTemple(id) {
   $('tName').textContent = temple.name; $('tPlace').textContent = temple.place;
   banner('🏯 ' + (CBA.regions[temple.region] || 'Hành hương'), temple.name, temple.intro);
   objective(); drawMiniBase(); hud();
+  try { const f = CBA.Lunar && CBA.Lunar.today(); if (f && f.feast && f.mult > 1 && feastShown !== f.feast.name) { feastShown = f.feast.name; setTimeout(() => banner('🪷 ' + f.feast.name, 'Hôm nay lên chùa được nhân phúc', `Công đức và hạt ×${f.mult}`), 2000); } } catch (e) {}
 }
 
 /* ---------------- nhãn tên trên đầu ---------------- */
@@ -724,6 +728,29 @@ function hud() {
   $('pBar').style.width = (nxt ? Math.min(100, (P.beads - L[lv].at) / (nxt.at - L[lv].at) * 100) : 100) + '%';
   $('pBeads').textContent = fmt(P.beads) + ' hạt'; $('pLotus').textContent = '🪷 ' + fmt(P.lotus || 0); $('pInit').textContent = P.name.trim().split(' ').pop()[0] || '🙏';
 }
+/* ---------------- lịch âm trên cùng ---------------- */
+function drawLunar() {
+  const el0 = $('lunar'); if (!el0 || !CBA.Lunar) return;
+  const f = CBA.Lunar.full();
+  el0.innerHTML = '';
+  const cal = el('span', '', '📅');
+  const main = el('b', '', `${f.day}/${f.month}${f.leap ? ' nhuận' : ''} ÂL`);
+  const gio = el('span', '', `· giờ ${f.hour.name}`);
+  el0.append(cal, main, gio);
+  if (f.feast) { const fe = el('span', 'feast', '· ' + f.feast.name + (f.mult > 1 ? ` ×${f.mult}` : '')); el0.append(fe); }
+}
+drawLunar(); setInterval(drawLunar, 30000);
+$('lunar').onclick = () => {
+  const f = CBA.Lunar.full();
+  modal('📅 Lịch âm hôm nay', (b) => {
+    const rows = [['Dương lịch', new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })],
+      ['Âm lịch', `${f.day}/${f.month}${f.leap ? ' (nhuận)' : ''}`], ['Ngày', f.dayCanChi], ['Tháng', f.monthCanChi], ['Năm', f.yearCanChi],
+      ['Giờ hiện tại', `${f.hour.name} (${f.hour.range})`]];
+    const ul = el('ul', 'stats'); rows.forEach(([k, v]) => { const li = el('li'); li.append(el('span', '', k), el('b', '', v)); ul.append(li); }); b.append(ul);
+    if (f.feast) b.append(el('p', 'note', `🪷 Hôm nay là ${f.feast.name}${f.mult > 1 ? ` · công đức và hạt ×${f.mult}` : ''}. Lên chùa lễ Phật hôm nay được nhiều phúc lành.`));
+    else b.append(el('p', 'note', 'Ngày Rằm (15) và Mùng Một (1) âm lịch, cùng các ngày vía Phật, lên chùa sẽ được nhân điểm công đức.'));
+  });
+};
 setInterval(() => { const l = Math.max(0, pqNext - Date.now()); $('pq').textContent = `☀️ ${Math.floor(l / 60000)}:${String(Math.floor(l / 1000) % 60).padStart(2, '0')}`; if (l <= 0 && W) phatQuang(); }, 1000);
 
 /* ---------------- bản đồ nhỏ ---------------- */
@@ -870,6 +897,18 @@ function openSettings() {
     const a1 = el('a', 'btn gold', 'Bảng điều khiển livestream'); a1.href = 'index.html'; a1.target = '_blank';
     const a2 = el('a', 'btn', 'Màn hình phát 9:16'); a2.href = 'live.html'; a2.target = '_blank';
     lr.append(a1, a2); b.append(lr);
+    // thông tin liên hệ & bản quyền
+    b.append(el('h3', '', '📞 Thông tin liên hệ'));
+    const contact = (CBA.shop && CBA.shop.contact) || {};
+    const phone = contact.phone || '0938.225.268';
+    const cr = el('div', 'contact');
+    const tel = el('a', 'btn gold', '📞 Gọi / Zalo: ' + phone); tel.href = 'tel:' + phone.replace(/[^0-9]/g, '');
+    cr.append(tel);
+    if (contact.zalo) { const z = el('a', 'btn', '💬 Zalo'); z.href = contact.zalo; z.target = '_blank'; cr.append(z); }
+    if (contact.facebook) { const f = el('a', 'btn', 'Facebook'); f.href = contact.facebook; f.target = '_blank'; cr.append(f); }
+    b.append(cr);
+    if (contact.note) b.append(el('p', 'note', contact.note));
+    b.append(el('p', 'note', `© ${new Date().getFullYear()} Chùa Bình An · Hành hương 3D. Trò chơi mô phỏng với mục đích giới thiệu văn hóa Phật giáo Việt Nam. Mọi hình ảnh, âm thanh, mã nguồn thuộc bản quyền của nhóm phát triển; vui lòng không sao chép khi chưa được phép.`));
   }, { wide: true });
 }
 

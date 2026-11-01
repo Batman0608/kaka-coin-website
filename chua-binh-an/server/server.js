@@ -21,6 +21,11 @@ const MAX_PLAYERS = +process.env.MAX_PLAYERS || (UPLOAD_MBPS ? Math.max(20, Math
 const TICK_HZ = +process.env.TICK_HZ || 5;           // số lần gửi vị trí mỗi giây
 const ADMIN_KEY = process.env.ADMIN_KEY || '';          // mã để xem /server từ xa
 const ROOT = path.resolve(__dirname, '..');
+// chống hotlink & chống nhúng iframe: chỉ các tên miền này mới được tải tài nguyên / nhúng game
+const ALLOW_HOSTS = (process.env.ALLOW_HOSTS || 'dichua.id.vn,www.dichua.id.vn').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
+const hostOf = (u) => { try { return new URL(u).host.toLowerCase(); } catch (e) { return ''; } };
+const localHost = (h) => /^(localhost|127\.0\.0\.1|\[::1\]|(?:\d+\.){3}\d+)(:\d+)?$/.test(h) || /\.local(:\d+)?$/.test(h);
+const allowedHost = (h) => { h = (h || '').toLowerCase(); const bare = h.replace(/:\d+$/, ''); return !h || localHost(h) || ALLOW_HOSTS.includes(h) || ALLOW_HOSTS.includes(bare); };
 const TEMPLES = new Set(['binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi']);
 const POSES = new Set(['idle', 'kneel', 'bow', 'lotus', 'incense', 'carry']);
 const ACTS = new Set(['bow', 'bell', 'incense', 'offer', 'lantern', 'mala', 'chant', 'cert']);
@@ -31,6 +36,11 @@ const gzCache = new Map();
 function serveFile(req, res) {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p === '/') p = '/game.html';
+  // chống hotlink: tài nguyên (ảnh, âm thanh, mã js) chỉ phục vụ khi request đến từ đúng tên miền.
+  // Trang game (.html) và file gốc vẫn mở trực tiếp (gõ địa chỉ, không có Referer) để người chơi vào được.
+  const isAsset = /\.(js|mjs|css|png|jpg|jpeg|webp|mp3|json|webmanifest)$/i.test(p);
+  const ref = req.headers.referer || req.headers.origin;
+  if (isAsset && ref && !allowedHost(hostOf(ref))) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Chỉ phục vụ cho ' + ALLOW_HOSTS.join(', ')); }
   const file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT) || file.includes(`${path.sep}server${path.sep}`) || /\/\.|node_modules|\.(bat|ps1|yml|yaml|exe|log)$|Caddyfile|firestore\.rules|tunnel-token/i.test(p)) { res.writeHead(403); return res.end('Không được phép'); }
   fs.stat(file, (err, st) => {
@@ -39,6 +49,7 @@ function serveFile(req, res) {
     const etag = `"${st.size}-${st.mtimeMs | 0}"`;
     const media = /\.(png|jpg|webp|mp3)$/.test(ext);
     const head = { 'content-type': type, etag, 'cache-control': media ? 'public, max-age=604800' : 'no-cache' };
+    if (ext === '.html') { head['x-frame-options'] = 'SAMEORIGIN'; head['content-security-policy'] = "frame-ancestors 'self' " + ALLOW_HOSTS.map(h => 'https://' + h).join(' ') + ';'; head['x-content-type-options'] = 'nosniff'; head['referrer-policy'] = 'strict-origin-when-cross-origin'; }
     if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); return res.end(); }
     const gz = !media && /gzip/.test(req.headers['accept-encoding'] || '');
     if (!gz) { res.writeHead(200, Object.assign(head, { 'content-length': st.size })); stats.bytesHttp += st.size; return fs.createReadStream(file).pipe(res); }

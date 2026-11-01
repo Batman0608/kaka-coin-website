@@ -12,6 +12,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Chùa Bình An">
+<meta name="author" content="Chùa Bình An · Hành hương 3D">
+<meta name="copyright" content="© Chùa Bình An · Hành hương 3D. Bản quyền thuộc nhóm phát triển. Liên hệ: 0938.225.268">
+<meta name="description" content="Trò chơi hành hương 3D các ngôi chùa Việt Nam.">
+<!-- © Chùa Bình An · Hành hương 3D — Không sao chép khi chưa được phép. Liên hệ: 0938.225.268 -->
 <script>
   // giữ lời mời cài đặt của trình duyệt để hiện nút "Cài game" đúng lúc
   window.__bip = null;
@@ -22,6 +26,7 @@
 </head>
 <body>
 <div id="view"></div>
+<button id="lunar" class="lunarbar" title="Lịch âm hôm nay"></button>
 <div id="labels" aria-hidden="true"></div>
 <canvas id="fx2d" class="fx2d" aria-hidden="true"></canvas>
 <div id="fade"></div>
@@ -98,6 +103,7 @@
 
 <script src="js/config.js"></script>
 <script src="js/content.js"></script>
+<script src="js/lunar.js"></script>
 <script src="js/stories.js"></script>
 <script src="js/temples.js"></script>
 <script src="js/audio.js"></script>

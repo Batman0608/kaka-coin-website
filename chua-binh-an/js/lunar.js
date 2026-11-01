@@ -87,5 +87,33 @@ CBA.Lunar = (() => {
     return Object.assign(L, { text: `${L.day}/${L.month}${L.leap ? ' nhuận' : ''} âm lịch`, feast, mult: feast ? feast.x : 1, vuLanMonth: L.month === 7 && !L.leap });
   }
 
-  return { toLunar, today };
+  // can chi
+  const CAN = ['Giáp', 'Ất', 'Bính', 'Đinh', 'Mậu', 'Kỷ', 'Canh', 'Tân', 'Nhâm', 'Quý'];
+  const CHI = ['Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'];
+  const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  const canChiYear = (y) => CAN[(y + 6) % 10] + ' ' + CHI[(y + 8) % 12];
+  // giờ âm lịch (canh giờ): mỗi giờ 2 tiếng, Tý từ 23h
+  function hourInfo(date, dayCan) {
+    const h = date.getHours(), chi = Math.floor(((h + 1) % 24) / 2), can = (dayCan * 2 + chi) % 10;
+    const names = ['23–1h', '1–3h', '3–5h', '5–7h', '7–9h', '9–11h', '11–13h', '13–15h', '15–17h', '17–19h', '19–21h', '21–23h'];
+    return { name: CAN[can] + ' ' + CHI[chi], range: names[chi], chi };
+  }
+  /* đầy đủ: ngày giờ can chi âm lịch theo giờ Việt Nam */
+  function full(date = new Date()) {
+    const vn = new Date(date.getTime() + (date.getTimezoneOffset() + 420) * 60000);
+    const L = today(date);
+    const j = jd(vn.getDate(), vn.getMonth() + 1, vn.getFullYear());
+    const dayCan = (j + 9) % 10, dayChi = (j + 1) % 12;
+    const hour = hourInfo(vn, dayCan);
+    return Object.assign(L, {
+      thu: THU[vn.getDay()],
+      yearCanChi: canChiYear(L.year), monthCanChi: CAN[(L.year * 12 + L.month + 3) % 10] + ' ' + CHI[(L.month + 1) % 12],
+      dayCanChi: CAN[dayCan] + ' ' + CHI[dayChi], hour,
+      // "Ngày Giáp Tý · giờ Bính Dần" + dd/mm
+      short: `${L.day}/${L.month}${L.leap ? 'N' : ''} ÂL · ${CAN[dayCan]} ${CHI[dayChi]}`,
+      line: `${THU[vn.getDay()]} · ${L.day}/${L.month}${L.leap ? ' nhuận' : ''} ÂL năm ${canChiYear(L.year)} · giờ ${hour.name}`
+    });
+  }
+
+  return { toLunar, today, full, canChiYear, CAN, CHI };
 })();

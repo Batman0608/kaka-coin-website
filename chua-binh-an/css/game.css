@@ -288,3 +288,14 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .vopt { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .2); cursor: pointer; font-size: 14px; }
 .vopt.on { border-color: var(--gold); background: #4a2410; }
 .vopt input { width: auto; margin: 0; accent-color: #e3a63a; }
+/* lịch âm trên cùng, giữa màn hình */
+.lunarbar { position: fixed; top: max(6px, env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 30;
+  display: flex; gap: 7px; align-items: center; max-width: min(92vw, 520px);
+  padding: 4px 12px; border-radius: 0 0 12px 12px; border: 1px solid rgba(255, 210, 120, .35); border-top: 0;
+  background: rgba(30, 12, 6, .72); backdrop-filter: blur(4px); color: #ffe9b8;
+  font: 600 12px/1.2 var(--serif, Georgia, serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.lunarbar b { color: #ffd36b; font-weight: 800; }
+.lunarbar .feast { color: #ff9a8a; font-weight: 800; }
+.lunarbar:hover { background: rgba(40, 16, 8, .85); }
+@media (max-width: 640px) { .lunarbar { font-size: 10.5px; padding: 3px 9px; max-width: 72vw; gap: 5px; } }
+.contact { display: flex; gap: 8px; flex-wrap: wrap; }
