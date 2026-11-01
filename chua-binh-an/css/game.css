@@ -335,5 +335,10 @@ body.touch .online {
   font-size: 9.5px; gap: 4px; background: rgba(20, 8, 4, .6); padding: 2px 6px; border-radius: 9px;
 }
 body.touch .online i { width: 6px; height: 6px; }
-/* nhiệm vụ: nhỏ hơn nữa */
-body.touch .obj { font-size: 10.5px; padding: 3px 8px; line-height: 1.25; }
+/* nhiệm vụ: nhỏ, chuyển xuống giữa màn hình phía trên các nút hành động */
+body.touch .obj {
+  position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px)); margin: 0;
+  font-size: 11px; padding: 4px 11px; line-height: 1.25; text-align: center;
+  max-width: min(72vw, 330px); background: rgba(20, 8, 4, .78); border: 1px solid rgba(240, 192, 80, .35);
+}
