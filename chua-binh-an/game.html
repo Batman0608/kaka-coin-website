@@ -20,7 +20,18 @@
   // giữ lời mời cài đặt của trình duyệt để hiện nút "Cài game" đúng lúc
   window.__bip = null;
   addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; dispatchEvent(new Event('cba-installable')); });
-  if ('serviceWorker' in navigator && /^https:|^http:\/\/(localhost|127\.)/.test(location.href)) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  // tự tải lại khi có bản mới (service worker mới nắm quyền) — chỉ một lần, không lặp
+  if ('serviceWorker' in navigator && /^https:|^http:\/\/(localhost|127\.)/.test(location.href)) {
+    var __reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (__reloading || !navigator.serviceWorker.controller) return; __reloading = true;
+      try { sessionStorage.setItem('cba_reloaded', '1'); } catch (e) {}
+      location.reload();
+    });
+    addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').then(function (reg) { try { reg.update(); } catch (e) {} setInterval(function () { try { reg.update(); } catch (e) {} }, 300000); }).catch(function () {});
+    });
+  }
 </script>
 <link rel="stylesheet" href="css/game.css">
 </head>

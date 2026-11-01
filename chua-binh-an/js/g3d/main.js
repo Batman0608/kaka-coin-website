@@ -908,6 +908,7 @@ function openSettings() {
     if (contact.facebook) { const f = el('a', 'btn', 'Facebook'); f.href = contact.facebook; f.target = '_blank'; cr.append(f); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
+    b.append(el('p', 'note', `Phiên bản 2026.11.01 · Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).`));
     b.append(el('p', 'note', `© ${new Date().getFullYear()} Chùa Bình An · Hành hương 3D. Trò chơi mô phỏng với mục đích giới thiệu văn hóa Phật giáo Việt Nam. Mọi hình ảnh, âm thanh, mã nguồn thuộc bản quyền của nhóm phát triển; vui lòng không sao chép khi chưa được phép.`));
   }, { wide: true });
 }
