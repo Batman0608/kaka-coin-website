@@ -222,3 +222,26 @@ body.focus .acts, body.focus .side, body.focus .zoom, body.focus .tl, body.focus
 .tdprog .bar { height: 6px; border-radius: 4px; background: #170905; overflow: hidden; } .tdprog .bar i { display: block; height: 100%; background: linear-gradient(90deg, #c98a1c, #ffd36b); }
 .tdpois { display: flex; gap: 5px; flex-wrap: wrap; } .tdpois span { font-size: 11.5px; padding: 2px 8px; border-radius: 8px; background: #241008; color: #c9a888; } .tdpois span.ok { background: #2f5a3a; color: #dff5e6; }
 .tdetail .row { display: flex; gap: 8px; flex-wrap: wrap; } .tdetail .row .btn { flex: 1; }
+
+/* cửa hàng hoa sen & nạp */
+.plotus { color: #ffb6c8 !important; font-weight: 700; }
+.shopbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, #4a1a2a, #3a1a0c); border: 1px solid #a3536a; }
+.shopbar .lotus { flex: 1; font: 800 16px var(--sans); color: #ffd0dc; }
+.shopitem { display: grid; grid-template-columns: 1fr auto; } .shopitem small { grid-column: 1; } .shopitem .price { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; font: 800 15px var(--sans); color: #ffd0dc; background: #4a1a2a; padding: 6px 10px; border-radius: 10px; }
+.packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.pack { border: 1px solid #a3536a; background: linear-gradient(#4a1a2a, #2a0e14); color: #fff; border-radius: 14px; padding: 12px 6px; cursor: pointer; display: grid; gap: 2px; justify-items: center; }
+.pack b { font: 800 17px var(--sans); color: #ffd0dc; } .pack small { color: #ffe6a8; font-weight: 700; } .pack:hover { border-color: #ffd0dc; }
+.pay { display: grid; gap: 8px; justify-items: center; }
+.pay .qr { width: min(260px, 70vw); border-radius: 12px; background: #fff; padding: 6px; }
+.payinfo { width: 100%; display: grid; gap: 4px; }
+.prow { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: #3a1a0c; font-size: 13px; }
+.prow span { color: var(--mut); } .prow b { word-break: break-all; }
+.reqs { display: grid; gap: 6px; }
+.req { display: grid; gap: 4px; padding: 8px 10px; border-radius: 10px; background: #3a1a0c; border: 1px solid #6a3a1a; }
+.req small { color: var(--mut); font-size: 12px; } .req em { font-style: normal; font-weight: 700; font-size: 12.5px; }
+.req.approved em { color: #8fe0a8; } .req.rejected em { color: #ff9a8a; } .req.pending em { color: #ffd36b; }
+.req code { font: 700 13px monospace; color: #ffe6a8; background: #170905; padding: 2px 6px; border-radius: 6px; justify-self: start; }
+.side button { position: relative; }
+.side .badge { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; border-radius: 9px; background: #e8452c; color: #fff; font: 800 11px/18px var(--sans); font-style: normal; text-align: center; padding: 0 4px; }
+@media (max-width: 640px) { .packs { grid-template-columns: repeat(2, 1fr); } .prow { grid-template-columns: 90px 1fr auto; } }
+.req > div:first-child { display: grid; gap: 3px; }

@@ -6,6 +6,7 @@
  * ========================================================================= */
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
+import { initShop } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 
 const C = CBA.config, A = CBA.Audio;
@@ -456,18 +457,42 @@ const OFFERS = [
   { id: 'sen', icon: '🌸', n: 'Bình hoa sen', m: 50, cd: 300 },
   { id: 'tra', icon: '🍵', n: 'Chén trà dâng Phật', m: 15, cd: 90 }
 ];
-function openOffer() {
+function openOffer(tab = 'free') {
   const cds = store.get('cd', {});
   modal('Dâng lễ', (b) => {
-    const list = el('div', 'list');
-    OFFERS.forEach(o => {
-      const left = Math.max(0, Math.ceil(((cds[o.id] || 0) - Date.now()) / 1000));
-      const r = el('button', 'item' + (left ? ' wait' : '')); r.disabled = !!left;
-      r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Đợi ${Math.ceil(left / 60)} phút` : `+${o.m} công đức · cầm lên tay, đặt trên bàn thờ`));
-      r.onclick = () => { cds[o.id] = Date.now() + o.cd * 1000; store.set('cd', cds); closeModal(); carryOffering(o); };
-      list.append(r);
-    });
-    b.append(list, el('p', 'note', 'Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương". Lễ vật trong game miễn phí — quý ở tấm lòng.'));
+    // thanh hoa sen: số dư · quà hằng ngày · nạp
+    const bar = el('div', 'shopbar');
+    bar.append(el('b', 'lotus', `🪷 ${fmt(P.lotus || 0)} hoa sen`));
+    const gift = el('button', 'btn sm' + (SHOP.dailyReady() ? ' gold' : ''), SHOP.dailyReady() ? '🎁 Nhận quà hôm nay' : '🎁 Đã nhận quà');
+    gift.onclick = () => { SHOP.claimDaily(); closeModal(); openOffer(tab); };
+    const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); };
+    bar.append(gift, top); b.append(bar);
+    const tabs = el('div', 'tabs'), list = el('div', 'list');
+    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); openOffer(k); }; tabs.append(x); });
+    b.append(tabs, list);
+    if (tab === 'free') {
+      OFFERS.forEach(o => {
+        const left = Math.max(0, Math.ceil(((cds[o.id] || 0) - Date.now()) / 1000));
+        const r = el('button', 'item' + (left ? ' wait' : '')); r.disabled = !!left;
+        r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Đợi ${Math.ceil(left / 60)} phút` : `Miễn phí · +${o.m} công đức · cầm lên tay, đặt trên bàn thờ`));
+        r.onclick = () => { cds[o.id] = Date.now() + o.cd * 1000; store.set('cd', cds); closeModal(); carryOffering(o); };
+        list.append(r);
+      });
+      b.append(el('p', 'note', 'Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương". Lễ vật thường miễn phí, dâng lại sau ít phút.'));
+    } else {
+      SHOP.items.forEach(it => {
+        const can = (P.lotus || 0) >= it.price;
+        const r = el('button', 'item shopitem' + (can ? '' : ' wait'));
+        r.append(el('b', '', `${it.icon} ${it.n}`), el('small', '', `+${it.m} công đức`), el('em', 'price', `🪷 ${it.price}`));
+        r.onclick = () => {
+          if (!SHOP.spend(it.price)) { toast(`Cần ${it.price} hoa sen · nhận quà hằng ngày hoặc nạp thêm`); return; }
+          closeModal(); carryOffering({ id: it.mesh, icon: it.icon, n: it.n, m: it.m });
+          ticker(`${it.icon} ${P.name} vừa thỉnh ${it.n.toLowerCase()} dâng Tam Thế Phật`);
+        };
+        list.append(r);
+      });
+      b.append(el('p', 'note', `Hoa sen có được từ quà hằng ngày hoặc nạp (10.000đ = ${Math.round(10000 / ((CBA.shop || {}).vndPerLotus || 50))} hoa sen). Mã nhân vật: ${P.id}`));
+    }
   });
 }
 /* mô hình lễ vật */
@@ -664,7 +689,7 @@ function hud() {
   const lv = levelOf(P.beads), L = C.levels, nxt = L[lv + 1];
   $('pName').textContent = P.name; $('pLv').textContent = `Cấp ${lv + 1} · ${L[lv].name}`;
   $('pBar').style.width = (nxt ? Math.min(100, (P.beads - L[lv].at) / (nxt.at - L[lv].at) * 100) : 100) + '%';
-  $('pBeads').textContent = fmt(P.beads) + ' hạt'; $('pInit').textContent = P.name.trim().split(' ').pop()[0] || '🙏';
+  $('pBeads').textContent = fmt(P.beads) + ' hạt'; $('pLotus').textContent = '🪷 ' + fmt(P.lotus || 0); $('pInit').textContent = P.name.trim().split(' ').pop()[0] || '🙏';
 }
 setInterval(() => { const l = Math.max(0, pqNext - Date.now()); $('pq').textContent = `☀️ ${Math.floor(l / 60000)}:${String(Math.floor(l / 1000) % 60).padStart(2, '0')}`; if (l <= 0 && W) phatQuang(); }, 1000);
 
@@ -751,7 +776,7 @@ function templeDetail(b, t, list, first) {
 function openProfile() {
   modal('Hồ sơ tu tập', (b) => {
     const lv = levelOf(P.beads);
-    const rows = [['Cấp', `${lv + 1} · ${C.levels[lv].name}`], ['Hạt', fmt(P.beads)], ['Công đức', fmt(P.merit)], ['Số lạy', fmt(P.lay)], ['Chuỗi tràng hạt', fmt(P.rounds)], ['Phút thiền', fmt(P.medMin)], ['Chuỗi ngày', P.streak + ' ngày'], ['Truyện đã nghe', `${P.stories.length}/${CBA.stories.length}`], ['Câu đố đúng', fmt(P.quiz)]];
+    const rows = [['Mã nhân vật', P.id || '—'], ['Hoa sen', '🪷 ' + fmt(P.lotus || 0)], ['Cấp', `${lv + 1} · ${C.levels[lv].name}`], ['Hạt', fmt(P.beads)], ['Công đức', fmt(P.merit)], ['Số lạy', fmt(P.lay)], ['Chuỗi tràng hạt', fmt(P.rounds)], ['Phút thiền', fmt(P.medMin)], ['Chuỗi ngày', P.streak + ' ngày'], ['Truyện đã nghe', `${P.stories.length}/${CBA.stories.length}`], ['Câu đố đúng', fmt(P.quiz)]];
     const ul = el('ul', 'stats'); rows.forEach(([k, v]) => { const li = el('li'); li.append(el('span', '', k), el('b', '', v)); ul.append(li); }); b.append(ul);
     b.append(el('h3', '', '📜 Ấn hành hương'));
     const g = el('div', 'stamps'); TEMPLES.filter(t => !t.home).forEach(t => { const s = el('div', 'stamp' + ((P.temples[t.id] || {}).stamp ? ' on' : ''), t.name.replace('Chùa ', '')); g.append(s); }); b.append(g);
@@ -785,6 +810,10 @@ function openSettings() {
       setTimeout(() => { const ok = A.unlocked(); res.className = 'note' + (ok ? '' : ' warn'); res.textContent = ok ? `✅ Âm thanh đang bật · giọng đọc: ${A.voiceName() || 'máy chưa có giọng tiếng Việt'}. Nếu vẫn không nghe: kiểm tra loa, âm lượng máy và tab trình duyệt có bị tắt tiếng (biểu tượng loa trên tab).` : '⚠️ Trình duyệt đang chặn âm thanh. Bấm vào màn hình game một lần rồi thử lại; trên iPhone hãy gạt nút im lặng (bên hông máy) sang bật chuông.'; }, 600);
     };
     b.append(tst, res);
+    b.append(el('h3', '', '🪷 Hoa sen & nạp'));
+    { const r = el('div', 'row'); const t1 = el('button', 'btn', '➕ Nạp hoa sen'); t1.onclick = () => { closeModal(); SHOP.openTopup(); };
+      const t2 = el('button', 'btn', SHOP.isAdmin ? '🛡 Bảng duyệt nạp' : '🛡 Đăng nhập quản trị'); t2.onclick = () => { closeModal(); SHOP.openAdmin(); };
+      r.append(t1, t2); b.append(el('p', 'note', `Mã nhân vật: ${P.id} · Số dư: 🪷 ${fmt(P.lotus || 0)} · Chế độ: ${SHOP.mode === 'firebase' ? 'Firebase' : 'thử (chưa cấu hình Firebase)'}`), r); }
     b.append(el('h3', '', '🎮 Trò chơi'),
       tg('Phật tử khác trong chùa (mô phỏng, không phát tiếng mõ)', S.npc, v => { S.npc = v; saveS(); toast('Áp dụng khi đổi chùa'); }),
       tg('Đồ họa nhẹ (máy yếu) — áp dụng khi tải lại', S.low, v => { S.low = v; saveS(); }));
@@ -832,6 +861,11 @@ function previewRenderer(host) {
 }
 
 /* ---------------- thanh hành động ---------------- */
+/* cửa hàng hoa sen & nạp */
+const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt });
+SHOP.onChange(hud);
+$('bAdmin').onclick = () => SHOP.openAdmin();
+setTimeout(() => { if (P.name && SHOP.dailyReady()) toast('🎁 Có quà hằng ngày: vào "Dâng lễ" để nhận hoa sen'); }, 6000);
 [['🙏', 'Lạy Phật', doBow], ['📿', 'Tràng hạt', openMala], ['🪵', 'Tụng kinh', openChant], ['🧘', 'Thiền', openMeditate], ['🪔', 'Dâng lễ', openOffer], ['🔔', 'Thỉnh chuông', ringBell]]
   .forEach(([i, t, fn]) => { const b = el('button', 'act'); b.append(el('span', 'ic', i), el('span', 'lb', t)); b.onclick = () => { A.ensure(); fn(); }; $('acts').append(b); });
 $('miniBtn').onclick = () => openTemplePicker(); $('setBtn').onclick = openSettings; $('pChip').onclick = openProfile;

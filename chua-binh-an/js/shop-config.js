@@ -1,0 +1,31 @@
+/* =========================================================
+   CỬA HÀNG HOA SEN & NẠP TIỀN — FILE CẤU HÌNH (tự điền)
+   Xem hướng dẫn chi tiết: HUONG_DAN_NAP_TIEN.md
+   ========================================================= */
+window.CBA = window.CBA || {};
+CBA.shop = {
+  // bật/tắt chức năng nạp tiền thật (cửa hàng & quà hằng ngày vẫn chạy khi tắt)
+  topupEnabled: true,
+
+  // tỉ lệ: 10.000đ = 200 hoa sen  →  1 hoa sen = 50đ
+  vndPerLotus: 50,
+  packs: [10000, 20000, 50000, 100000, 200000, 500000],
+
+  // quà hằng ngày (hoa sen) · ngày thứ 7 liên tiếp được thêm thưởng
+  daily: 20, dailyWeekBonus: 50,
+
+  /* ---- TÀI KHOẢN NHẬN TIỀN (để trống = chưa hiện mã QR) ----
+     bank: mã ngân hàng theo VietQR, ví dụ 'MB', 'VCB' (Vietcombank), 'TCB' (Techcombank),
+           'ACB', 'VPB', 'BIDV', 'ICB' (VietinBank), 'VBA' (Agribank), 'TPB', 'STB' (Sacombank)…
+     account: số tài khoản · owner: tên chủ tài khoản (VIẾT HOA KHÔNG DẤU) */
+  bank: { bank: '', bankName: '', account: '', owner: '' },
+  // tiền tố nội dung chuyển khoản: "HS <mã nhân vật> <số tiền>K"
+  contentPrefix: 'HS',
+
+  /* ---- FIREBASE (để trống = chế độ thử trên cùng một trình duyệt) ----
+     Dán phần cấu hình web app lấy ở Firebase console → Project settings → Your apps. */
+  firebase: { apiKey: '', authDomain: '', projectId: '', appId: '' },
+
+  // chế độ thử (khi chưa có Firebase): mật khẩu admin tạm để xem bảng duyệt
+  demoAdminPassword: 'admin123'
+};

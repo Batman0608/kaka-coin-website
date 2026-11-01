@@ -18,7 +18,7 @@
 <div class="tl">
   <button id="pChip" class="chip-p" aria-label="Hồ sơ tu tập">
     <span id="pInit" class="av">🙏</span>
-    <span class="pt"><b id="pName">—</b><small id="pLv"></small><span class="bar"><i id="pBar"></i></span><small id="pBeads"></small></span>
+    <span class="pt"><b id="pName">—</b><small id="pLv"></small><span class="bar"><i id="pBar"></i></span><small id="pBeads"></small><small id="pLotus" class="plotus"></small></span>
   </button>
   <button id="tName" class="tname">Chùa Bình An</button>
   <small id="tPlace" class="tplace"></small>
@@ -34,6 +34,7 @@
   <button id="bStory" title="Nghe truyện"><span class="si">📖</span><small>Truyện Phật</small></button>
   <button id="bWish" title="Đèn nguyện"><span class="si">🏮</span><small>Đèn nguyện</small></button>
   <button id="setBtn" title="Cài đặt"><span class="si">⚙️</span><small>Cài đặt</small></button>
+  <button id="bAdmin" title="Duyệt nạp" hidden><span class="si">🛡</span><small>Duyệt nạp</small><i id="adminBadge" class="badge" hidden>0</i></button>
 </nav>
 <div class="zoom"><button id="zIn" aria-label="Phóng to">+</button><button id="zOut" aria-label="Thu nhỏ">−</button></div>
 <div id="banner" class="banner"></div>
@@ -86,6 +87,7 @@
 <script src="js/stories.js"></script>
 <script src="js/temples.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/shop-config.js"></script>
 <script type="module" src="js/g3d/main.js"></script>
 </body>
 </html>
