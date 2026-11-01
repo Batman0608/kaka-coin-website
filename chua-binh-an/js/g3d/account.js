@@ -65,6 +65,7 @@ function firebaseBackend() {
       // giữ nguyên mã đăng nhập ẩn danh (lịch sử nạp hoa sen) bằng cách liên kết
       if (auth.currentUser && auth.currentUser.isAnonymous) cred = await au.linkWithCredential(auth.currentUser, au.EmailAuthProvider.credential(email, pw));
       else cred = await au.createUserWithEmailAndPassword(auth, email, pw);
+      try { await cred.user.getIdToken(true); } catch (e) {}   // làm mới token: hết là "ẩn danh" để được ghi players/{uid}
       return { uid: cred.user.uid, user };
     },
     async login(user, pw) { const { au, auth } = await F(); const c = await au.signInWithEmailAndPassword(auth, toEmail(user), pw); return { uid: c.user.uid, user }; },
