@@ -5,6 +5,14 @@
  *  Tư thế: idle (chắp tay) · walk · kneel · bow · lotus (thiền) · incense
  * ========================================================================= */
 import { THREE } from '../temple3d.js';
+let _auraTex = null;
+function auraTex() {
+  if (_auraTex) return _auraTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 6, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.35, 'rgba(255,230,150,0.6)'); gr.addColorStop(1, 'rgba(255,220,120,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  _auraTex = new THREE.CanvasTexture(c); _auraTex.colorSpace = THREE.SRGBColorSpace; return _auraTex;
+}
 
 const ROBES = { lam: 0x6f86b8, nau: 0x9a6a42, xam: 0x8c8f9a, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b };
 const SKINS = [0xf2c9a2, 0xe6b48a, 0xf6d6b4, 0xd29e74];
@@ -99,6 +107,17 @@ export class Avatar {
   setLook(look) { Object.assign(this.look, look); this.build(); }
   setPose(name) { if (POSES[name]) this.target = name; }
   setGlow(on) { this.halo.visible = !!on; }
+  setAura(on, color = 0xffe08a) {
+    if (on) {
+      if (!this.aura) {
+        const hy = 1.7;
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: auraTex(), color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 }));
+        sp.scale.set(hy * 1.7, hy * 2.0, 1); sp.position.y = hy * 0.5; sp.renderOrder = -2; this.root.add(sp); this.aura = sp;
+        const pl = new THREE.PointLight(color, 1.0, 4.5, 1.6); pl.position.y = hy * 0.6; this.root.add(pl); this.auraLight = pl;
+      } else { this.aura.material.color.setHex(color); this.auraLight.color.setHex(color); }
+      this.aura.visible = this.auraLight.visible = true; this.halo.visible = true;
+    } else if (this.aura) { this.aura.visible = this.auraLight.visible = false; }
+  }
   bow() { this.bowT = 0; }
   get height() { return this.pose.hipY + 1.0; }
   update(dt, moving) {
@@ -120,6 +139,7 @@ export class Avatar {
     for (const key in tgt) this.pose[key] += (tgt[key] - this.pose[key]) * (moving ? Math.min(1, lerp * 3) : lerp);
     this.incense.visible = this.target === 'incense';
     if (this.halo.visible) this.halo.rotation.z += dt;
+    if (this.aura && this.aura.visible) { const k = 0.78 + 0.22 * Math.sin(performance.now() / 320); this.aura.material.opacity = 0.75 * k; this.auraLight.intensity = 0.9 * k; this.aura.material.rotation += dt * 0.3; }
     this.apply();
   }
   apply() {

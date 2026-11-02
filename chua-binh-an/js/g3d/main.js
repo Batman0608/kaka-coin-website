@@ -24,6 +24,14 @@ const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 /* ---------------- hồ sơ người chơi ---------------- */
 const P = Object.assign({ name: '', look: null, beads: 0, merit: 0, lay: 0, rounds: 0, medMin: 0, stories: [], quiz: 0, temples: {}, streak: 0, lastDay: '', days: 0, mala: 0, temple: 'binh-an' }, store.get('profile', {}));
 let saveT = null; const save = () => { if (saveT) return; saveT = setTimeout(() => { saveT = null; store.set('profile', P); }, 800); };
+P.cushions = P.cushions || ['moc']; P.cushion = P.cushion || 'moc';
+const CUSHIONS = [
+  { id: 'moc', n: 'Đệm mộc nâu', price: 0, top: 0xa3231a, trim: 0xe0a93a, glow: null, note: 'Đệm cói nâu mộc mạc (mặc định)' },
+  { id: 'gam', n: 'Đệm gấm đỏ viền vàng', price: 80, top: 0x8e1a0e, trim: 0xffd36b, glow: null, note: 'Gấm đỏ thêu, viền chỉ vàng' },
+  { id: 'sen', n: 'Đệm sen hồng', price: 200, top: 0xce5f84, trim: 0xffe0b0, glow: 0xff9ec4, gi: 0.5, note: 'Cánh sen hồng · toả sáng hồng nhạt khi ngồi' },
+  { id: 'rong', n: 'Đệm rồng vàng', price: 450, top: 0xc9a227, trim: 0xfff2b8, glow: 0xffd36b, gi: 1.0, note: 'Thêu rồng chầu · hào quang vàng khi ngồi' },
+  { id: 'haoquang', n: 'Đệm hào quang sen vàng', price: 900, top: 0xe8c23a, trim: 0xffffff, glow: 0xffe79a, gi: 1.7, note: 'Đẹp nhất · vầng sáng rực rỡ khi ngồi' }
+];
 const S = Object.assign({ npc: true, autoMo: true, amb: true, low: false }, store.get('settings', {}));
 const saveS = () => store.set('settings', S);
 const levelOf = (b) => { let i = 0; C.levels.forEach((l, k) => { if (b >= l.at) i = k; }); return i; };
@@ -103,6 +111,7 @@ function loadTemple(id) {
   me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.seated = null; me.av.setPose('idle');
   me.yaw = Math.PI; cam.yaw = 0;
   // khói hương
+  meCushion = null;
   smokes = W.burners.map(b => { const f = smoke(scene, b); return { update: f }; });
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
@@ -237,8 +246,33 @@ function findContext() {
   return null;
 }
 $('ctx').onclick = () => { if (ctxAction) ctxAction.fn(); };
+let _cuGlow = null;
+function cushionGlowTex() { if (_cuGlow) return _cuGlow; const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.4, 'rgba(255,230,150,.55)'); gr.addColorStop(1, 'rgba(255,220,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); _cuGlow = new THREE.CanvasTexture(c); _cuGlow.colorSpace = THREE.SRGBColorSpace; return _cuGlow; }
+function cushionMesh(cfg) {
+  const g = new THREE.Group();
+  const matT = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.82 }), matG = new THREE.MeshStandardMaterial({ color: cfg.trim, metalness: 0.45, roughness: 0.4 });
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.8), matT); pad.position.y = 0.085; g.add(pad);
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.05, 0.86), matG)).position.y = 0.02;    // viền đáy
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.06, 0.54), matG); top.position.y = 0.175; g.add(top);
+  const btn = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), matG); btn.position.y = 0.2; g.add(btn);
+  if (cfg.glow) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cushionGlowTex(), color: cfg.glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 }));
+    const sc = 1.6 + (cfg.gi || 1) * 0.9; sp.scale.set(sc, sc, 1); sp.position.y = 0.3; g.add(sp); g.userData.glow = sp;
+    const pl = new THREE.PointLight(cfg.glow, 0.8 * (cfg.gi || 1), 3.5, 1.6); pl.position.y = 0.5; g.add(pl); g.userData.pl = pl;
+    g.userData.gi = cfg.gi || 1;
+  }
+  return g;
+}
+let meCushion = null;
+function showMeCushion() {
+  hideMeCushion();
+  const cfg = CUSHIONS.find(c => c.id === P.cushion) || CUSHIONS[0];
+  meCushion = cushionMesh(cfg); meCushion.position.set(me.pos.x, me.y + 0.01, me.pos.z); meCushion.rotation.y = me.yaw; meCushion.userData.tmp = true; scene.add(meCushion);
+}
+function hideMeCushion() { if (meCushion) { scene.remove(meCushion); meCushion = null; } }
+function stepMeCushion(t) { if (meCushion && meCushion.userData.glow) { const k = 0.75 + 0.25 * Math.sin(t * 2.4); meCushion.userData.glow.material.opacity = 0.7 * k; if (meCushion.userData.pl) meCushion.userData.pl.intensity = 0.8 * meCushion.userData.gi * k; } }
 function sitOn(c, hall, quiet) {
-  me.seated = c; c.taken = true; me.pos.set(c.x, 0, c.z); me.y = c.y; me.yaw = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); me.av.setPose('kneel'); cam.yaw = me.yaw + Math.PI;
+  me.seated = c; c.taken = true; me.pos.set(c.x, 0, c.z); me.y = c.y; me.yaw = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); me.av.setPose('kneel'); cam.yaw = me.yaw + Math.PI; showMeCushion();
   if (!quiet) { toast('Bạn đã ngồi trên đệm trước Tam Thế Phật'); setTimeout(() => me.av.bow(), 400); }
 }
 /* quay mặt vào Phật, lưng ra ngoài · camera đứng sau lưng */
@@ -259,7 +293,7 @@ function goSit(then) {
     fade(() => { const c = pick(); if (c) sit(c); else { me.pos.set(h.altar.x, 0, h.altar.z + 4); me.y = h.altar.y; faceAltar(h); then && then(); } });
   }
 }
-function standUp() { if (me.seated) me.seated.taken = false; me.seated = null; me.av.setPose('idle'); }
+function standUp() { if (me.seated) me.seated.taken = false; me.seated = null; me.av.setPose('idle'); hideMeCushion(); }
 function nearAltar() { return W.halls.some(h => near(h.altar, 7)); }
 
 /* ---------------- hành động ---------------- */
@@ -501,7 +535,7 @@ function openOffer(tab = 'free') {
     const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); };
     bar.append(gift, top); b.append(bar);
     const tabs = el('div', 'tabs'), list = el('div', 'list');
-    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['merit', '💝 Hòm công đức']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
+    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['cushion', '💺 Đệm ngồi'], ['merit', '💝 Hòm công đức']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
     b.append(tabs, list);
     if (tab === 'free') {
       OFFERS.forEach(o => {
@@ -512,6 +546,20 @@ function openOffer(tab = 'free') {
         list.append(r);
       });
       b.append(el('p', 'note', 'Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương". Lễ vật thường miễn phí, dâng lại sau ít phút.'));
+    } else if (tab === 'cushion') {
+      CUSHIONS.forEach(cu => {
+        const owned = P.cushions.includes(cu.id), using = P.cushion === cu.id;
+        const r = el('button', 'item shopitem' + (using ? ' on' : ''));
+        r.append(el('b', '', `💺 ${cu.n}${cu.glow ? ' ✨' : ''}`), el('small', '', cu.note), el('em', 'price', using ? 'Đang dùng' : owned ? 'Đã có · chọn' : `🪷 ${cu.price}`));
+        r.onclick = () => {
+          if (using) return;
+          if (!owned) { if (cu.price > 0 && !SHOP.spend(cu.price)) { toast(`Cần ${cu.price} hoa sen · nhận quà hằng ngày hoặc nạp thêm`); return; } P.cushions.push(cu.id); toast(`💺 Đã mua ${cu.n}`); }
+          P.cushion = cu.id; save(); if (me.seated) showMeCushion();
+          closeModal(); openOffer('cushion');
+        };
+        list.append(r);
+      });
+      b.append(el('p', 'note', 'Đệm ngồi hiện ra khi bạn ngồi trên đệm trong chánh điện. Đệm càng đắt càng đẹp; loại có ✨ sẽ toả sáng khi ngồi lễ Phật.'));
     } else {
       SHOP.items.forEach(it => {
         const can = (P.lotus || 0) >= it.price;
@@ -1174,6 +1222,11 @@ setInterval(() => {
   const meritRows = [[P.name, P.merit], ...NET.peers().map(p => [p.name, p.merit]), ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
   BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
   checkRanks(meritRows); drawRank(meritRows);
+  // Top 20 công đức: phát sáng toàn người bất kỳ lúc nào
+  const top20 = new Set(meritRows.slice(0, 20).map(r => r[0]));
+  if (me.av) me.av.setAura(top20.has(P.name));
+  npcs.forEach(n => n.av && n.av.setAura(top20.has(n.label.textContent)));
+  NET.auraByNames && NET.auraByNames(top20);
 }, 3000);
 /* bảng xếp hạng công đức góc trái */
 let rankPrev = [];
@@ -1444,7 +1497,7 @@ function loop() {
     NET.step(dt);
     if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
-    chatStep();
+    chatStep(); stepMeCushion(t);
     if (meritLbl) { placeLabel(meritLbl, W.merit, 1.6); if (W.merit.distanceTo(me.av.root.position) > 12) meritLbl.style.display = 'none'; }
     ANIM.forEach(f => f(t));
     smokes.forEach(s => s.update(dt, smokeBoost)); smokeBoost = Math.max(0, smokeBoost - dt);
