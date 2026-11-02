@@ -15,12 +15,12 @@ export const LAYOUT = {
     ['Gác chuông', -14, 6, 5, 'Chuông lớn của chùa. Đứng gần và bấm "Thỉnh chuông".', 'bell'],
     ['Bảo tháp 13 tầng', 16, 1, 6, 'Bảo tháp cao nhiều tầng trên sườn núi Bái Đính.'],
     ['Núi Bái Đính', -10, -8, 7, 'Chùa cổ Bái Đính nằm trong hang núi, gắn với thiền sư Nguyễn Minh Không thời Lý.']] },
-  'tam-chuc': { yard: [{ r: [-15, -8, 15, 30], gate: ['+z', 0, 6] }], spawn: [0, 34], abbot: [8, 26], pois: [
-    ['Hồ Tam Chúc', 0, 37, 7, 'Hồ rộng khoảng 600 ha với sáu hòn đảo đá nổi — "tiền Lục Nhạc", sau lưng là bảy ngọn núi "hậu Thất Tinh".'],
-    ['Vườn Cột Kinh', 0, 18, 5, 'Vườn có 32 cột kinh bằng đá, mỗi cột cao 12 mét, khắc kinh Phật — dẫn lối lên các điện.'],
-    ['Điện Tam Thế', 0, 1, 7, 'Điện lớn nhất, thờ Tam Thế Phật: quá khứ, hiện tại và vị lai.'],
-    ['Chùa Ngọc', 0, -24, 8, 'Chùa Ngọc bằng đá granit đỏ trên sườn núi Thất Tinh.'],
-    ['Tượng Di Lặc', 28, 12, 7, 'Tượng Phật Di Lặc bằng đồng trên đồi, hướng mặt ra hồ Tam Chúc.']] },
+  'tam-chuc': { yard: [{ r: [-16, -22, 16, 32], gate: ['+z', 0, 6] }], spawn: [0, 34], abbot: [8, 26], pois: [
+    ['Hồ Tam Chúc', 0, 37, 7, 'Hồ rộng khoảng 600 ha với sáu hòn đảo đá — "tiền Lục Nhạc", sau lưng là bảy ngọn núi "hậu Thất Tinh".'],
+    ['Vườn Cột Kinh', 0, 22, 6, 'Hai hàng cột kinh bằng đá cao, khắc kinh Phật, dẫn lối lên các cấp điện.'],
+    ['Điện Pháp Chủ', 0, 11, 6, 'Điện cấp giữa thờ đức Pháp Chủ. Cửa điện đóng — đứng ngoài sân chiêm bái, rồi theo bậc hai bên lên cao.'],
+    ['Chánh điện Tam Thế', 0, -3, 7, 'Điện cao nhất, thờ Tam Thế Phật: quá khứ, hiện tại và vị lai — vào lễ Phật tại đây.'],
+    ['Tượng Di Lặc', 32, 12, 8, 'Tượng Phật Di Lặc bằng đồng trên đồi, hướng mặt ra hồ Tam Chúc.']] },
   'mot-cot': { yard: [{ r: [-14, -33, 14, 13], gate: ['+z', 0, 5] }],  spawn: [0, 22], abbot: [4, 10], extraHall: [0, -22, 0], pois: [
     ['Đài sen trên một cột đá', 0, 2, 6, 'Đài vuông bằng gỗ trên một cột đá giữa hồ, như đóa sen vươn lên mặt nước. Leo bậc đá để lên đài.'],
     ['Hồ sen vuông (Linh Chiểu)', 9, 4, 4, 'Hồ vuông bao quanh cột đá, mùa hè sen nở kín mặt nước.'],

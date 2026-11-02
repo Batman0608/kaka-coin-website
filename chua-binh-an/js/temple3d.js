@@ -580,30 +580,47 @@ const SCENES = {
     return { cam: [28, 17, 36], target: [0, 6, -2] };
   },
   tamchuc(g) {
-    ground(g, 240, 0x5a8248);
-    // hồ Tam Chúc phía trước, có đảo đá & thuyền
-    g.add(water(150, 34, 0, 52));
-    [[-28, 48, 3.2], [22, 56, 2.6], [-8, 60, 2.2]].forEach(([x, z, r]) => g.add(mountain(r, r * 1.4, 0x4a6a40, (x | 0) + 3, x, z)));
-    g.add(boat(-10, 44, 0.15)); g.add(boat(8, 47, -0.2)); lotusPads(g, 16, 70, 10, 0, 46);
-    // núi Thất Tinh phía sau + Chùa Ngọc (granit đỏ) trên sườn
-    g.add(mountain(22, 30, 0x3f6a35, 2, 0, -46)); g.add(mountain(16, 20, 0x4a7a3a, 6, -30, -44)); g.add(mountain(16, 18, 0x56803f, 8, 30, -46));
-    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 12.5, -34); ngoc.scale.setScalar(0.9); g.add(ngoc);
-    g.add(cyl(5, 6.5, 1.2, 20, STONE(), 0, 12, -34));
-    // tượng Di Lặc đồng lớn trên đồi bên phải
-    g.add(mountain(10, 9, 0x5f8a45, 4, 30, 10)); const dl = maitreya(3.4, BRONZE()); dl.position.set(30, 9, 10); g.add(dl);
-    // chánh điện Tam Thế trên nền cao (mô hình như Bái Đính cho chắc chắn)
-    const h = hall({ w: 16, d: 8, h: 4.4, tiers: 3 });
-    const hd = h.userData.mainHall ? h.userData.mainHall.d : 8, hz = 5 - (hd / 2 + 2.6) - 1.4;
-    const back = hz - hd / 2 - 1.4; g.add(box(28, 3.4, 5 - back, STONE(), 0, 1.7, (5 + back) / 2));
-    h.position.set(0, 3.4, hz); g.add(h);
-    const st = stairs(6.5, 11, 0.31, 0.6); st.position.set(0, 0, 11.3); g.add(st);
-    // điện Pháp Chủ & Quan Âm (nhỏ hơn) đặt hai bên, chừa lối giữa lên chánh điện
-    [[-13, 'Pháp Chủ'], [13, 'Quan Âm']].forEach(([x], i) => { const e = hall({ w: 6.5, d: 4.2, h: i ? 2.6 : 3, tiers: i ? 1 : 2 }); e.position.set(x, 0, 14 + i * 2); g.add(e); });
-    // vườn Cột Kinh: hai hàng cột đá cao hai bên lối giữa
-    for (let i = 0; i < 8; i++) { const z = 24 - i * 2.2; [-6.5, 6.5].forEach(x => { g.add(cyl(0.34, 0.4, 4.2 + (i % 2) * 0.6, 10, STONE(), x, 2.1, z)); g.add(cyl(0.5, 0.42, 0.3, 10, mat('ckcap', 0x8a6a3a), x, 4.3, z)); }); }
-    courtyard(g, 24, 14, 22); g.add(burner(0, 28));
-    [-22, 22, -20, 22].forEach((x, i) => g.add(tree(6, LEAF(), x, 30 + (i % 2) * 5)));
-    return { cam: [30, 20, 40], target: [0, 7, -4] };
+    ground(g, 260, 0x5a8248);
+    // hồ Tam Chúc phía trước (tiền Lục Nhạc), thuyền, sen
+    g.add(water(170, 36, 0, 56));
+    [[-30, 52, 3.2], [24, 60, 2.6], [-8, 66, 2.2], [34, 50, 2.2], [-40, 58, 2.6], [12, 70, 2]].forEach(([x, z, r]) => g.add(mountain(r, r * 1.4, 0x4a6a40, (x | 0) + 3, x, z)));
+    g.add(boat(-12, 46, 0.15)); g.add(boat(9, 49, -0.2)); lotusPads(g, 18, 80, 10, 0, 48);
+    // núi Thất Tinh (hậu Thất Tinh) phía sau + Chùa Ngọc granit đỏ trên sườn
+    g.add(mountain(24, 32, 0x3f6a35, 2, 0, -52)); g.add(mountain(18, 22, 0x4a7a3a, 6, -32, -48)); g.add(mountain(18, 20, 0x56803f, 8, 32, -50));
+    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 13, -38); ngoc.scale.setScalar(0.95); g.add(ngoc);
+    g.add(cyl(5, 6.5, 1.3, 20, STONE(), 0, 12.3, -38));
+    // tượng Di Lặc đồng trên đồi bên phải (có đài sen, hào quang)
+    g.add(mountain(11, 9, 0x5f8a45, 4, 32, 12)); const dl = maitreya(3.6, BRONZE()); dl.position.set(32, 9, 12); g.add(dl);
+    { const hal = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.12, 10, 36), GOLD()); hal.position.set(32, 15.5, 11.4); hal.userData.noCollide = true; g.add(hal); }
+
+    /* === TỔ HỢP CÁC CẤP: đi từ hồ lên, qua các điện cấp thấp (cổng đóng, chỉ vào sân) === */
+    const terr = (w, zc, dep, y) => { if (y > 0.05) g.add(box(w, y, dep, STONE(), 0, y / 2, zc)); };   // nền cấp cao, mặt trên đúng y
+    const flank = (z0, z1, dh, yBase) => { const n = Math.max(5, Math.round((z0 - z1) / 0.5)); [-6.5, 6.5].forEach(sx => { const st = stairs(3.4, n, dh / n, (z0 - z1) / n); st.position.set(sx, yBase || 0, z0); g.add(st); }); };
+    const closedHall = (zc, y, w, d, hh, label) => {   // điện cấp: đóng cửa, chỉ đứng ngoài nhìn
+      const e = hall({ w, d, h: hh, tiers: 2 }); e.position.set(0, y, zc); g.add(e);
+      const fz = zc + d / 2 + 0.85;   // mặt trước (hiên)
+      [-1, 1].forEach(sx => { const dr = box(w * 0.26, hh * 0.72, 0.16, mat('tcDoor', 0x5a0f06), sx * w * 0.16, y + 0.4 + hh * 0.36, fz); g.add(dr);
+        [0.3, 0.6].forEach(f => { const stud = cyl(0.05, 0.05, 0.18, 6, GOLD(), sx * w * 0.16, y + 0.4 + hh * f, fz + 0.02); stud.userData.noCollide = true; g.add(stud); }); });
+      g.add(box(0.14, hh * 0.78, 0.2, GOLD(), 0, y + 0.4 + hh * 0.39, fz));   // thanh giữa hai cánh (khóa)
+      const sg = plaque(label, '', Math.min(w * 0.5, 3.2), 0.42); sg.position.set(0, y + 0.4 + hh * 0.86, fz + 0.03); sg.traverse(o => { o.userData.noCollide = true; }); g.add(sg);
+    };
+    // Cấp 1 (y0): sân trước + Điện Quan Âm (đóng)
+    courtyard(g, 24, 16, 24); g.add(burner(0, 30));
+    closedHall(17, 0, 8, 5, 3, 'ĐIỆN QUAN ÂM');
+    flank(16.5, 11, 2.3, 0);                               // bậc hai bên lên cấp 2
+    // Cấp 2 (y2.3): nền + Điện Pháp Chủ (đóng)
+    terr(30, 4, 16, 2.3);
+    closedHall(5, 2.3, 8.5, 5, 3.2, 'ĐIỆN PHÁP CHỦ');
+    flank(3.5, -2, 2.1, 2.3);                              // bậc hai bên lên cấp 3 (y2.3 -> y4.4)
+    // Cấp 3 (y4.4): CHÁNH ĐIỆN TAM THẾ — vào lễ bình thường
+    terr(32, -11, 18, 4.4);
+    const h = hall({ w: 16, d: 8, h: 4.6, tiers: 3 }); h.position.set(0, 4.4, -11); g.add(h);
+    // vườn Cột Kinh hai bên lối giữa (cấp 1)
+    for (let i = 0; i < 7; i++) { const z = 27 - i * 2.2; [-9.5, 9.5].forEach(x => { g.add(cyl(0.34, 0.4, 4.4 + (i % 2) * 0.6, 10, STONE(), x, 2.2, z)); g.add(cyl(0.5, 0.42, 0.3, 10, mat('ckcap', 0x8a6a3a), x, 4.5, z)); }); }
+    // hành lang La Hán hai bên chạy dọc tổ hợp
+    laHanCorridor(g, -13.5, -8, 28); laHanCorridor(g, 13.5, -8, 28);
+    [-24, 24, -22, 24].forEach((x, i) => g.add(tree(6, LEAF(), x, 34 + (i % 2) * 5)));
+    return { cam: [32, 24, 44], target: [0, 8, -6] };
   },
   huong(g) {
     ground(g, 160, 0x4f7a3f);
