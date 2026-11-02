@@ -1237,11 +1237,10 @@ setInterval(() => {
   const meritRows = [[P.name, P.merit], ...NET.peers().map(p => [p.name, p.merit]), ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
   BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
   checkRanks(meritRows); drawRank(meritRows);
-  // Top 20 công đức: phát sáng toàn người bất kỳ lúc nào
-  const top20 = new Set(meritRows.slice(0, 20).map(r => r[0]));
-  if (me.av) me.av.setAura(top20.has(P.name));
-  npcs.forEach(n => n.av && n.av.setAura(top20.has(n.label.textContent)));
-  NET.auraByNames && NET.auraByNames(top20);
+  // hào quang theo công đức: từ 1000 phát sáng, từ 2000 sáng nhiều
+  if (me.av) me.av.setAura(P.merit >= 1000, 0xffe08a, P.merit >= 2000);
+  npcs.forEach(n => n.av && n.av.setAura((n.merit || 0) >= 1000, 0xffe08a, (n.merit || 0) >= 2000));
+  NET.auraByMerit && NET.auraByMerit();
 }, 3000);
 /* bảng xếp hạng công đức góc trái */
 let rankPrev = [];

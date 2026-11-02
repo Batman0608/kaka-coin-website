@@ -124,8 +124,10 @@ export function buildWorld(scene, temple) {
   if (L.stream) { const w = water(4, 30, L.stream[0], L.stream[1]); root.add(w); }
   // nền đất lớn
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat('gground', 0x5f7f45)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.userData.noCollide = true; root.add(ground);
-  // vài cây quanh rìa
-  for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 55 + (i % 4) * 8; const t = tree(5 + (i % 3) * 2, LEAF(), Math.cos(a) * r, Math.sin(a) * r); root.add(t); }
+  // vài cây quanh rìa — tránh trồng đè lên các điện (nhất là điện phụ ở xa)
+  root.updateMatrixWorld(true);
+  const hallSpots = HALLS.map(h => { const p = h.getWorldPosition(new THREE.Vector3()), m = h.userData.mainHall; return { x: p.x, z: p.z, r: (m ? Math.max(m.w, m.d) / 2 : 6) + 6 }; });
+  for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 55 + (i % 4) * 8, x = Math.cos(a) * r, z = Math.sin(a) * r; if (hallSpots.some(s => Math.hypot(x - s.x, z - s.z) < s.r)) continue; root.add(tree(5 + (i % 3) * 2, LEAF(), x, z)); }
   const halls = HALLS.slice();
   // bảng tên chùa theo tên thật, treo trên chánh điện chính
   const PL = [temple.name.toUpperCase(), temple.place || ''];   // đúng tên chùa như trên bản đồ

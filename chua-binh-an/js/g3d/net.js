@@ -110,7 +110,7 @@ export function initNet(ctx) {
     listChannels() { sendJ({ t: 'chs' }); },
     switchChannel(c) { if (online && c !== ch) { wantCh = c; sendJ({ t: 'ch', ch: c }); } },
     newChannel() { if (online) { let c = 1; while (chs.some(x => x.ch === c)) c++; wantCh = c; sendJ({ t: 'ch', ch: c }); } },
-    auraByNames(set) { peers.forEach(p => p.av && p.av.setAura(set.has(p.name))); },
+    auraByMerit() { peers.forEach(p => p.av && p.av.setAura((p.m || 0) >= 1000, 0xffe08a, (p.m || 0) >= 2000)); },
     step, onChange: (f) => listeners.add(f)
   };
 }

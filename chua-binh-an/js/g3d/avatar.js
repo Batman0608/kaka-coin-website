@@ -107,14 +107,15 @@ export class Avatar {
   setLook(look) { Object.assign(this.look, look); this.build(); }
   setPose(name) { if (POSES[name]) this.target = name; }
   setGlow(on) { this.halo.visible = !!on; }
-  setAura(on, color = 0xffe08a) {
+  setAura(on, color = 0xffe08a, strong = false) {
     if (on) {
       if (!this.aura) {
         const hy = 1.7;
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: auraTex(), color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 }));
-        sp.scale.set(hy * 1.7, hy * 2.0, 1); sp.position.y = hy * 0.5; sp.renderOrder = -2; this.root.add(sp); this.aura = sp;
+        sp.position.y = hy * 0.5; sp.renderOrder = -2; this.root.add(sp); this.aura = sp;
         const pl = new THREE.PointLight(color, 1.0, 4.5, 1.6); pl.position.y = hy * 0.6; this.root.add(pl); this.auraLight = pl;
       } else { this.aura.material.color.setHex(color); this.auraLight.color.setHex(color); }
+      const hy = 1.7, sc = strong ? 2.4 : 1.5; this.aura.scale.set(hy * sc * 0.62, hy * sc * 0.72, 1); this._auraStrong = strong;
       this.aura.visible = this.auraLight.visible = true; this.halo.visible = true;
     } else if (this.aura) { this.aura.visible = this.auraLight.visible = false; }
   }
@@ -139,7 +140,7 @@ export class Avatar {
     for (const key in tgt) this.pose[key] += (tgt[key] - this.pose[key]) * (moving ? Math.min(1, lerp * 3) : lerp);
     this.incense.visible = this.target === 'incense';
     if (this.halo.visible) this.halo.rotation.z += dt;
-    if (this.aura && this.aura.visible) { const k = 0.78 + 0.22 * Math.sin(performance.now() / 320); this.aura.material.opacity = 0.75 * k; this.auraLight.intensity = 0.9 * k; this.aura.material.rotation += dt * 0.3; }
+    if (this.aura && this.aura.visible) { const st = this._auraStrong, k = 0.78 + 0.22 * Math.sin(performance.now() / 320); this.aura.material.opacity = (st ? 0.9 : 0.6) * k; this.auraLight.intensity = (st ? 1.5 : 0.7) * k; this.aura.material.rotation += dt * 0.3; }
     this.apply();
   }
   apply() {
