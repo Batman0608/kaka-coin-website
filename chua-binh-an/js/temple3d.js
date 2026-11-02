@@ -116,7 +116,7 @@ function goldBoard(g, x, y, z, ry, title) {
   } });
 }
 /* ---------------- tranh vách sau tượng: mỗi vị Phật một bức riêng ---------------- */
-const MURAL_OF = { thichca: 'bodhi', adida: 'pureland', duocsu: 'lapis', dilac: 'maitreya' };
+const MURAL_OF = { thichca: 'bodhi', tamthe: 'bodhi', adida: 'pureland', duocsu: 'lapis', dilac: 'maitreya', quanam: 'guanyin' };
 function backdrop(g, keys, w, d, base, h, panelMode) {
   const bw = Math.min(w * 0.4, 5.5), bh = bw * 0.17;   // hoành phi
   const zb = -d / 2 + 0.31, y0 = base + 0.95, top = base + h - 0.3 - bh - 0.12, ph = Math.max(1.4, top - y0);
@@ -152,12 +152,13 @@ function boardTex(text, vertical, W, H) {
 function muralTex(kind, W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const k = c.getContext('2d');
   let seed = kind.length * 977 + W; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const pal = { bodhi: ['#3a0805', '#7a1a0e', '#a8321a'], pureland: ['#06202c', '#0f4a5c', '#2a8a8a'], lapis: ['#06123a', '#16307a', '#2a56b8'], maitreya: ['#3a1e04', '#8a5210', '#c98a1c'], guanyin: ['#062a24', '#0f5a4a', '#3a9a7a'] }[kind];
+  const pal = { bodhi: ['#6a1e0c', '#aa4418', '#e6a848'], pureland: ['#12495c', '#2a8a96', '#7ad0cc'], lapis: ['#13307e', '#2f5ec8', '#6a9aec'], maitreya: ['#6a3a0c', '#c47e1e', '#f4cc5c'], guanyin: ['#114a3c', '#249a74', '#6ad0a6'],
+    river: ['#244a6a', '#5a86a4', '#aed0de'], mountain: ['#2a4a66', '#577a98', '#aecbdd'], khmer: ['#6a2610', '#c25e1c', '#f4a848'], lotuspond: ['#13524a', '#22a68c', '#6cdabc'], cave: ['#2a1a10', '#574026', '#9a7850'], sea: ['#124270', '#2f82c0', '#78c8ea'], relief: ['#52300f', '#a2651e', '#e0a644'] }[kind] || ['#6a1e0c', '#aa4418', '#e6a848'];
   const bg = k.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, pal[0]); bg.addColorStop(0.55, pal[1]); bg.addColorStop(1, pal[2]); k.fillStyle = bg; k.fillRect(0, 0, W, H);
   const gold = (a = 1) => `rgba(240,196,92,${a})`;
   // hào quang lớn sau đầu tượng
   const cx = W / 2, cy = H * 0.36;
-  const halo = k.createRadialGradient(cx, cy, 0, cx, cy, W * 0.48); halo.addColorStop(0, 'rgba(255,230,160,.55)'); halo.addColorStop(0.5, 'rgba(255,200,100,.18)'); halo.addColorStop(1, 'rgba(255,200,100,0)');
+  const halo = k.createRadialGradient(cx, cy, 0, cx, cy, W * 0.4); halo.addColorStop(0, 'rgba(255,246,210,.92)'); halo.addColorStop(0.3, 'rgba(255,220,130,.4)'); halo.addColorStop(0.65, 'rgba(255,200,100,.08)'); halo.addColorStop(1, 'rgba(255,200,100,0)');
   k.fillStyle = halo; k.fillRect(0, 0, W, H);
   k.strokeStyle = gold(0.35); k.lineWidth = 2; for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; k.beginPath(); k.moveTo(cx + Math.cos(a) * W * 0.18, cy + Math.sin(a) * W * 0.18); k.lineTo(cx + Math.cos(a) * W * 0.46, cy + Math.sin(a) * W * 0.46); k.stroke(); }
   const cloud = (x, y, s, a = 0.8) => { k.strokeStyle = gold(a); k.fillStyle = gold(a * 0.18); k.lineWidth = Math.max(2, s * 0.08);
@@ -186,6 +187,52 @@ function muralTex(kind, W, H) {
     // bình cam lồ, cành dương liễu, sóng biển
     k.strokeStyle = 'rgba(200,240,220,.5)'; k.lineWidth = 3; for (let r = 0; r < 4; r++) { k.beginPath(); for (let x = 0; x <= W; x += 8) k.lineTo(x, H * (0.82 + r * 0.05) + Math.sin(x * 0.05 + r) * 6); k.stroke(); }
     k.strokeStyle = 'rgba(160,220,120,.9)'; k.lineWidth = 2; for (let i = 0; i < 7; i++) { k.beginPath(); k.moveTo(W * 0.82, H * 0.2); k.quadraticCurveTo(W * (0.7 + i * 0.03), H * 0.35, W * (0.66 + i * 0.04), H * (0.48 + i * 0.02)); k.stroke(); }
+  } else if (kind === 'river') {
+    // Thiên Mụ bên sông Hương: tháp Phước Duyên, núi Ngự mờ, liễu rủ, mặt sông
+    for (let i = 0; i < 3; i++) { k.fillStyle = `rgba(40,70,100,${0.5 - i * 0.12})`; k.beginPath(); k.moveTo(0, H * (0.6 - i * 0.04)); for (let x = 0; x <= W; x += W / 6) k.lineTo(x, H * (0.52 - i * 0.04) + Math.sin(x * 0.01 + i) * H * 0.04); k.lineTo(W, H * 0.7); k.lineTo(0, H * 0.7); k.fill(); }   // núi mờ
+    const tx = W * 0.5, ty = H * 0.62; k.fillStyle = gold(0.9);
+    for (let s = 0; s < 7; s++) { const w2 = W * (0.1 - s * 0.009), yy = ty - s * H * 0.055; k.fillRect(tx - w2 / 2, yy - H * 0.05, w2, H * 0.05); k.beginPath(); k.moveTo(tx - w2 * 0.7, yy - H * 0.05); k.lineTo(tx, yy - H * 0.08); k.lineTo(tx + w2 * 0.7, yy - H * 0.05); k.fill(); }   // tháp Phước Duyên 7 tầng
+    k.fillStyle = 'rgba(120,180,210,.4)'; k.fillRect(0, H * 0.7, W, H * 0.3);
+    k.strokeStyle = 'rgba(200,230,245,.5)'; k.lineWidth = 2; for (let r = 0; r < 5; r++) { k.beginPath(); for (let x = 0; x <= W; x += 8) k.lineTo(x, H * (0.74 + r * 0.05) + Math.sin(x * 0.05 + r) * 4); k.stroke(); }
+    k.strokeStyle = 'rgba(120,180,90,.8)'; k.lineWidth = 2; [W * 0.08, W * 0.92].forEach(bx => { for (let i = 0; i < 9; i++) { k.beginPath(); k.moveTo(bx, H * 0.1); k.quadraticCurveTo(bx + (bx < W / 2 ? 20 : -20), H * 0.4, bx + (bx < W / 2 ? 14 : -14) + i * 2, H * 0.62); k.stroke(); } });   // liễu rủ
+  } else if (kind === 'mountain') {
+    // Yên Tử non thiêng: dãy núi trùng điệp vươn cao, biển mây, chùa Đồng trên đỉnh, thông hai bên
+    const ridges = [[0.5, 0.11, 0.9], [0.42, 0.13, 0.78], [0.34, 0.1, 0.66], [0.24, 0.08, 0.5]];   // [baseY, biên độ, đậm]
+    ridges.forEach(([by, amp, dk], i) => { k.fillStyle = `rgba(${44 + i * 16},${74 + i * 18},${104 + i * 20},${dk})`; k.beginPath(); k.moveTo(0, H); k.lineTo(0, H * by); for (let x = 0; x <= W; x += W / 10) { const peak = H * (by - amp) - Math.max(0, amp * H * 0.7 * Math.cos((x / W - (0.3 + i * 0.12)) * 6)); k.lineTo(x, H * by + Math.sin(x * 0.014 + i * 2) * amp * H * 0.5 + (peak - H * by) * Math.max(0, 1 - Math.abs(x / W - (0.28 + i * 0.14)) * 3)); } k.lineTo(W, H); k.fill(); });
+    const px2 = W * 0.26, py2 = H * 0.17; k.fillStyle = gold(0.95); k.fillRect(px2 - W * 0.03, py2, W * 0.06, H * 0.035); k.beginPath(); k.moveTo(px2 - W * 0.045, py2); k.lineTo(px2, py2 - H * 0.03); k.lineTo(px2 + W * 0.045, py2); k.fill();   // chùa Đồng trên đỉnh
+    for (let i = 0; i < 7; i++) cloud(W * (0.05 + i * 0.15), H * (0.5 + (i % 3) * 0.08), W * 0.14, 0.45);   // biển mây
+    k.lineCap = 'round'; [W * 0.08, W * 0.92, W * 0.16].forEach((px, n) => { const py = H * (0.42 + n * 0.04); k.strokeStyle = 'rgba(30,55,30,.85)'; k.lineWidth = 4; k.beginPath(); k.moveTo(px, py + H * 0.18); k.lineTo(px, py - H * 0.12); k.stroke(); k.fillStyle = 'rgba(40,95,52,.9)'; for (let t = 0; t < 5; t++) { k.beginPath(); k.ellipse(px, py - H * 0.1 + t * H * 0.05, W * (0.07 - t * 0.01), H * 0.03, 0, 0, 7); k.fill(); } });   // thông cổ thụ
+  } else if (kind === 'khmer') {
+    // Chùa Dơi (Khmer): tháp nhọn nhiều tầng, hoa văn vàng, màu đỏ cam rực
+    const spire = (x, s) => { k.fillStyle = gold(0.92); for (let t = 0; t < 6; t++) { const w2 = s * (1 - t * 0.14), yy = H * 0.6 - t * s * 0.42; k.beginPath(); k.moveTo(x - w2 / 2, yy); k.lineTo(x, yy - s * 0.4); k.lineTo(x + w2 / 2, yy); k.fill(); } k.beginPath(); k.moveTo(x, H * 0.6 - 6 * s * 0.42); k.lineTo(x - s * 0.06, H * 0.6 - 6 * s * 0.42 - s * 0.5); k.lineTo(x + s * 0.06, H * 0.6 - 6 * s * 0.42 - s * 0.5); k.fill(); };
+    spire(W * 0.5, W * 0.16); spire(W * 0.22, W * 0.1); spire(W * 0.78, W * 0.1);
+    k.strokeStyle = gold(0.6); k.lineWidth = 2; for (let i = 0; i < 20; i++) { const a = i / 20 * 6.28; k.beginPath(); k.arc(W / 2, H * 0.36, W * (0.3 + 0.02 * Math.sin(i)), a, a + 0.18); k.stroke(); }
+    for (let i = 0; i < 8; i++) lotus(W * (0.08 + i * 0.12), H * 0.9, W * 0.055, '#ffb84d');
+  } else if (kind === 'lotuspond') {
+    // Chùa Một Cột: ao sen, lá sen tròn, hoa sen nở, cột đá
+    k.fillStyle = 'rgba(30,120,110,.4)'; k.fillRect(0, H * 0.6, W, H * 0.4);
+    k.strokeStyle = 'rgba(180,240,220,.4)'; k.lineWidth = 2; for (let r = 0; r < 4; r++) { k.beginPath(); for (let x = 0; x <= W; x += 8) k.lineTo(x, H * (0.66 + r * 0.07) + Math.sin(x * 0.05 + r) * 4); k.stroke(); }
+    k.fillStyle = 'rgba(40,140,80,.75)'; for (let i = 0; i < 7; i++) { k.beginPath(); k.ellipse(W * (0.1 + i * 0.13), H * (0.78 + (i % 2) * 0.07), W * 0.07, H * 0.025, 0, 0, 7); k.fill(); }   // lá sen
+    for (let i = 0; i < 6; i++) lotus(W * (0.14 + i * 0.145), H * (0.74 + (i % 2) * 0.08), W * 0.07);
+    k.fillStyle = 'rgba(120,120,130,.8)'; k.fillRect(W * 0.47, H * 0.55, W * 0.06, H * 0.35);   // cột đá
+  } else if (kind === 'cave') {
+    // Chùa Hương (động Hương Tích): vòm hang, nhũ đá rủ, ánh sáng từ cửa động
+    k.fillStyle = 'rgba(10,6,4,.6)'; k.beginPath(); k.moveTo(0, 0); k.lineTo(W, 0); k.lineTo(W, H); k.lineTo(0, H); k.fill();
+    const hole = k.createRadialGradient(W / 2, H * 0.34, 0, W / 2, H * 0.34, W * 0.42); hole.addColorStop(0, 'rgba(255,230,160,.5)'); hole.addColorStop(1, 'rgba(255,220,140,0)'); k.fillStyle = hole; k.fillRect(0, 0, W, H);
+    k.fillStyle = 'rgba(40,26,16,.95)'; for (let i = 0; i < 14; i++) { const x = W * (0.03 + i * 0.07), w2 = W * (0.03 + Math.random() * 0.03), h2 = H * (0.1 + Math.random() * 0.22); k.beginPath(); k.moveTo(x - w2 / 2, 0); k.lineTo(x + w2 / 2, 0); k.lineTo(x, h2); k.fill(); }   // nhũ đá trên
+    k.fillStyle = 'rgba(30,20,12,.9)'; for (let i = 0; i < 8; i++) { const x = W * (0.06 + i * 0.12), w2 = W * 0.04, h2 = H * (0.08 + Math.random() * 0.14); k.beginPath(); k.moveTo(x - w2 / 2, H); k.lineTo(x + w2 / 2, H); k.lineTo(x, H - h2); k.fill(); }   // măng đá dưới
+  } else if (kind === 'sea') {
+    // Linh Ứng Bãi Bụt (Đà Nẵng) nhìn ra biển: chân trời, sóng biển, hải đảo, hải âu
+    k.fillStyle = 'rgba(40,120,170,.5)'; k.fillRect(0, H * 0.5, W, H * 0.5);
+    k.fillStyle = 'rgba(255,214,120,.5)'; k.beginPath(); k.arc(W / 2, H * 0.36, W * 0.2, 0, 7); k.fill();   // vầng dương trên biển
+    k.fillStyle = 'rgba(30,90,70,.7)'; [[W * 0.14, W * 0.07], [W * 0.86, W * 0.05]].forEach(([x, s]) => { k.beginPath(); k.ellipse(x, H * 0.52, s, H * 0.03, 0, Math.PI, 0); k.fill(); });   // đảo
+    k.strokeStyle = 'rgba(220,245,255,.6)'; k.lineWidth = 2.5; for (let r = 0; r < 7; r++) { k.beginPath(); for (let x = 0; x <= W; x += 8) k.lineTo(x, H * (0.56 + r * 0.06) + Math.sin(x * 0.045 + r) * 5); k.stroke(); }
+    k.strokeStyle = 'rgba(255,255,255,.7)'; k.lineWidth = 2; for (let i = 0; i < 4; i++) { const gx = W * (0.2 + i * 0.2), gy = H * (0.2 + (i % 2) * 0.06); k.beginPath(); k.moveTo(gx - 8, gy); k.quadraticCurveTo(gx, gy - 6, gx + 8, gy); k.stroke(); }   // hải âu
+  } else if (kind === 'relief') {
+    // Tam Chúc: phù điêu đồng Tam Thế & tích Phật trên vách, sắc đồng ấm
+    k.strokeStyle = gold(0.5); k.lineWidth = 1.5;
+    for (let gx = 0; gx < W; gx += W * 0.1) for (let gy = 0; gy < H; gy += H * 0.1) { k.strokeRect(gx, gy, W * 0.1, H * 0.1); }   // ô phù điêu
+    k.fillStyle = gold(0.3); for (let i = 0; i < 40; i++) { const x = (i % 8) * W * 0.12 + W * 0.06, y = Math.floor(i / 8) * H * 0.18 + H * 0.12; k.beginPath(); for (let j = 0; j < 7; j++) { const a = j / 7 * 6.28; k.lineTo(x + Math.cos(a) * W * 0.02, y - H * 0.03 + Math.sin(a) * H * 0.02); } k.fill(); k.fillStyle = gold(0.45); k.fillRect(x - W * 0.012, y - H * 0.03, W * 0.024, H * 0.05); k.fillStyle = gold(0.3); }   // dãy Phật tọa thiền nhỏ (tượng vách)
   }
   // mây lành viền dưới & góc trên, khung hoa văn vàng
   for (let i = 0; i < 5; i++) cloud(W * (0.1 + i * 0.2), H * 0.97, W * 0.12, 0.55);
@@ -196,13 +243,14 @@ function muralTex(kind, W, H) {
 }
 /* khám thờ 3D: vách chạm vàng phủ tường sau + khung khám lõm + bửu cái + cột rồng,
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
+// [src, tỉ lệ, kiểu, cutRemoveBg] — cutRemoveBg=true là ảnh đã tách nền (hiện nền tranh riêng phía sau)
 const BUDDHA_IMG = {
-  tamthe:  ['assets/buddha/tamthe.webp', 1280 / 853, 'three'],
-  thichca: ['assets/buddha/thichca.webp', 725 / 860, 'one'],
-  adida:   ['assets/buddha/adida.webp', 576 / 700, 'one'],
-  duocsu:  ['assets/buddha/duocsu.webp', 442 / 700, 'one'],
-  dilac:   ['assets/buddha/dilac.webp', 617 / 700, 'one'],
-  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one']
+  tamthe:  ['assets/buddha/tamthe.webp', 1280 / 853, 'three', false],
+  thichca: ['assets/buddha/thichca.webp', 725 / 860, 'one', true],
+  adida:   ['assets/buddha/adida.webp', 576 / 700, 'one', true],
+  duocsu:  ['assets/buddha/duocsu.webp', 442 / 700, 'one', true],
+  dilac:   ['assets/buddha/dilac.webp', 617 / 700, 'one', true],
+  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one', false]
 };
 const ALTAR_LABEL = { tamthe: 'ĐẠI HÙNG BẢO ĐIỆN', thichca: 'ĐẠI HÙNG BẢO ĐIỆN', adida: 'CỰC LẠC BẢO ĐIỆN', duocsu: 'DƯỢC SƯ BẢO ĐIỆN', dilac: 'ĐẠI HÙNG BẢO ĐIỆN', quanam: 'QUAN ÂM BẢO ĐIỆN' };
 let _carved = null;
@@ -232,7 +280,7 @@ function frameRect(g, cx, cy, z, w, h, t, depth, m) {   // khung chữ nhật n�
 function altarPanel(g, w, d, base, h, set) {
   const z = -d / 2 + 0.9, zb = -d / 2 + 0.2;
   const key = (INTERIOR && INTERIOR.altar) || (set === 'nam' ? 'thichca' : 'tamthe');
-  const [src, asp, kind] = BUDDHA_IMG[key] || BUDDHA_IMG.thichca; const single = kind === 'one';
+  const [src, asp, kind, cut] = BUDDHA_IMG[key] || BUDDHA_IMG.thichca; const single = kind === 'one';
   const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
   const gold = mat('shrGold', 0xcf9a34, { metalness: 0.65, roughness: 0.35 }), red = mat('shrRed', 0x6e1008), dark = mat('shrDark', 0x1c0a04);
   // 1) vách chạm vàng phủ kín tường sau
@@ -243,24 +291,33 @@ function altarPanel(g, w, d, base, h, set) {
   const boardH = Math.min(0.5, h * 0.1);
   let ph = Math.min(h - 1.78 - boardH, single ? 3.0 : 3.2), pw = ph * asp; if (pw > w - 2.2) { pw = w - 2.2; ph = pw / asp; }
   const cy = base + 1.0 + ph / 2, zf = zb + 0.06;
-  // 2) hốc khám lõm (nền tối) + hào quang
-  nc(box(pw + 0.5, ph + 0.5, 0.1, dark, 0, cy, zf - 0.02));
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(pw * 1.2, ph * 1.3), addMat(glowTex('#ffdf95'), 0.75)); glow.position.set(0, cy, zf + 0.02); nc(glow);
+  // 2) khám lớn hơn tượng → bức tranh nền (cây bồ đề, núi, biển, ao sen…) hiện rõ quanh & trên đầu tượng
+  const bgKind = (INTERIOR && INTERIOR.bg) || MURAL_OF[key] || 'bodhi';
+  const bigNiche = asp < 1.2;   // ảnh chân dung (tượng đơn, Quan Âm) → khám rộng lộ cảnh nền; tranh ngang Tam Thế giữ khung sát
+  const nw = bigNiche ? Math.min(w - 1.6, pw + 2.3) : pw + 0.42, nh = bigNiche ? Math.min(h - boardH - 1.4, ph + 1.8) : ph + 0.42;
+  nc(box(nw + 0.2, nh + 0.2, 0.1, dark, 0, cy, zf - 0.02));   // tấm nền tối ngay sau bức tranh
+  const mural = new THREE.Mesh(new THREE.PlaneGeometry(nw, nh), new THREE.MeshBasicMaterial({ map: muralTex(bgKind, 512, Math.round(512 * nh / nw)), toneMapped: false }));
+  mural.position.set(0, cy, zf + 0.06); nc(mural);   // rõ hẳn trước vách chạm vàng
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(pw * 1.15, ph * 1.2), addMat(glowTex('#ffdf95'), 0.5)); glow.position.set(0, cy + ph * 0.08, zf + 0.1); nc(glow);
   // 3) bức Phật đặt sâu trong khám
   const btex = texLoader.load(src); btex.colorSpace = THREE.SRGBColorSpace; btex.anisotropy = 4;
-  const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: btex, toneMapped: false })); img.position.set(0, cy, zf + 0.06); nc(img);
-  // 4) khung nổi nhiều lớp (tạo chiều sâu 3D): vàng trong → đỏ ngoài, nhô dần ra
-  frameRect(g, 0, cy, zf + 0.18, pw + 0.3, ph + 0.3, 0.14, 0.28, gold);
-  frameRect(g, 0, cy, zf + 0.42, pw + 0.62, ph + 0.62, 0.22, 0.4, red);
-  let topY = cy + ph / 2 + 0.25;
+  // ảnh đã tách nền → vẽ trong suốt để lộ bức tranh nền phía sau; ảnh có nền sẵn → vẽ đặc
+  const imgMat = cut ? new THREE.MeshBasicMaterial({ map: btex, transparent: true, alphaTest: 0.35, toneMapped: false })
+                     : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
+  const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img);
+  if (!cut) frameRect(g, 0, cy, zf + 0.17, pw + 0.14, ph + 0.14, 0.09, 0.2, gold);   // ảnh có nền → khung vàng sát quanh ảnh (như tranh treo trên vách cảnh)
+  // 4) khung nổi nhiều lớp (tạo chiều sâu 3D) bao quanh khám: vàng trong → đỏ ngoài, nhô dần ra
+  frameRect(g, 0, cy, zf + 0.18, nw + 0.3, nh + 0.3, 0.14, 0.28, gold);
+  frameRect(g, 0, cy, zf + 0.42, nw + 0.62, nh + 0.62, 0.22, 0.4, red);
+  let topY = cy + nh / 2 + 0.25;
   if (single) {
-    // 5) hai cột rồng vàng hai bên khám (tượng đơn)
-    [-1, 1].forEach(sx => { const x = sx * (pw / 2 + 0.55); nc(cyl(0.16, 0.18, ph + 0.9, 12, gold, x, cy, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy + ph / 2 + 0.5, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy - ph / 2 - 0.4, zf + 0.5)); });
+    // 5) hai cột rồng vàng hai bên khám
+    [-1, 1].forEach(sx => { const x = sx * (nw / 2 + 0.55); nc(cyl(0.16, 0.18, nh + 0.9, 12, gold, x, cy, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy + nh / 2 + 0.5, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy - nh / 2 - 0.4, zf + 0.5)); });
     // 6) bửu cái (tán che) phía trên khám
-    topY = cy + ph / 2 + 0.34;
-    nc(box(pw + 1.1, 0.18, 0.6, red, 0, topY, zf + 0.5));
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.02, pw * 0.56, 0.3, 4), gold); canopy.rotation.y = Math.PI / 4; canopy.position.set(0, topY + 0.2, zf + 0.42); nc(canopy);
-    for (let i = 0; i < 7; i++) { const ts = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), gold); ts.position.set(-pw * 0.5 + i * (pw / 6), topY - 0.11, zf + 0.72); nc(ts); }
+    topY = cy + nh / 2 + 0.34;
+    nc(box(nw + 1.1, 0.18, 0.6, red, 0, topY, zf + 0.5));
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.02, nw * 0.5, 0.3, 4), gold); canopy.rotation.y = Math.PI / 4; canopy.position.set(0, topY + 0.2, zf + 0.42); nc(canopy);
+    for (let i = 0; i < 7; i++) { const ts = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), gold); ts.position.set(-nw * 0.5 + i * (nw / 6), topY - 0.11, zf + 0.72); nc(ts); }
     topY += 0.38;
   }
   // hoành phi tên điện — đặt hẳn phía trên bửu cái, nhô ra trước để không bị che
@@ -804,9 +861,9 @@ export function plaque(title, sub = '', W = 5, H = 1) {
   return g;
 }
 export function buildLandmark(g, model, opts = {}) {
-  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh', altar: opts.altar } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
+  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh', altar: opts.altar, bg: opts.bg } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; }
 }
-export function interiorHall(opts, set, altar) { INTERIOR = { set, altar }; try { return hall(opts); } finally { INTERIOR = null; } }
+export function interiorHall(opts, set, altar, bg) { INTERIOR = { set, altar, bg }; try { return hall(opts); } finally { INTERIOR = null; } }
 export { THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
   RED, DRED, WALL, YWALL, ROOF, STONE, GOLD, WHITE, BRONZE, WOOD, LEAF, LEAF2, GRASS, DARK, WATER };

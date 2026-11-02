@@ -115,11 +115,14 @@ export function buildWorld(scene, temple) {
   const root = new THREE.Group(); scene.add(root);
   const set = temple.id === 'doi' ? 'nam' : temple.buddhaSet || 'hoanh';
   const ALTAR_OF = { 'bai-dinh': 'tamthe', 'tam-chuc': 'tamthe', 'binh-an': 'thichca', 'thien-mu': 'thichca', 'yen-tu': 'thichca', 'long-son': 'thichca', 'doi': 'thichca', 'vinh-nghiem': 'adida', 'giac-lam': 'adida', 'mot-cot': 'quanam', 'huong': 'quanam', 'linh-ung': 'quanam' };
+  // nền phía sau tượng — mỗi chùa một khung cảnh riêng cho hợp (cùng vị Phật vẫn khác nền)
+  const BG_OF = { 'bai-dinh': 'bodhi', 'tam-chuc': 'relief', 'binh-an': 'bodhi', 'thien-mu': 'river', 'yen-tu': 'mountain', 'long-son': 'bodhi', 'doi': 'khmer', 'vinh-nghiem': 'pureland', 'giac-lam': 'pureland', 'mot-cot': 'lotuspond', 'huong': 'cave', 'linh-ung': 'sea' };
   const altar = ALTAR_OF[temple.id] || 'thichca';
-  const conf = buildLandmark(root, temple.model || 'hall', { interior: true, set, altar });
+  const bg = BG_OF[temple.id] || null;
+  const conf = buildLandmark(root, temple.model || 'hall', { interior: true, set, altar, bg });
   const L = LAYOUT[temple.id] || LAYOUT['binh-an'];
   if (L.extraHall) {
-    const h = interiorHall({ w: 10, d: 7, h: 3.4, tiers: 2 }, set, altar); h.position.set(L.extraHall[0], 0, L.extraHall[1]); h.rotation.y = L.extraHall[2] || 0; root.add(h);
+    const h = interiorHall({ w: 10, d: 7, h: 3.4, tiers: 2 }, set, altar, bg); h.position.set(L.extraHall[0], 0, L.extraHall[1]); h.rotation.y = L.extraHall[2] || 0; root.add(h);
   }
   if (L.stream) { const w = water(4, 30, L.stream[0], L.stream[1]); root.add(w); }
   // nền đất lớn
