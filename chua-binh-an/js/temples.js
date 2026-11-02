@@ -71,6 +71,22 @@ CBA.temples = [
       moral: 'Người tu hành lấy việc chữa lành cho đời làm hạnh nguyện.',
       quiz: { q: 'Thiền sư Minh Không chữa bệnh cho vị vua nào?', options: ['Lý Thần Tông', 'Trần Thái Tông', 'Lê Lợi'], answer: 0 } } },
 
+  { id: 'tam-chuc', name: 'Chùa Tam Chúc', place: 'Ba Sao · Kim Bảng · Hà Nam', region: 'bac', lat: 20.650, lon: 105.898,
+    couplet: ['三祝寺', '法主寶殿'], theme: { pillar: '#8a2a14', glow: '#ffd36b', floor: '#6a4a2a' },
+    buddhaSet: 'hoanh', chant: 'niemADiDa', tone: { root: 58.27, scale: [233.08, 261.63, 349.23, 392, 466.16] }, model: 'tamchuc',
+    intro: 'Ngôi chùa lớn bên hồ Tam Chúc — "tiền Lục Nhạc, hậu Thất Tinh": trước mặt là hồ với sáu hòn đảo đá, sau lưng là bảy ngọn núi.',
+    facts: ['Một trong những ngôi chùa lớn nhất Việt Nam', 'Hồ Tam Chúc rộng khoảng 600 ha với sáu đảo đá', 'Vườn Cột Kinh có 32 cột đá, mỗi cột cao 12 mét', 'Chùa Ngọc bằng đá granit đỏ trên đỉnh núi Thất Tinh', 'Điện Tam Thế thờ ba vị Phật quá khứ – hiện tại – vị lai'],
+    legend: { title: 'Tiền Lục Nhạc, hậu Thất Tinh',
+      scenes: [
+        'Vùng Ba Sao (Hà Nam) có hồ nước mênh mông, giữa hồ nổi lên sáu hòn đảo đá, dân gian gọi là "Lục Nhạc" — sáu quả chuông trời.',
+        'Sau lưng hồ là bảy ngọn núi, tương truyền xưa trên mỗi đỉnh có một ngôi sao sáng, nên gọi là "Thất Tinh" — bảy ngôi sao.',
+        'Người ta đốt lửa tìm bảy ngôi sao, bốn ngôi mờ dần, chỉ còn ba ngôi; vì vậy vùng này còn tên là Ba Sao.',
+        'Thế đất "tiền Lục Nhạc, hậu Thất Tinh" được xem là nơi linh thiêng, nên chùa Tam Chúc được dựng lên bên hồ, tựa núi nhìn nước.',
+        'Ngày nay Tam Chúc là nơi hành hương lớn: qua Cổng Tam Quan, vườn Cột Kinh, lần lượt lên Điện Quan Âm, Điện Pháp Chủ, Điện Tam Thế và Chùa Ngọc trên núi.'
+      ],
+      moral: 'Non nước hữu tình nhắc người lắng lòng, hướng về điều thiện.',
+      quiz: { q: '"Tiền Lục Nhạc" ở chùa Tam Chúc chỉ điều gì?', options: ['Sáu hòn đảo đá giữa hồ', 'Sáu quả chuông đồng', 'Sáu ngọn tháp'], answer: 0 } } },
+
   { id: 'mot-cot', name: 'Chùa Một Cột', place: 'Ba Đình · Hà Nội', region: 'bac', lat: 21.036, lon: 105.834, year: 1049,
     couplet: ['蓮花臺', '延祐寺'], theme: { pillar: '#9c2a1a', glow: '#ffd98a', floor: '#8a5a2a' },
     buddhaSet: 'hoanh', chant: 'niemQuanAm', tone: { root: 82.41, scale: [329.63, 369.99, 493.88, 554.37, 659.25] }, model: 'motcot',

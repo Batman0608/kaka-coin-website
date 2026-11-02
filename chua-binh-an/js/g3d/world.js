@@ -15,6 +15,12 @@ export const LAYOUT = {
     ['Gác chuông', -14, 6, 5, 'Chuông lớn của chùa. Đứng gần và bấm "Thỉnh chuông".', 'bell'],
     ['Bảo tháp 13 tầng', 16, 1, 6, 'Bảo tháp cao nhiều tầng trên sườn núi Bái Đính.'],
     ['Núi Bái Đính', -10, -8, 7, 'Chùa cổ Bái Đính nằm trong hang núi, gắn với thiền sư Nguyễn Minh Không thời Lý.']] },
+  'tam-chuc': { yard: [{ r: [-15, -8, 15, 30], gate: ['+z', 0, 6] }], spawn: [0, 34], abbot: [8, 26], pois: [
+    ['Hồ Tam Chúc', 0, 37, 7, 'Hồ rộng khoảng 600 ha với sáu hòn đảo đá nổi — "tiền Lục Nhạc", sau lưng là bảy ngọn núi "hậu Thất Tinh".'],
+    ['Vườn Cột Kinh', 0, 18, 5, 'Vườn có 32 cột kinh bằng đá, mỗi cột cao 12 mét, khắc kinh Phật — dẫn lối lên các điện.'],
+    ['Điện Tam Thế', 0, 1, 7, 'Điện lớn nhất, thờ Tam Thế Phật: quá khứ, hiện tại và vị lai.'],
+    ['Chùa Ngọc', 0, -24, 8, 'Chùa Ngọc bằng đá granit đỏ trên sườn núi Thất Tinh.'],
+    ['Tượng Di Lặc', 28, 12, 7, 'Tượng Phật Di Lặc bằng đồng trên đồi, hướng mặt ra hồ Tam Chúc.']] },
   'mot-cot': { yard: [{ r: [-14, -33, 14, 13], gate: ['+z', 0, 5] }],  spawn: [0, 22], abbot: [4, 10], extraHall: [0, -22, 0], pois: [
     ['Đài sen trên một cột đá', 0, 2, 6, 'Đài vuông bằng gỗ trên một cột đá giữa hồ, như đóa sen vươn lên mặt nước. Leo bậc đá để lên đài.'],
     ['Hồ sen vuông (Linh Chiểu)', 9, 4, 4, 'Hồ vuông bao quanh cột đá, mùa hè sen nở kín mặt nước.'],
@@ -191,7 +197,7 @@ function brickTex() {
   return _brick;
 }
 /* kiểu cổng theo vùng miền & kiến trúc từng chùa */
-const GATE_STYLE = { 'binh-an': 'bac', 'bai-dinh': 'baidinh', 'mot-cot': 'bac1', 'huong': 'son', 'yen-tu': 'son', 'thien-mu': 'hue', 'linh-ung': 'hien', 'long-son': 'nam', 'vinh-nghiem': 'bac', 'giac-lam': 'nam', 'doi': 'khmer' };
+const GATE_STYLE = { 'binh-an': 'bac', 'bai-dinh': 'baidinh', 'tam-chuc': 'hue', 'mot-cot': 'bac1', 'huong': 'son', 'yen-tu': 'son', 'thien-mu': 'hue', 'linh-ung': 'hien', 'long-son': 'nam', 'vinh-nghiem': 'bac', 'giac-lam': 'nam', 'doi': 'khmer' };
 function buildYards(root, yards, temple) {
   root.updateMatrixWorld(true);
   const probe = new Collision(); probe.build(root);           // địa hình hiện có: bỏ đoạn tường đâm vào núi, nhà, nước
