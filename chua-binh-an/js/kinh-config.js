@@ -8,8 +8,9 @@
 window.CBA = window.CBA || {};
 CBA.kinh = {
   enabled: true,
-  slots: [ { h: 5, m: 0 }, { h: 19, m: 0 } ],   // 5h sáng và 19h tối (giờ VN)
-  windowMin: 60,                                 // mỗi khung kéo dài 60 phút
+  // các khung giờ tụng kinh (giờ VN): h giờ, m phút, dur = số phút kéo dài
+  slots: [ { h: 5, m: 0, dur: 120 }, { h: 11, m: 0, dur: 180 }, { h: 19, m: 30, dur: 150 } ],
+  loopPlaylist: true,   // phát lần lượt các bài, hết lại quay về đầu, suốt khung giờ
   tracks: [
     { file: 'a-di-da-1.mp3',        title: 'Tụng Kinh A Di Đà · phần 1', dur: 588 },
     { file: 'a-di-da-2.mp3',        title: 'Tụng Kinh A Di Đà · phần 2', dur: 601 },

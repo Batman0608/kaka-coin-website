@@ -26,11 +26,11 @@ const P = Object.assign({ name: '', look: null, beads: 0, merit: 0, lay: 0, roun
 let saveT = null; const save = () => { if (saveT) return; saveT = setTimeout(() => { saveT = null; store.set('profile', P); }, 800); };
 P.cushions = P.cushions || ['moc']; P.cushion = P.cushion || 'moc';
 const CUSHIONS = [
-  { id: 'moc', n: 'Đệm mộc nâu', price: 0, top: 0xa3231a, trim: 0xe0a93a, glow: null, note: 'Đệm cói nâu mộc mạc (mặc định)' },
-  { id: 'gam', n: 'Đệm gấm đỏ viền vàng', price: 80, top: 0x8e1a0e, trim: 0xffd36b, glow: null, note: 'Gấm đỏ thêu, viền chỉ vàng' },
-  { id: 'sen', n: 'Đệm sen hồng', price: 200, top: 0xce5f84, trim: 0xffe0b0, glow: 0xff9ec4, gi: 0.5, note: 'Cánh sen hồng · toả sáng hồng nhạt khi ngồi' },
-  { id: 'rong', n: 'Đệm rồng vàng', price: 450, top: 0xc9a227, trim: 0xfff2b8, glow: 0xffd36b, gi: 1.0, note: 'Thêu rồng chầu · hào quang vàng khi ngồi' },
-  { id: 'haoquang', n: 'Đệm hào quang sen vàng', price: 900, top: 0xe8c23a, trim: 0xffffff, glow: 0xffe79a, gi: 1.7, note: 'Đẹp nhất · vầng sáng rực rỡ khi ngồi' }
+  { id: 'moc', n: 'Đệm vuông nâu mộc', shape: 'vuong', price: 0, top: 0xa3231a, trim: 0xe0a93a, glow: null, note: 'Đệm vuông cói nâu mộc mạc (mặc định)' },
+  { id: 'gam', n: 'Đệm tròn gấm đỏ', shape: 'tron', price: 80, top: 0x8e1a0e, trim: 0xffd36b, glow: null, note: 'Đệm tròn gấm đỏ, viền chỉ vàng' },
+  { id: 'sen', n: 'Đệm hoa sen hồng', shape: 'sen', price: 200, top: 0xce5f84, trim: 0xffe0b0, glow: 0xff9ec4, gi: 0.5, note: 'Toà sen hồng · toả sáng hồng nhạt khi ngồi' },
+  { id: 'rong', n: 'Đệm tròn tầng rồng vàng', shape: 'tron-tang', price: 450, top: 0xc9a227, trim: 0xfff2b8, glow: 0xffd36b, gi: 1.0, note: 'Đệm tròn nhiều tầng · hào quang vàng khi ngồi' },
+  { id: 'haoquang', n: 'Toà sen vàng hào quang', shape: 'sen-vang', price: 900, top: 0xe8c23a, trim: 0xfff2c0, glow: 0xffe79a, gi: 1.7, note: 'Đẹp nhất · toà sen vàng lớn, vầng sáng rực rỡ khi ngồi' }
 ];
 const S = Object.assign({ npc: true, autoMo: true, amb: true, low: false }, store.get('settings', {}));
 const saveS = () => store.set('settings', S);
@@ -250,11 +250,25 @@ let _cuGlow = null;
 function cushionGlowTex() { if (_cuGlow) return _cuGlow; const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.4, 'rgba(255,230,150,.55)'); gr.addColorStop(1, 'rgba(255,220,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); _cuGlow = new THREE.CanvasTexture(c); _cuGlow.colorSpace = THREE.SRGBColorSpace; return _cuGlow; }
 function cushionMesh(cfg) {
   const g = new THREE.Group();
-  const matT = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.82 }), matG = new THREE.MeshStandardMaterial({ color: cfg.trim, metalness: 0.45, roughness: 0.4 });
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.8), matT); pad.position.y = 0.085; g.add(pad);
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.05, 0.86), matG)).position.y = 0.02;    // viền đáy
-  const top = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.06, 0.54), matG); top.position.y = 0.175; g.add(top);
-  const btn = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), matG); btn.position.y = 0.2; g.add(btn);
+  const matT = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.8 }), matG = new THREE.MeshStandardMaterial({ color: cfg.trim, metalness: 0.5, roughness: 0.38 });
+  const sh = cfg.shape || 'vuong';
+  const petalRing = (y, r, rows, mat) => { for (let row = 0; row < rows; row++) { const n = 8 + row * 2, rr = r - row * 0.1, yy = y + row * 0.06; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + row * 0.3; const pe = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat); pe.scale.set(0.7, 0.42, 1.5); pe.position.set(Math.cos(a) * rr, yy, Math.sin(a) * rr); pe.rotation.y = -a; pe.rotation.x = -0.5; g.add(pe); } } };
+  if (sh === 'vuong') {
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.05, 0.86), matG)).position.y = 0.02;
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.8), matT); pad.position.y = 0.09; g.add(pad);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.06, 0.54), matG); top.position.y = 0.175; g.add(top);
+  } else if (sh === 'tron' || sh === 'tron-tang') {
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.05, 24), matG)).position.y = 0.025;
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.16, 24), matT); pad.position.y = 0.11; g.add(pad);
+    if (sh === 'tron-tang') { const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.1, 24), matG); t2.position.y = 0.23; g.add(t2); const t3 = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.08, 24), matT); t3.position.y = 0.31; g.add(t3); }
+    else g.add(new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 8, 24), matG)).position.set(0, 0.19, 0), g.children[g.children.length - 1].rotation.x = Math.PI / 2;
+  } else {   // hoa sen
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.12, 24), matG)).position.y = 0.06;   // đế tròn
+    const petalMat = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.7 });
+    petalRing(0.12, 0.42, sh === 'sen-vang' ? 3 : 2, petalMat);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.28, 0.1, 24), matG); seat.position.y = 0.2; g.add(seat);   // nhụy ngồi
+    if (sh === 'sen-vang') { for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const st = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), matG); st.position.set(Math.cos(a) * 0.2, 0.26, Math.sin(a) * 0.2); g.add(st); } }
+  }
   if (cfg.glow) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cushionGlowTex(), color: cfg.glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 }));
     const sc = 1.6 + (cfg.gi || 1) * 0.9; sp.scale.set(sc, sc, 1); sp.position.y = 0.3; g.add(sp); g.userData.glow = sp;
@@ -824,21 +838,22 @@ function currentKinhWindow() {
   const vn = kinhVN(), dayNum = Math.floor(Date.UTC(vn.getFullYear(), vn.getMonth(), vn.getDate()) / 86400000);
   for (let i = 0; i < K.slots.length; i++) {
     const sl = K.slots[i], start = new Date(vn); start.setHours(sl.h, sl.m || 0, 0, 0);
-    const diff = (vn - start) / 1000;
-    if (diff >= 0 && diff < (K.windowMin || 60) * 60) {
-      const slotIndex = dayNum * K.slots.length + i, n = K.tracks.length;
-      const trackIdx = ((slotIndex % n) + n) % n, tr = K.tracks[trackIdx];
-      const dur = tr.dur || (kinhAudio && kinhAudio.__d) || 600;
-      return { id: dayNum + ':' + i, trackIdx, track: tr, posSec: diff % dur, startSec: diff };
+    const diff = (vn - start) / 1000, durMin = sl.dur || K.windowMin || 60;
+    if (diff >= 0 && diff < durMin * 60) {
+      // phát lần lượt cả danh sách bài, hết lại quay về đầu (đồng bộ theo đồng hồ)
+      const durs = K.tracks.map(t => t.dur || 600), total = durs.reduce((a, b) => a + b, 0);
+      let t = diff % total, trackIdx = 0; for (let k = 0; k < durs.length; k++) { if (t < durs[k]) { trackIdx = k; break; } t -= durs[k]; }
+      return { id: dayNum + ':' + i, trackIdx, track: K.tracks[trackIdx], posSec: t, startSec: diff };
     }
   }
   return null;
 }
+
 const kinhMuteKey = (id) => 'cba_kinh_mute_' + id;
 const kinhMuted = (id) => { try { return localStorage.getItem(kinhMuteKey(id)) === '1'; } catch (e) { return false; } };
 function playKinh(win) {
   const path = 'audio/kinh/' + win.track.file;
-  if (!kinhAudio) { kinhAudio = new Audio(); window.__kinhA = kinhAudio; kinhAudio.loop = true; kinhAudio.preload = 'auto'; kinhAudio.addEventListener('loadedmetadata', () => { kinhAudio.__d = kinhAudio.duration; }); }
+  if (!kinhAudio) { kinhAudio = new Audio(); window.__kinhA = kinhAudio; kinhAudio.loop = false; kinhAudio.preload = 'auto'; kinhAudio.addEventListener('loadedmetadata', () => { kinhAudio.__d = kinhAudio.duration; }); }
   if (kinhAudio.__src !== path) { kinhAudio.__src = path; kinhAudio.src = path; kinhAudio.__trackIdx = win.trackIdx; try { kinhAudio.currentTime = win.posSec; } catch (e) {} }
   else { const want = win.posSec; if (Math.abs(kinhAudio.currentTime - want) > 8) { try { kinhAudio.currentTime = want; } catch (e) {} } }   // đồng bộ theo đồng hồ cho mọi người nghe gần cùng đoạn
   kinhAudio.volume = 1;
@@ -1515,7 +1530,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; } };   // hỗ trợ kiểm thử
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
