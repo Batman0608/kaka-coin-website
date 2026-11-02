@@ -204,7 +204,7 @@ jbase.addEventListener('mousedown', joyStart); addEventListener('mousemove', (e)
 // kéo để xoay camera, cuộn / chụm để phóng to
 const view = renderer.domElement; let drag = null, pinch = null;
 view.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') return; drag = { x: e.clientX, y: e.clientY }; view.setPointerCapture(e.pointerId); });
-view.addEventListener('pointermove', (e) => { if (!drag) return; cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(0.05, Math.min(1.25, cam.pitch + (e.clientY - drag.y) * 0.004)); drag = { x: e.clientX, y: e.clientY }; });
+view.addEventListener('pointermove', (e) => { if (!drag) return; cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (e.clientY - drag.y) * 0.004)); drag = { x: e.clientX, y: e.clientY }; });
 view.addEventListener('pointerup', () => { drag = null; });
 view.addEventListener('wheel', (e) => { cam.dist = Math.max(2.5, Math.min(16, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
 view.addEventListener('touchstart', (e) => {
@@ -215,7 +215,7 @@ view.addEventListener('touchstart', (e) => {
 view.addEventListener('touchmove', (e) => {
   if (pinch && e.touches.length >= 2) { const [a, b] = e.touches; cam.dist = Math.max(2.5, Math.min(16, pinch.dist * pinch.d / Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))); return; }
   if (!drag) return; const t = [...e.touches].find(x => x.identifier === drag.id); if (!t) return;
-  cam.yaw -= (t.clientX - drag.x) * 0.008; cam.pitch = Math.max(0.05, Math.min(1.25, cam.pitch + (t.clientY - drag.y) * 0.005)); drag.x = t.clientX; drag.y = t.clientY;
+  cam.yaw -= (t.clientX - drag.x) * 0.008; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (t.clientY - drag.y) * 0.005)); drag.x = t.clientX; drag.y = t.clientY;
 }, { passive: true });
 view.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; if (drag && ![...e.touches].some(t => t.identifier === drag.id)) drag = null; });
 
@@ -1433,7 +1433,7 @@ function loop() {
     camInHall = !!hallIn;
     const inHall = !!hallIn;
     // trong điện: camera ở tầm mắt, dưới trần gỗ, nhìn thấy Tam Thế Phật, trần, đèn treo và người chơi
-    const dist = malaOn ? 3.2 : inHall ? Math.max(4.2, Math.min(cam.dist + 1.2, 8)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.42, Math.max(cam.pitch, 0.16)) : cam.pitch;
+    const dist = malaOn ? 3.2 : inHall ? Math.max(4.2, Math.min(cam.dist + 1.2, 8)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
     let cp = new THREE.Vector3(tgt.x + Math.sin(cam.yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(cam.yaw) * Math.cos(pitch) * dist);
     const hit = rayBoxes(tgt, cp); if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
     if (inHall && hallIn.ceilY) cp.y = Math.min(cp.y, hallIn.ceilY - 0.75);
