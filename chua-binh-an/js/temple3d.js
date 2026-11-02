@@ -281,6 +281,23 @@ function altarFigures(g, w, d, base, set, h = 4.6) {
   const lamp = new THREE.PointLight(0xffc070, 1.6, w * 1.6, 1.5); lamp.position.set(0, base + 2.4, z + 1.5); g.add(lamp);
   return z;
 }
+/* hành lang La Hán: dãy cột gỗ có mái, nền đá, tượng La Hán ngồi (trang trí, không chắn lối giữa) */
+function laHanCorridor(g, x, z0, z1) {
+  const n = Math.round((z1 - z0) / 2.0), red = mat('corrRed', 0x8a2a16), wood = mat('corrWood', 0x5a3418), stone = STONE(), roofM = mat('corrRoof', 0x4a2a18);
+  const grp = new THREE.Group(); grp.position.set(x, 0, 0);
+  grp.add(box(2.2, 0.3, z1 - z0 + 1, stone, 0, 0.15, (z0 + z1) / 2));      // nền đá
+  grp.add(box(0.5, 1.0, z1 - z0 + 1, red, x > 0 ? 0.85 : -0.85, 0.5, (z0 + z1) / 2));   // tường lửng phía ngoài
+  for (let i = 0; i <= n; i++) { const z = z0 + i * (z1 - z0) / n;
+    grp.add(cyl(0.14, 0.16, 2.6, 8, wood, 0, 1.6, z));                     // cột
+    if (i < n) { const bz = z + (z1 - z0) / n / 2; const fig = seatedBuddha(0.5, mat('arhat', 0x8f8a7c)); fig.position.set(x > 0 ? 0.5 : -0.5, 0.3, bz); grp.add(fig); }   // tượng La Hán đá
+  }
+  const L = z1 - z0 + 1.2, cz = (z0 + z1) / 2;
+  // mái dốc hai phía (hai tấm nghiêng) + nóc
+  [-1, 1].forEach(sx => { const slab = box(1.5, 0.12, L, roofM, sx * 0.62, 3.05, cz); slab.rotation.z = -sx * 0.5; grp.add(slab); });
+  grp.add(box(0.3, 0.16, L, mat('corrRidge', 0x3a2212), 0, 3.42, cz));   // nóc
+  grp.traverse(o => { o.userData.noCollide = true; });   // trang trí, không chặn đường
+  g.add(grp);
+}
 function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null, base = 0.8 } = {}) {
   const g = new THREE.Group();
   if (INTERIOR && w >= 9) { w = Math.max(w * 1.45, 15); d = Math.max(d * 1.8, 13); h = Math.max(h, 4.6); }   // chánh điện rộng, cao để nhìn bao quát
@@ -553,11 +570,14 @@ const SCENES = {
     const back = hz - hd / 2 - 1.4, base = box(26, 3, 5 - back, STONE(), 0, 1.5, (5 + back) / 2); g.add(base);
     h.position.set(0, 3, hz); g.add(h);
     const st = stairs(6, 10, 0.3, 0.6); st.position.set(0, 0, 10.7); g.add(st);   // bậc trên cùng (3,0 m) chạm đúng mép nền
-    const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-14, 0, 6); g.add(bell);
-    const tw = tower({ tiers: 13, sides: 4, r: 2.4, th: 1.5, taper: 0.5 }); tw.position.set(16, 0, -6); g.add(tw);
-    courtyard(g, 30, 10, 12); g.add(burner(0, 14));
-    [-20, -10, 10, 22].forEach((x, i) => g.add(tree(5.5, LEAF(), x, 14 + (i % 2) * 3)));
-    return { cam: [26, 16, 34], target: [0, 6, -2] };
+    const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-15, 0, 7); g.add(bell);
+    // Bảo Tháp 13 tầng cao lớn bên phải
+    const tw = tower({ tiers: 13, sides: 4, r: 3, th: 1.9, taper: 0.52, wall: mat('btwall', 0xcdbda0), roofColor: 0x5a3a24 }); tw.position.set(20, 0, -4); tw.scale.setScalar(1.25); g.add(tw);
+    // Hành lang La Hán hai bên lối lên (dãy cột có mái, tượng La Hán ngồi)
+    laHanCorridor(g, -13, 8, 26); laHanCorridor(g, 13, 8, 26);
+    courtyard(g, 22, 12, 14); g.add(burner(0, 16));
+    [-24, 24, -22, 24].forEach((x, i) => g.add(tree(5.5, LEAF(), x, 16 + (i % 2) * 4)));
+    return { cam: [28, 17, 36], target: [0, 6, -2] };
   },
   tamchuc(g) {
     ground(g, 240, 0x5a8248);
