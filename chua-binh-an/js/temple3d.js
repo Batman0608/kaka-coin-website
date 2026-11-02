@@ -117,12 +117,12 @@ function goldBoard(g, x, y, z, ry, title) {
 }
 /* ---------------- tranh vách sau tượng: mỗi vị Phật một bức riêng ---------------- */
 const MURAL_OF = { thichca: 'bodhi', adida: 'pureland', duocsu: 'lapis', dilac: 'maitreya' };
-function backdrop(g, keys, w, d, base, h) {
+function backdrop(g, keys, w, d, base, h, panelMode) {
   const bw = Math.min(w * 0.4, 5.5), bh = bw * 0.17;   // hoành phi
   const zb = -d / 2 + 0.31, y0 = base + 0.95, top = base + h - 0.3 - bh - 0.12, ph = Math.max(1.4, top - y0);
   const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
   const pw = keys.length === 1 ? Math.min(w * 0.42, 6) : w * 0.25 - 0.18;
-  keys.forEach(([k, xi]) => {
+  if (!panelMode) keys.forEach(([k, xi]) => {
     const x = xi * w * 0.25, kind = MURAL_OF[k] || 'bodhi';
     nc(box(pw + 0.16, ph + 0.16, 0.04, GOLD(), x, y0 + ph / 2, zb - 0.01));                 // khung vàng
     const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: muralTex(kind, 512, Math.round(512 * ph / pw)), toneMapped: false }));
@@ -197,14 +197,34 @@ function muralTex(kind, W, H) {
   [[b * 2.6, b * 2.6], [W - b * 2.6, b * 2.6], [b * 2.6, H - b * 2.6], [W - b * 2.6, H - b * 2.6]].forEach(([x, y]) => { k.fillStyle = gold(1); for (let i = 0; i < 8; i++) { k.save(); k.translate(x, y); k.rotate(i * Math.PI / 4); k.beginPath(); k.ellipse(0, b * 0.5, b * 0.18, b * 0.45, 0, 0, 7); k.fill(); k.restore(); } });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
+/* tranh Tam Thế lớn (ảnh minh họa 2D đẹp) treo trên bàn thờ — thay cho tượng cắt rời */
+const BUDDHA_IMG = { three: ['assets/buddha/tamthe.webp', 1280 / 853], one: ['assets/buddha/phat1.webp', 460 / 900], phapchu: ['assets/buddha/phapchu.webp', 430 / 900] };
+function altarPanel(g, w, d, base, h, set) {
+  const z = -d / 2 + 0.9, single = set === 'nam';
+  const [src, asp] = single ? BUDDHA_IMG.one : BUDDHA_IMG.three;
+  const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
+  let ph = Math.min(h - 0.8, single ? 2.9 : 3.3), pw = ph * asp;
+  if (pw > w - 1.4) { pw = w - 1.4; ph = pw / asp; }
+  const cy = base + 0.98 + ph / 2, pz = z - 0.32;
+  // hào quang vàng sau tranh
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(pw * 1.25, ph * 1.3), addMat(glowTex('#ffd98a'), 0.7)); glow.position.set(0, cy, pz - 0.06); nc(glow);
+  // khung: viền vàng chạm + viền trong đỏ son
+  nc(box(pw + 0.34, ph + 0.34, 0.1, GOLD(), 0, cy, pz - 0.03));
+  nc(box(pw + 0.2, ph + 0.2, 0.12, mat('frIn', 0x5a0a06), 0, cy, pz - 0.02));
+  const tex = texLoader.load(src); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); img.position.set(0, cy, pz + 0.05); nc(img);
+  // đèn hắt làm nổi bức tranh
+  const pl = new THREE.PointLight(0xffe0a0, 1.2, w * 1.2, 1.4); pl.position.set(0, cy, pz + 1.6); g.add(pl);
+  ANIM.push((t) => { glow.material.opacity = 0.55 + 0.12 * Math.sin(t * 1.1); glow.scale.setScalar(0.98 + 0.03 * Math.sin(t * 1.1)); });
+}
 function altarFigures(g, w, d, base, set, h = 4.6) {
   const z = -d / 2 + 0.9;
   g.add(box(w * 0.7, 0.9, 1.1, mat('altar', 0x7a1a0e), 0, base + 0.45, z));
   g.add(box(w * 0.72, 0.08, 1.2, GOLD(), 0, base + 0.92, z));
   if (INTERIOR && INTERIOR.photos !== false) {   // ảnh tượng thật thay mô hình
     const keys = set === 'nam' ? [['thichca', 0, 2.1]] : set === 'thu' ? [['adida', -1, 1.6], ['thichca', 0, 2.0], ['dilac', 1, 1.6]] : [['duocsu', -1, 1.6], ['thichca', 0, 2.0], ['adida', 1, 1.6]];
-    keys.forEach(([k, xi, hh]) => photoBuddha(g, k, xi * w * 0.25, base + 0.96, z - 0.05, Math.min(hh, (3.2 - 0.6))));
-    backdrop(g, keys, w, d, base, h);
+    altarPanel(g, w, d, base, h, set);
+    backdrop(g, keys, w, d, base, h, true);
     altarFx(g, -w * 0.35, w * 0.35, base + 0.9, z + 0.4);
     goldBoard(g, -w / 2 + 0.35, base + 1.9, z + 1.6, Math.PI / 2, 'Bảng Vàng');
     goldBoard(g, w / 2 - 0.35, base + 1.9, z + 1.6, -Math.PI / 2, 'Bia Công Đức');
