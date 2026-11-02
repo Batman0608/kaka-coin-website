@@ -2,7 +2,7 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, STONE } from '../temple3d.js';
+import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, STONE, roof } from '../temple3d.js';
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
@@ -249,13 +249,15 @@ function buildYards(root, yards, temple) {
 function gateBuild(style, gw, temple, M) {
   const G = new THREE.Group(), name = temple.name.toUpperCase();
   const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; }); return o; };
-  const roofTier = (w, dep, y, col, curl = 0.55, h = 0.55) => {   // mái ngói cong hai đầu
+  const gold = mat('mbgold', 0xe0a93a);
+  const roofTier = (w, dep, y, m, curl = 0.55, hh = 0.55) => {   // mái dốc bốn mái + đầu đao (giống roof() của chùa, không lỗi)
     const r = new THREE.Group(); r.position.y = y;
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.75, h, 4, 1), col); body.rotation.y = Math.PI / 4; body.scale.set(w / 1.06, 1, dep / 1.06); body.position.y = h / 2; r.add(body);
-    r.add(box(w + 0.1, 0.12, dep + 0.1, col, 0, 0.02, 0));
-    [-1, 1].forEach(sx => { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.08, curl, 6), mat('mbgold', 0xe0a93a)); horn.position.set(sx * (w / 2 + 0.05), 0.2, dep / 2 - 0.05); horn.rotation.z = -sx * 0.95; r.add(horn); const h2 = horn.clone(); h2.position.z = -dep / 2 + 0.05; r.add(h2); });
-    const ridge = box(w * 0.55, 0.12, 0.16, col, 0, h + 0.02, 0); r.add(ridge);
-    return nc(r);
+    const h = Math.max(0.6, hh * 1.5);
+    const geo = new THREE.CylinderGeometry(0.22, 0.7071, 1, 4, 1); geo.rotateY(Math.PI / 4);
+    const body = new THREE.Mesh(geo, m); body.scale.set(w, h, dep); body.position.y = h / 2; r.add(body);
+    r.add(box(w * 0.34, h * 0.12, dep * 0.12, gold, 0, h * 1.0, 0));   // nóc
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz]) => { const c = new THREE.Mesh(new THREE.ConeGeometry(Math.min(w, dep) * 0.045, h * 0.7, 6), gold); c.position.set(sx * w * 0.5, h * 0.16, sz * dep * 0.5); c.rotation.z = -sx * 0.9; c.rotation.x = sz * 0.9; r.add(c); });   // đầu đao cong
+    nc(r); return r;
   };
   const pillar = (x, h, col, w = 0.6) => { const p = new THREE.Group(); p.add(box(w + 0.15, 0.4, w + 0.15, M.brickM, x, 0.2, 0)); p.add(box(w, h, w, col, x, 0.4 + h / 2, 0)); return p; };
   const sign = (txt, W, H, y, z = 0.3) => { const s = plaque(txt, '', W, H); s.position.set(0, y, z); return nc(s); };
