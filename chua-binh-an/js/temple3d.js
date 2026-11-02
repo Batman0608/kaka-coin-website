@@ -128,10 +128,7 @@ function backdrop(g, keys, w, d, base, h, panelMode) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: muralTex(kind, 512, Math.round(512 * ph / pw)), toneMapped: false }));
     m.position.set(x, y0 + ph / 2, zb + 0.02); nc(m);
   });
-  // hoành phi trên cao & đôi câu đối hai bên
-  const hp = boardTex('ĐẠI HÙNG BẢO ĐIỆN', false, 1024, 174);
-  const hm = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshBasicMaterial({ map: hp, toneMapped: false }));
-  hm.position.set(0, y0 + ph + 0.12 + bh / 2, zb + 0.03); nc(hm);
+  // câu đối hai bên (hoành phi do altarPanel vẽ để không chồng lên tượng)
   const cw = 0.5, chh = Math.min(ph, 2.8);
   [['PHẬT QUANG PHỔ CHIẾU', -1], ['PHÁP LUÂN THƯỜNG CHUYỂN', 1]].forEach(([t, sx]) => {
     const x = sx * (keys.length === 1 ? pw / 2 + 0.6 : w * 0.25 * 1.5 + 0.05); if (Math.abs(x) > w / 2 - 0.5) return;
@@ -199,7 +196,15 @@ function muralTex(kind, W, H) {
 }
 /* khám thờ 3D: vách chạm vàng phủ tường sau + khung khám lõm + bửu cái + cột rồng,
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
-const BUDDHA_IMG = { three: ['assets/buddha/tamthe.webp', 1280 / 853], one: ['assets/buddha/phat1.webp', 460 / 900] };
+const BUDDHA_IMG = {
+  tamthe:  ['assets/buddha/tamthe.webp', 1280 / 853, 'three'],
+  thichca: ['assets/buddha/thichca.webp', 725 / 860, 'one'],
+  adida:   ['assets/buddha/adida.webp', 576 / 700, 'one'],
+  duocsu:  ['assets/buddha/duocsu.webp', 442 / 700, 'one'],
+  dilac:   ['assets/buddha/dilac.webp', 617 / 700, 'one'],
+  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one']
+};
+const ALTAR_LABEL = { tamthe: 'ĐẠI HÙNG BẢO ĐIỆN', thichca: 'ĐẠI HÙNG BẢO ĐIỆN', adida: 'CỰC LẠC BẢO ĐIỆN', duocsu: 'DƯỢC SƯ BẢO ĐIỆN', dilac: 'ĐẠI HÙNG BẢO ĐIỆN', quanam: 'QUAN ÂM BẢO ĐIỆN' };
 let _carved = null;
 function carvedWallTex() {
   if (_carved) return _carved;
@@ -225,16 +230,18 @@ function frameRect(g, cx, cy, z, w, h, t, depth, m) {   // khung chữ nhật n�
   g.add(box(t, h + t, depth, m, cx - w / 2, cy, z)); g.add(box(t, h + t, depth, m, cx + w / 2, cy, z));
 }
 function altarPanel(g, w, d, base, h, set) {
-  const z = -d / 2 + 0.9, zb = -d / 2 + 0.2, single = set === 'nam';
-  const [src, asp] = single ? BUDDHA_IMG.one : BUDDHA_IMG.three;
+  const z = -d / 2 + 0.9, zb = -d / 2 + 0.2;
+  const key = (INTERIOR && INTERIOR.altar) || (set === 'nam' ? 'thichca' : 'tamthe');
+  const [src, asp, kind] = BUDDHA_IMG[key] || BUDDHA_IMG.thichca; const single = kind === 'one';
   const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
   const gold = mat('shrGold', 0xcf9a34, { metalness: 0.65, roughness: 0.35 }), red = mat('shrRed', 0x6e1008), dark = mat('shrDark', 0x1c0a04);
   // 1) vách chạm vàng phủ kín tường sau
   const tex = carvedWallTex().clone(); tex.needsUpdate = true; tex.repeat.set(Math.max(2, w / 3), Math.max(2, h / 2.4));
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.5, h - 0.2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.3 }));
   wall.position.set(0, base + (h - 0.2) / 2, zb + 0.02); nc(wall);
-  // kích thước bức Phật
-  let ph = Math.min(h - 1.0, single ? 2.9 : 3.1), pw = ph * asp; if (pw > w - 2.0) { pw = w - 2.0; ph = pw / asp; }
+  // kích thước bức Phật — chừa chỗ hoành phi phía trên, không chồng lên tượng
+  const boardH = Math.min(0.5, h * 0.1);
+  let ph = Math.min(h - 1.78 - boardH, single ? 3.0 : 3.2), pw = ph * asp; if (pw > w - 2.2) { pw = w - 2.2; ph = pw / asp; }
   const cy = base + 1.0 + ph / 2, zf = zb + 0.06;
   // 2) hốc khám lõm (nền tối) + hào quang
   nc(box(pw + 0.5, ph + 0.5, 0.1, dark, 0, cy, zf - 0.02));
@@ -245,13 +252,21 @@ function altarPanel(g, w, d, base, h, set) {
   // 4) khung nổi nhiều lớp (tạo chiều sâu 3D): vàng trong → đỏ ngoài, nhô dần ra
   frameRect(g, 0, cy, zf + 0.18, pw + 0.3, ph + 0.3, 0.14, 0.28, gold);
   frameRect(g, 0, cy, zf + 0.42, pw + 0.62, ph + 0.62, 0.22, 0.4, red);
-  // 5) hai cột rồng vàng hai bên khám
-  [-1, 1].forEach(sx => { const x = sx * (pw / 2 + 0.55); nc(cyl(0.16, 0.18, ph + 0.9, 12, gold, x, cy, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy + ph / 2 + 0.5, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy - ph / 2 - 0.4, zf + 0.5)); });
-  // 6) bửu cái (tán che) phía trên khám
-  const topY = cy + ph / 2 + 0.55;
-  nc(box(pw + 1.3, 0.22, 0.7, red, 0, topY, zf + 0.5));
-  const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.02, pw * 0.62, 0.45, 4), gold); canopy.rotation.y = Math.PI / 4; canopy.position.set(0, topY + 0.34, zf + 0.45); nc(canopy);
-  for (let i = 0; i < 7; i++) { const ts = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), gold); ts.position.set(-pw * 0.55 + i * (pw * 1.1 / 6), topY - 0.14, zf + 0.72); nc(ts); }   // tua vàng rủ
+  let topY = cy + ph / 2 + 0.25;
+  if (single) {
+    // 5) hai cột rồng vàng hai bên khám (tượng đơn)
+    [-1, 1].forEach(sx => { const x = sx * (pw / 2 + 0.55); nc(cyl(0.16, 0.18, ph + 0.9, 12, gold, x, cy, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy + ph / 2 + 0.5, zf + 0.5)); nc(cyl(0.22, 0.22, 0.18, 12, red, x, cy - ph / 2 - 0.4, zf + 0.5)); });
+    // 6) bửu cái (tán che) phía trên khám
+    topY = cy + ph / 2 + 0.34;
+    nc(box(pw + 1.1, 0.18, 0.6, red, 0, topY, zf + 0.5));
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.02, pw * 0.56, 0.3, 4), gold); canopy.rotation.y = Math.PI / 4; canopy.position.set(0, topY + 0.2, zf + 0.42); nc(canopy);
+    for (let i = 0; i < 7; i++) { const ts = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), gold); ts.position.set(-pw * 0.5 + i * (pw / 6), topY - 0.11, zf + 0.72); nc(ts); }
+    topY += 0.38;
+  }
+  // hoành phi tên điện — đặt hẳn phía trên bửu cái, nhô ra trước để không bị che
+  const label = (INTERIOR && ALTAR_LABEL[INTERIOR.altar]) || 'ĐẠI HÙNG BẢO ĐIỆN', bw2 = Math.min(w * 0.46, 6.2);
+  const bhh = bw2 * 174 / 1024, boardY = Math.min(base + h - 0.05 - bhh / 2, topY + 0.28 + bhh / 2);
+  const hm = new THREE.Mesh(new THREE.PlaneGeometry(bw2, bhh), new THREE.MeshBasicMaterial({ map: boardTex(label, false, 1024, 174), toneMapped: false })); hm.position.set(0, boardY, zf + 0.55); nc(hm);
   // 7) đài sen 3D + bàn thờ thấp trước bức Phật
   const lb = lotusBase(0.9, gold); lb.position.set(0, base + 0.2, z - 0.1); nc(lb);
   // 8) đèn hắt làm nổi khám
@@ -300,7 +315,7 @@ function laHanCorridor(g, x, z0, z1) {
 }
 function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null, base = 0.8 } = {}) {
   const g = new THREE.Group();
-  if (INTERIOR && w >= 9) { w = Math.max(w * 1.45, 15); d = Math.max(d * 1.8, 13); h = Math.max(h, 4.6); }   // chánh điện rộng, cao để nhìn bao quát
+  if (INTERIOR && w >= 9) { w = Math.max(w * 1.45, 15); d = Math.max(d * 1.8, 13); h = Math.max(h, 5.2); }   // chánh điện rộng, cao để nhìn bao quát
   g.add(box(w + 1.6, base, d + 1.6, STONE(), 0, base / 2, 0));
   if (INTERIOR && w >= 9) {   // chánh điện vào được: tường sau + 2 bên, mặt trước mở
     const wm = wall || WALL();
@@ -789,9 +804,9 @@ export function plaque(title, sub = '', W = 5, H = 1) {
   return g;
 }
 export function buildLandmark(g, model, opts = {}) {
-  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh' } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
+  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh', altar: opts.altar } : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; }
 }
-export function interiorHall(opts, set) { INTERIOR = { set }; try { return hall(opts); } finally { INTERIOR = null; } }
+export function interiorHall(opts, set, altar) { INTERIOR = { set, altar }; try { return hall(opts); } finally { INTERIOR = null; } }
 export { THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
   RED, DRED, WALL, YWALL, ROOF, STONE, GOLD, WHITE, BRONZE, WOOD, LEAF, LEAF2, GRASS, DARK, WATER };

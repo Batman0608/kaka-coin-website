@@ -114,10 +114,12 @@ export class Collision {
 export function buildWorld(scene, temple) {
   const root = new THREE.Group(); scene.add(root);
   const set = temple.id === 'doi' ? 'nam' : temple.buddhaSet || 'hoanh';
-  const conf = buildLandmark(root, temple.model || 'hall', { interior: true, set });
+  const ALTAR_OF = { 'bai-dinh': 'tamthe', 'tam-chuc': 'tamthe', 'binh-an': 'thichca', 'thien-mu': 'thichca', 'yen-tu': 'thichca', 'long-son': 'thichca', 'doi': 'thichca', 'vinh-nghiem': 'adida', 'giac-lam': 'adida', 'mot-cot': 'quanam', 'huong': 'quanam', 'linh-ung': 'quanam' };
+  const altar = ALTAR_OF[temple.id] || 'thichca';
+  const conf = buildLandmark(root, temple.model || 'hall', { interior: true, set, altar });
   const L = LAYOUT[temple.id] || LAYOUT['binh-an'];
   if (L.extraHall) {
-    const h = interiorHall({ w: 10, d: 7, h: 3.4, tiers: 2 }, set); h.position.set(L.extraHall[0], 0, L.extraHall[1]); h.rotation.y = L.extraHall[2] || 0; root.add(h);
+    const h = interiorHall({ w: 10, d: 7, h: 3.4, tiers: 2 }, set, altar); h.position.set(L.extraHall[0], 0, L.extraHall[1]); h.rotation.y = L.extraHall[2] || 0; root.add(h);
   }
   if (L.stream) { const w = water(4, 30, L.stream[0], L.stream[1]); root.add(w); }
   // nền đất lớn
