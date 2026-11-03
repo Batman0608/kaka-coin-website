@@ -14,7 +14,18 @@ function auraTex() {
   _auraTex = new THREE.CanvasTexture(c); _auraTex.colorSpace = THREE.SRGBColorSpace; return _auraTex;
 }
 
-const ROBES = { lam: 0x6f86b8, nau: 0x9a6a42, xam: 0x8c8f9a, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b };
+let _kasayaTex = null;
+function kasayaTex() {   // cà sa: các ô ruộng (điền y) nâu đỏ, đường chỉ mảnh
+  if (_kasayaTex) return _kasayaTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#b4561f'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? 'rgba(200,104,40,.55)' : 'rgba(150,66,22,.35)'; g.fillRect(i * 25.6 + 2, j * 32 + 2, 21.6, 28); }
+  g.strokeStyle = 'rgba(122,48,16,.9)'; g.lineWidth = 2; for (let x = 0; x <= 128; x += 25.6) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 128); g.stroke(); }
+  for (let y = 0; y <= 128; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+  _kasayaTex = new THREE.CanvasTexture(c); _kasayaTex.colorSpace = THREE.SRGBColorSpace; _kasayaTex.wrapS = _kasayaTex.wrapT = THREE.RepeatWrapping; _kasayaTex.repeat.set(3, 1); return _kasayaTex;
+}
+
+const ROBES = { lam: 0x6f86b8, nau: 0x9a6a42, xam: 0x8c8f9a, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
 const SKINS = [0xf2c9a2, 0xe6b48a, 0xf6d6b4, 0xd29e74];
 const HAIRC = [0x1f1612, 0x2c1d14, 0x3a2618];
 const grad = (() => { const d = new Uint8Array([90, 170, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
@@ -35,16 +46,16 @@ const POSES = {
 };
 
 export class Avatar {
-  constructor({ look = {}, seed = 1, monk = false } = {}) {
+  constructor({ look = {}, seed = 1, monk = false, kasaya = false } = {}) {
     this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
-    this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk;
+    this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk || kasaya; this.kasaya = kasaya;
     this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >>> 2) % 3];
     this.build();
   }
   build() {
     const r = this.root; while (r.children.length) r.remove(r.children[0]);
-    const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.monk ? 'tang' : L.robe] || ROBES.lam;
+    const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.kasaya ? 'hau' : this.monk ? 'tang' : L.robe] || ROBES.lam;
     const robe = T(robeC), robeD = T(new THREE.Color(robeC).multiplyScalar(0.82)), gold = T(0xe0a93a), hairM = T(this.hairC), dark = T(0x2a1a14), bead = T(0xb7774a);
     this.hips = pivot(0, 0.5, 0); r.add(this.hips);
     // vạt áo dưới (dáng chuông)
@@ -99,7 +110,16 @@ export class Avatar {
     }
     if (hair === 'dai') put(head, part(new THREE.CapsuleGeometry(0.15, nu ? 0.3 : 0.12, 6, 12), hairM, 0, hy - (nu ? 0.28 : 0.15), -hr * 0.72)).scale.set(1.15, 1, 0.45);
     if (hair === 'ngan') head.add(part(new THREE.SphereGeometry(hr * 1.06, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.42), hairM, 0, hy + 0.01, -0.01));
-    if (this.monk) put(this.torso, part(new THREE.TorusGeometry(0.2, 0.035, 6, 24), T(0xa83a14), 0, 0.2, 0)).rotation.set(Math.PI / 2 - 0.2, -0.6, 0);
+    if (this.monk && !this.kasaya) put(this.torso, part(new THREE.TorusGeometry(0.2, 0.035, 6, 24), T(0xa83a14), 0, 0.2, 0)).rotation.set(Math.PI / 2 - 0.2, -0.6, 0);
+    if (this.kasaya) {   // áo cà sa khoác ngoài áo hậu vàng: phủ thân & vạt dưới, chừa vai phải, viền vàng chéo từ vai trái
+      const km = T(0xffffff, { map: kasayaTex(), side: THREE.DoubleSide });
+      const body = part(new THREE.LatheGeometry([[0.285, -0.01], [0.262, 0.16], [0.232, 0.3], [0.18, 0.39]].map(([r, y]) => new THREE.Vector2(r, y)), 28, Math.PI * 0.62, Math.PI * 1.62), km);
+      this.torso.add(body);
+      const skirtK = part(new THREE.LatheGeometry([[0.385, -0.295], [0.365, -0.22], [0.315, -0.08], [0.278, 0.025]].map(([r, y]) => new THREE.Vector2(r, y)), 28), km);
+      this.skirt.add(skirtK);   // co giãn cùng vạt áo khi ngồi
+      put(this.torso, part(new THREE.TorusGeometry(0.235, 0.022, 6, 30), T(0xf0c25a), 0, 0.2, 0)).rotation.set(Math.PI / 2 - 0.35, 0.75, 0);   // viền cà sa chéo ngực
+      put(this.torso, part(new THREE.SphereGeometry(0.035, 8, 6), T(0xf0c25a), -0.17, 0.33, 0.12));   // khoen cà sa trên vai trái
+    }
     // vầng hào quang (khi được Phật Quang chiếu)
     this.halo = part(new THREE.RingGeometry(0.3, 0.36, 40), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, toneMapped: false }), 0, hy, -0.12); this.halo.visible = false; head.add(this.halo);
     this.apply();

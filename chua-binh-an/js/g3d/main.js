@@ -43,6 +43,17 @@ function addBeads(n, why) {
   const lv0 = levelOf(P.beads); P.beads += n; save(); hud();
   if (levelOf(P.beads) > lv0) { const L = C.levels[levelOf(P.beads)]; banner('🪷 Thăng cấp', `Cấp ${levelOf(P.beads) + 1} · ${L.name}`); A.smallBell(); }
 }
+/* công đức từ tu tập miễn phí (hương, mõ, lễ vật thường, đèn nguyện) có giới hạn mỗi ngày → bảng công đức & hào quang công bằng;
+   lễ vật mua bằng hoa sen và hòm công đức không giới hạn */
+function addMerit(n, free) {
+  if (!free) { P.merit += n; return n; }
+  const d = kinhVN(), key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`, cap = (C.meritDailyCap ?? 300);
+  if (P.mfDay !== key) { P.mfDay = key; P.mfToday = 0; }
+  const g = Math.max(0, Math.min(n, cap - P.mfToday)); P.mfToday += g; P.merit += g;
+  if (g < n && addMerit.warned !== key) { addMerit.warned = key; toast(`🪷 Hôm nay đã đủ ${cap} công đức tu tập · vẫn được cộng hạt, mai tiếp tục nhé`); }
+  return g;
+}
+const meritTxt = (g) => g ? `+${g} công đức` : 'đã đủ công đức hôm nay';
 function checkIn() {
   const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 420) * 60000), key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   if (P.lastDay === key) return;
@@ -84,11 +95,12 @@ Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, n
 let W = null, temple = null, smokes = [];
 const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, busy: null, label: null };
 const cam = { yaw: 0, pitch: 0.38, dist: 6.5 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
-const npcs = []; let abbot = null;
+const npcs = []; let abbot = null, monks = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
 
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
+  hideMonks();
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -172,6 +184,7 @@ function npcThink(n, dt) {
     const hall = W.halls[0];
     if (hall && Math.random() < (n.hall ? 0.92 : 0.45)) { const free = hall.cushions.filter(c => !c.taken && !(me.seated === c)); if (free.length) { const c = free[(Math.random() * free.length) | 0]; c.taken = true; n.target = c.clone(); n.goSit = c; } }
     if (!n.target) {
+      if (n.hall && hall && monks) { n.wait = 3; return false; }   // đang tụng kinh: không đi qua lại trước quý thầy
       if (n.hall && hall) { const a = hall.altar; n.target = new THREE.Vector3(a.x + (Math.random() - 0.5) * 4, 0, a.z + 2.5 + Math.random() * 2.5); }   // bot trong điện quanh quẩn gần bàn thờ
       else { const L = W.layout; n.target = new THREE.Vector3(L.spawn[0] + (Math.random() - 0.5) * 22, 0, L.spawn[1] - Math.random() * 18); }
     }
@@ -333,7 +346,7 @@ function offerIncense(bur) {
   me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1);
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
   setTimeout(() => { me.av.bow(); }, 600); NET.act('incense');
-  setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; P.merit += 10; addBeads(10); toast('🕯️ Đã thắp nén hương · +10 công đức'); }, 2800);
+  setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; const gm = addMerit(10, true); addBeads(10); toast('🕯️ Đã thắp nén hương · ' + meritTxt(gm)); }, 2800);
 }
 let smokeBoost = 0;
 function ringBell() { if (Date.now() - (ringBell.t || 0) < 20000) return toast('Tiếng chuông còn đang ngân…'); ringBell.t = Date.now(); A.bigBell(); me.av.bow(); NET.act('bell'); addBeads(9); toast('🔔 Một hồi chuông vang xa · nguyện chúng sanh thức tỉnh'); }
@@ -470,7 +483,7 @@ async function runVoice(run) {
 function chantBeat(manual) {
   if (!ch) return;
   A.mo(manual ? 1 : 0.7); paintMo(1);
-  if (manual) { ch.taps++; P.merit += 1; addBeads(1); $('cMerit').textContent = `+${ch.taps} công đức`; }
+  if (manual) { ch.taps++; ch.got = (ch.got || 0) + addMerit(1, true); addBeads(1); $('cMerit').textContent = `+${ch.got} công đức`; }
   if (!$('optVoice').checked && ++ch.beats >= 4) nextChantLine();
 }
 function restartMo() { clearInterval(moTimer); if ($('optAuto').checked) moTimer = setInterval(() => chantBeat(false), 60000 / (+$('optTempo').value || 60)); }
@@ -632,7 +645,7 @@ function carryOffering(o) {
       const fly = () => { const k = Math.min(1, (performance.now() - t0) / 700); item.position.lerpVectors(from, slot, k); item.position.y += Math.sin(k * Math.PI) * 0.25; if (k < 1) requestAnimationFrame(fly); };
       fly();
       me.av.setPose('idle'); setTimeout(() => { me.av.bow(); A.smallBell(); if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }); }, 600);
-      P.merit += o.m; addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · +${o.m} công đức`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`); NET.act('offer', o.n.toLowerCase());
+      const gm = addMerit(o.m, !o.price); addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · ${meritTxt(gm)}`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`); NET.act('offer', o.n.toLowerCase());
     });
   };
   const inside = insideHall(h);
@@ -641,7 +654,9 @@ function carryOffering(o) {
 
 /* Đèn nguyện */
 const lanterns = [];
+let lastLantern = 0;
 function openWish() {
+  const wait = 120000 - (Date.now() - lastLantern); if (wait > 0) return toast(`🏮 Đèn nguyện trước còn đang bay · đợi ${Math.ceil(wait / 1000)} giây`);
   modal('Thả đèn nguyện', (b) => {
     const ta = el('textarea'); ta.id = 'wish'; ta.rows = 3; ta.maxLength = 80; ta.placeholder = 'VD: Nguyện cho mẹ con mau khỏe, gia đình bình an';
     const err = el('p', 'note warn'); err.hidden = true;
@@ -670,6 +685,7 @@ function lanternMesh() {
   return g;
 }
 function releaseLantern(text) {
+  lastLantern = Date.now();
   const g = lanternMesh(); g.userData.tmp = true;
   const h = W.halls[0], inHall = h && insideHall(h);
   // trong chánh điện: đèn bay lên trước Tam Thế Phật
@@ -680,7 +696,7 @@ function releaseLantern(text) {
   const lbl = label('🏮 ' + text, 'wishlbl'); lbl.title = text;
   const tgt = inHall ? h.altar.clone().lerp(me.pos, 0.35) : null;
   lanterns.push({ g, t: 0, lbl, tgt, seed: Math.random() * 6, ceil: inHall ? h.ceilY : 0 });
-  P.merit += 5; addBeads(5); toast('🏮 Đèn nguyện đã bay lên · +5 công đức'); A.khanh();
+  const gm = addMerit(5, true); addBeads(5); toast('🏮 Đèn nguyện đã bay lên · ' + meritTxt(gm)); A.khanh();
   ticker(`🏮 ${P.name} vừa thả đèn nguyện: “${text}”`); NET.act('lantern');
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 700);
   save();
@@ -876,9 +892,10 @@ $('kinhBar').onclick = () => {
   kinhTick(true);
 };
 function kinhTick(force) {
-  if (!W) { if (kinhAudio) stopKinh(); $('kinhBar').hidden = true; kinhWinNow = null; return; }
+  if (!W) { if (kinhAudio) stopKinh(); $('kinhBar').hidden = true; kinhWinNow = null; hideMonks(); return; }
   const win = currentKinhWindow(); kinhWinNow = win;
-  if (!win) { stopKinh(); $('kinhBar').hidden = true; return; }
+  if (!win) { stopKinh(); $('kinhBar').hidden = true; hideMonks(); return; }
+  showMonks();
   // thông báo cho mọi người khi tới giờ (mỗi khung một lần)
   if (win.id !== kinhNotified) {
     kinhNotified = win.id;
@@ -890,6 +907,56 @@ function kinhTick(force) {
   if (!inHall) { pauseKinh(); $('kinhBar').hidden = true; return; }
   showKinhBar(win, muted);
   if (muted) pauseKinh(); else playKinh(win);
+}
+/* ---------------- giờ tụng kinh: 3 vị sư khoác cà sa ngồi giữa hàng đầu, gõ mõ, thỉnh chuông ---------------- */
+function monkSpots(h) {
+  const a = h.altar, cs = h.cushions; if (!cs.length) return null;
+  let cx = 0, cz = 0; cs.forEach(c => { cx += c.x; cz += c.z; }); cx /= cs.length; cz /= cs.length;
+  const L = Math.hypot(cx - a.x, cz - a.z) || 1, u = new THREE.Vector3((cx - a.x) / L, 0, (cz - a.z) / L), v = new THREE.Vector3(u.z, 0, -u.x);
+  const info = cs.map(c => ({ c, s: (c.x - a.x) * u.x + (c.z - a.z) * u.z, l: (c.x - a.x) * v.x + (c.z - a.z) * v.z }));
+  const f = Math.min(...info.map(i => i.s)), front = info.filter(i => i.s < f + 0.3), y = front[0].c.y;
+  if (!front.some(i => Math.abs(i.l) < 1.0)) {   // hàng đầu chừa lối giữa → sư ngồi ngay giữa lối đó
+    return { u, seats: [], spots: [-1.15, 0, 1.15].map(l => new THREE.Vector3(a.x + u.x * f + v.x * l, y, a.z + u.z * f + v.z * l)) };
+  }
+  const pick = front.filter(i => me.seated !== i.c).sort((p, q) => Math.abs(p.l) - Math.abs(q.l)).slice(0, 3).sort((p, q) => p.l - q.l);   // 3 đệm giữa hàng đầu
+  return { u, seats: pick.map(i => i.c), spots: pick.map(i => i.c.clone()) };
+}
+function showMonks() {
+  if (monks || !W || !W.halls[0]) return;
+  const h = W.halls[0], sp = monkSpots(h); if (!sp || sp.spots.length < 3) return;
+  sp.seats.forEach(c => { c.taken = true; npcs.forEach(n => { if (n.sit === c) { n.sit = null; n.av.setPose('idle'); n.wait = 0.3; } if (n.goSit === c) { n.goSit = null; n.target = null; } }); });
+  const props = new THREE.Group(); props.userData.tmp = true; scene.add(props);
+  const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o));
+  const list = sp.spots.map((p, i) => {
+    const av = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 31 + i * 17, kasaya: true });
+    av.root.position.copy(p); av.root.rotation.y = Math.atan2(h.altar.x - p.x, h.altar.z - p.z); av.setPose('lotus'); av.root.userData.tmp = true; scene.add(av.root);
+    const mat = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 24), M(0xe0a93a)); mat.position.set(p.x, p.y - 0.03, p.z); props.add(mat);   // tọa cụ vàng
+    return { av, label: i === 1 ? label('🙏 Chư Tăng đang tụng kinh', 'abbot') : null };   // một nhãn chung trên vị giữa, không chồng nhau
+  });
+  const fwd = (p, d) => new THREE.Vector3(p.x - sp.u.x * d, p.y, p.z - sp.u.z * d);
+  // mõ gỗ trước vị sư giữa + dùi gõ
+  const mp = fwd(sp.spots[1], 0.55);
+  const mo = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), M(0x8a2414, { roughness: 0.45 })); mo.scale.set(1, 0.72, 0.9); mo.position.set(mp.x, mp.y + 0.13, mp.z); props.add(mo);
+  const moBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 16), M(0xa3231a)); moBase.position.set(mp.x, mp.y + 0.02, mp.z); props.add(moBase);
+  const striker = new THREE.Group(); striker.position.set(mp.x + sp.u.z * 0.12, mp.y + 0.36, mp.z - sp.u.x * 0.12); striker.rotation.y = Math.atan2(sp.u.x, sp.u.z); props.add(striker);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.26, 6), M(0x6a3a18)); stick.position.set(0, 0, 0.12); stick.rotation.x = Math.PI / 2; striker.add(stick);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), M(0x3a1a0c)); knob.position.set(0, 0, 0.25); striker.add(knob);
+  // chuông gia trì trước vị sư bên phải
+  const bp = fwd(sp.spots[2], 0.55);
+  const bellCush = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 16), M(0xa3231a)); bellCush.position.set(bp.x, bp.y + 0.035, bp.z); props.add(bellCush);
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.16, 20, 1, true), M(0xc89a3a, { metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide })); bell.position.set(bp.x, bp.y + 0.15, bp.z); props.add(bell);
+  monks = { list, seats: sp.seats, props, striker, t: 0 };
+  ticker('🙏 Quý thầy đã an tọa giữa hàng đầu chánh điện · bắt đầu khóa tụng');
+}
+function hideMonks() {
+  if (!monks) return;
+  monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props);
+  monks.seats.forEach(c => { if (me.seated !== c) c.taken = false; }); monks = null;
+}
+function stepMonks(dt) {
+  if (!monks) return; monks.t += dt;
+  monks.list.forEach(m => { m.av.update(dt, false); if (m.label) placeLabel(m.label, m.av.root.position, m.av.height + 0.15); });
+  const ph = (monks.t * 1.65) % 1; monks.striker.rotation.x = ph < 0.18 ? 0.55 * Math.sin(ph / 0.18 * Math.PI) : 0;   // gõ mõ đều tay
 }
 setInterval(() => kinhTick(), 1000);
 
@@ -1508,7 +1575,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt);
+    NET.step(dt); stepMonks(dt);
     if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
     chatStep(); stepMeCushion(t);

@@ -74,6 +74,9 @@ CBA.config = {
     { at: 1080000, name: 'Viên Mãn Tâm' }
   ],
 
+  /* Công đức tối đa mỗi ngày từ tu tập miễn phí (hương, mõ, lễ vật thường, đèn nguyện). Lễ vật mua & hòm công đức không giới hạn. */
+  meritDailyCap: 300,
+
   /* Chuỗi ngày lên chùa: tương tác ít nhất 1 lần mỗi ngày (giờ Việt Nam) */
   streak: { bonusPerDay: 3, maxBonus: 21, specialDays: [7, 21, 49, 100] },
 

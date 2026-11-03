@@ -250,7 +250,7 @@ const BUDDHA_IMG = {
   adida:   ['assets/buddha/adida.webp', 576 / 700, 'one', true],
   duocsu:  ['assets/buddha/duocsu.webp', 442 / 700, 'one', true],
   dilac:   ['assets/buddha/dilac.webp', 617 / 700, 'one', true],
-  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one', false]
+  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one', true]
 };
 const ALTAR_LABEL = { tamthe: 'ĐẠI HÙNG BẢO ĐIỆN', thichca: 'ĐẠI HÙNG BẢO ĐIỆN', adida: 'CỰC LẠC BẢO ĐIỆN', duocsu: 'DƯỢC SƯ BẢO ĐIỆN', dilac: 'ĐẠI HÙNG BẢO ĐIỆN', quanam: 'QUAN ÂM BẢO ĐIỆN' };
 let _carved = null;
@@ -302,7 +302,7 @@ function altarPanel(g, w, d, base, h, set) {
   // 3) bức Phật đặt sâu trong khám
   const btex = texLoader.load(src); btex.colorSpace = THREE.SRGBColorSpace; btex.anisotropy = 4;
   // ảnh đã tách nền → vẽ trong suốt để lộ bức tranh nền phía sau; ảnh có nền sẵn → vẽ đặc
-  const imgMat = cut ? new THREE.MeshBasicMaterial({ map: btex, transparent: true, alphaTest: 0.35, toneMapped: false })
+  const imgMat = cut ? new THREE.MeshBasicMaterial({ map: btex, transparent: true, alphaTest: 0.04, depthWrite: false, toneMapped: false })
                      : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
   const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img);
   if (!cut) frameRect(g, 0, cy, zf + 0.17, pw + 0.14, ph + 0.14, 0.09, 0.2, gold);   // ảnh có nền → khung vàng sát quanh ảnh (như tranh treo trên vách cảnh)
