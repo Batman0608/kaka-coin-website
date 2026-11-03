@@ -311,7 +311,7 @@ function gateBuild(style, gw, temple, M) {
       G.add(nc(box(side * 0.64, 1.5, 0.72, mat('gateDark', 0x2a140a), sx * (gw / 2 + 0.9 + side / 2), 0.75, 0.01)));
     });
     G.add(nc(box(gw + 1.8, 0.7, 0.9, wallM, 0, 3.95, 0)));
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(gw / 2, 0.18, 8, 24, Math.PI), wallM); arc.position.set(0, 3.3 - gw / 2 + 0.3, 0); arc.scale.y = 0.35; G.add(nc(arc));
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(gw / 2, 0.18, 8, 24, Math.PI), wallM); arc.position.set(0, 3.6 - gw / 2 * 0.35, 0.02); arc.scale.y = 0.35;   // vòm cuốn ngay dưới xà cổng G.add(nc(arc));
     G.add(nc(box(gw * 0.8, 1.3, 1.6, mat('gateHueU', 0xe8d6a8), 0, 4.95, 0)));    // gác lầu trên cổng
     for (let k = -2; k <= 2; k++) G.add(nc(box(0.12, 1.2, 0.12, mat('gateBeam', 0x8e1a0e), k * gw * 0.18, 4.95, 0.82)));
     G.add(roofTier(gw * 1.05, 2.2, 5.6, tile, 0.55, 0.55));

@@ -95,12 +95,12 @@ Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, n
 let W = null, temple = null, smokes = [];
 const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, busy: null, label: null };
 const cam = { yaw: 0, pitch: 0.38, dist: 6.5 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
-const npcs = []; let abbot = null, monks = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
+const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
 
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  hideMonks();
+  hideMonks(); if (resMonk) { resMonk.label.remove(); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -128,6 +128,7 @@ function loadTemple(id) {
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
   abbot = { av: ab, label: label(C.storyteller.replace('Sư Ông', 'Sư trụ trì') || 'Sư trụ trì', 'abbot') }; abbot.av.root.userData.tmp = true;
+  setupAbbot(); spawnResMonk();
   if (W.merit) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
   if (S.npc) spawnNpcs();
@@ -908,6 +909,95 @@ function kinhTick(force) {
   showKinhBar(win, muted);
   if (muted) pauseKinh(); else playKinh(win);
 }
+/* ---------------- sư trụ trì đi quanh chánh điện, thỉnh thoảng nói lời hay; bấm vào để nghe sự tích ---------------- */
+const SAYINGS = [
+  'Tâm bình thì thế giới bình.', 'Buông bỏ được thì tự tại.', 'Gieo nhân lành, ắt gặt quả lành.',
+  'Thắng ngàn quân không bằng thắng chính mình.', 'Hận thù không diệt được hận thù, chỉ có tình thương mới diệt được.',
+  'Hạnh phúc ở ngay trong hơi thở này.', 'Lời nói chẳng mất tiền mua, lựa lời mà nói cho vừa lòng nhau.',
+  'Cho đi là còn mãi.', 'Sống trọn vẹn từng giây phút hiện tại.', 'Một điều nhịn, chín điều lành.',
+  'Mỗi ngày đều là một ngày lành.', 'Tu là sửa mình, không phải trốn đời.', 'Nụ cười hiền là món quà đẹp nhất.',
+  'Biết đủ là giàu.', 'Thương người như thể thương thân.', 'Đi chậm lại, tâm sẽ sáng ra.'
+];
+function hallFrame(h) {   // trục chánh điện: u = từ bàn thờ ra cửa, v = ngang
+  const a = h.altar, cs = h.cushions; let cx = 0, cz = 0; cs.forEach(c => { cx += c.x; cz += c.z; }); cx /= cs.length || 1; cz /= cs.length || 1;
+  const L = Math.hypot(cx - a.x, cz - a.z) || 1, u = { x: (cx - a.x) / L, z: (cz - a.z) / L }, v = { x: u.z, z: -u.x };
+  const sMax = Math.max(4, ...cs.map(c => (c.x - a.x) * u.x + (c.z - a.z) * u.z));
+  const at = (su, sv) => new THREE.Vector3(a.x + u.x * su + v.x * sv, a.y, a.z + u.z * su + v.z * sv);
+  return { a, u, v, sMax, at };
+}
+const walkable = (p) => { const y = W.col.heightAt(p.x, p.z, p.y + 1.5); if (y == null) return false; p.y = y; return true; };
+function setupAbbot() {
+  const h = W.halls[0], ab = abbot; ab.say = 8 + Math.random() * 8; ab.wait = 3; ab.i = 0;
+  const pts = [];
+  if (h) {
+    const f = hallFrame(h), side = Math.max(2.5, (h.w || 12) / 2 - 1.4);
+    [[f.sMax + 2.6, 0], [f.sMax * 0.65, side], [2.7, side], [2.7, -side], [f.sMax * 0.65, -side]].forEach(([su, sv]) => { const p = f.at(su, sv); if (walkable(p)) pts.push(p); });
+  }
+  ab.pts = pts.length >= 2 ? pts : null;   // không có điện/đường đi được thì đứng yên chỗ cũ
+  ab.label.style.pointerEvents = 'auto'; ab.label.style.cursor = 'pointer'; ab.label.title = 'Bấm để nghe sự tích chùa';
+  ab.label.onclick = (e) => { e.stopPropagation(); legend(); };
+}
+function stepAbbot(dt) {
+  const ab = abbot, r = ab.av.root, p = r.position; let moving = false;
+  ab.say -= dt; if (ab.say <= 0) { ab.say = 16 + Math.random() * 14; chatBubble(r, '🪷 ' + SAYINGS[(Math.random() * SAYINGS.length) | 0], '', ab.av.height, 6); }
+  const nearMe = me.av && p.distanceTo(me.av.root.position) < 3.2;
+  if (ab.pts && !nearMe) {
+    if (ab.wait > 0) ab.wait -= dt;
+    else {
+      const t = ab.pts[ab.i], dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);
+      if (d < 0.2) { ab.i = (ab.i + 1) % ab.pts.length; ab.wait = 4 + Math.random() * 6; }
+      else { const sp = Math.min(d, 0.85 * dt), nx = p.x + dx / d * sp, nz = p.z + dz / d * sp, y = W.col.heightAt(nx, nz, p.y + 1.2);
+        if (y == null) { ab.i = (ab.i + 1) % ab.pts.length; } else { p.set(nx, p.y + (y - p.y) * Math.min(1, dt * 10), nz); r.rotation.y = Math.atan2(dx, dz); moving = true; } }
+    }
+  }
+  if (!moving && me.av) { const want = Math.atan2(me.pos.x - p.x, me.pos.z - p.z); let dy = want - r.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); if (nearMe || !ab.pts) r.rotation.y += dy * Math.min(1, dt * 4); }
+  ab.av.speed = moving ? 0.5 : 0; ab.av.update(dt, moving);
+}
+// bấm / chạm vào sư trụ trì → nghe sự tích chùa
+{ let down = null; const rc = new THREE.Raycaster(), nd = new THREE.Vector2();
+  view.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  view.addEventListener('pointerup', (e) => {
+    if (!down || !abbot || !$('veil').hidden) return; const d0 = down; down = null;
+    if (Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > 8 || performance.now() - d0.t > 450) return;   // kéo xoay camera thì bỏ qua
+    const rect = view.getBoundingClientRect(); nd.set((e.clientX - rect.left) / rect.width * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    rc.setFromCamera(nd, camera); if (rc.intersectObject(abbot.av.root, true).length) legend();
+  });
+}
+
+/* ---------------- sư thường trực: ngồi tụng giữa hàng đầu, thỉnh thoảng đứng dậy kinh hành quanh điện ---------------- */
+function spawnResMonk() {
+  const h = W.halls[0]; if (!h || !h.cushions.length) return;
+  const sp = monkSpots(h); if (!sp || !sp.spots.length) return;
+  const k = Math.min(1, sp.spots.length - 1), home = sp.spots[k].clone(), seat = sp.seats[k] || null;
+  if (seat) { seat.taken = true; npcs.forEach(n => { if (n.sit === seat) { n.sit = null; n.av.setPose('idle'); n.wait = 0.3; } }); }
+  const av = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 77, kasaya: true }); av.root.userData.tmp = true; scene.add(av.root);
+  const f = hallFrame(h), side = Math.max(2, Math.min(4.5, (h.w || 12) / 2 - 1.6));
+  const loop = [[f.sMax + 1.2, side * 0.8], [3.0, side], [3.0, -side], [f.sMax + 1.2, -side * 0.8]].map(([su, sv]) => f.at(su, sv)).filter(walkable);
+  resMonk = { av, home, seat, h, loop, mode: 'sit', t: 50 + Math.random() * 70, i: 0, say: 6 + Math.random() * 10, label: label('🙏 Thầy Minh Tâm', 'npc') };
+  resSit();
+}
+function resSit() {
+  const m = resMonk; if (!m) return; const r = m.av.root;
+  r.position.copy(m.home); r.rotation.y = Math.atan2(m.h.altar.x - m.home.x, m.h.altar.z - m.home.z); m.av.setPose('lotus'); m.mode = 'sit'; m.t = 60 + Math.random() * 90;
+}
+function stepResMonk(dt) {
+  const m = resMonk; if (!m || monks) return; const r = m.av.root, p = r.position; let moving = false;
+  placeLabel(m.label, p, m.av.height + 0.15);
+  if (m.mode === 'sit') {
+    m.t -= dt; m.say -= dt;
+    if (m.say <= 0) { m.say = 20 + Math.random() * 20; chatBubble(r, '🪷 Nam mô A Di Đà Phật', '', m.av.height, 3); if (Math.random() < 0.5) m.av.bow(); }
+    if (m.t <= 0 && m.loop.length >= 2) { m.mode = 'walk'; m.av.setPose('idle'); m.route = [...m.loop, m.home.clone()]; m.i = 0; m.wait = 1.2; }
+  } else {
+    if (m.wait > 0) m.wait -= dt;
+    else {
+      const t = m.route[m.i], dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);
+      if (d < 0.18) { m.i++; m.wait = 1.5 + Math.random() * 2.5; if (m.i >= m.route.length) resSit(); }
+      else { const sp = Math.min(d, 0.6 * dt), nx = p.x + dx / d * sp, nz = p.z + dz / d * sp, y = W.col.heightAt(nx, nz, p.y + 1.2);
+        p.set(nx, y == null ? p.y : p.y + (y - p.y) * Math.min(1, dt * 10), nz); r.rotation.y = Math.atan2(dx, dz); moving = true; }
+    }
+  }
+  m.av.speed = moving ? 0.4 : 0; m.av.update(dt, moving);
+}
 /* ---------------- giờ tụng kinh: 3 vị sư khoác cà sa ngồi giữa hàng đầu, gõ mõ, thỉnh chuông ---------------- */
 function monkSpots(h) {
   const a = h.altar, cs = h.cushions; if (!cs.length) return null;
@@ -946,12 +1036,14 @@ function showMonks() {
   const bellCush = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 16), M(0xa3231a)); bellCush.position.set(bp.x, bp.y + 0.035, bp.z); props.add(bellCush);
   const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.16, 20, 1, true), M(0xc89a3a, { metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide })); bell.position.set(bp.x, bp.y + 0.15, bp.z); props.add(bell);
   monks = { list, seats: sp.seats, props, striker, t: 0 };
+  if (resMonk) { resMonk.av.root.visible = false; resMonk.label.style.display = 'none'; }   // sư thường trực nhập vào khóa tụng
   ticker('🙏 Quý thầy đã an tọa giữa hàng đầu chánh điện · bắt đầu khóa tụng');
 }
 function hideMonks() {
   if (!monks) return;
   monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props);
   monks.seats.forEach(c => { if (me.seated !== c) c.taken = false; }); monks = null;
+  if (resMonk) { resMonk.av.root.visible = true; resMonk.label.style.display = ''; if (resMonk.seat) resMonk.seat.taken = true; resSit(); }
 }
 function stepMonks(dt) {
   if (!monks) return; monks.t += dt;
@@ -1169,12 +1261,12 @@ const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A,
   remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
-function chatBubble(root, text, name, h) {
+function chatBubble(root, text, name, h, dur = 3) {
   if (!root) return;
   let b = chatBubbles.find(x => x.root === root);
   if (!b) { b = { root, el: label('', 'chatbub'), h: h || 2 }; chatBubbles.push(b); }
   b.el.textContent = text; b.el.style.display = ''; if (h) b.h = h;
-  b.until = performance.now() / 1000 + 3;   // hiện 3 giây rồi tự ẩn, trả lại chỗ trống
+  b.until = performance.now() / 1000 + dur;   // hiện 3 giây rồi tự ẩn, trả lại chỗ trống
 }
 function chatStep() {
   const nowSec = performance.now() / 1000;
@@ -1576,7 +1668,8 @@ function loop() {
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
     NET.step(dt); stepMonks(dt);
-    if (abbot) { abbot.av.update(dt, false); abbot.av.root.rotation.y = Math.atan2(me.pos.x - abbot.av.root.position.x, me.pos.z - abbot.av.root.position.z); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
+    if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
+    stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
     chatStep(); stepMeCushion(t);
     if (meritLbl) { placeLabel(meritLbl, W.merit, 1.6); if (W.merit.distanceTo(me.av.root.position) > 12) meritLbl.style.display = 'none'; }
@@ -1596,7 +1689,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene };   // hỗ trợ kiểm thử
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');

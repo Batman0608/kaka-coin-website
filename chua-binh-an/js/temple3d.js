@@ -642,11 +642,11 @@ const SCENES = {
     const back = hz - hd / 2 - 1.4, base = box(26, 3, 5 - back, STONE(), 0, 1.5, (5 + back) / 2); g.add(base);
     h.position.set(0, 3, hz); g.add(h);
     const st = stairs(6, 10, 0.3, 0.6); st.position.set(0, 0, 10.7); g.add(st);   // bậc trên cùng (3,0 m) chạm đúng mép nền
-    const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-15, 0, 7); g.add(bell);
+    const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-19, 0, 6); g.add(bell);
     // Bảo Tháp 13 tầng cao lớn bên phải
     const tw = tower({ tiers: 13, sides: 4, r: 3, th: 1.9, taper: 0.52, wall: mat('btwall', 0xcdbda0), roofColor: 0x5a3a24 }); tw.position.set(20, 0, -4); tw.scale.setScalar(1.25); g.add(tw);
     // Hành lang La Hán hai bên lối lên (dãy cột có mái, tượng La Hán ngồi)
-    laHanCorridor(g, -13, 8, 26); laHanCorridor(g, 13, 8, 26);
+    laHanCorridor(g, -13, 3, 16.5); laHanCorridor(g, 13, 3, 16.5);   // nằm trọn trong tường, dừng trước cổng
     courtyard(g, 22, 12, 14); g.add(burner(0, 16));
     [-24, 24, -22, 24].forEach((x, i) => g.add(tree(5.5, LEAF(), x, 16 + (i % 2) * 4)));
     return { cam: [28, 17, 36], target: [0, 6, -2] };
@@ -656,14 +656,20 @@ const SCENES = {
     // hồ Tam Chúc phía trước (tiền Lục Nhạc), thuyền, sen
     g.add(water(170, 36, 0, 56));
     [[-30, 52, 3.2], [24, 60, 2.6], [-8, 66, 2.2], [34, 50, 2.2], [-40, 58, 2.6], [12, 70, 2]].forEach(([x, z, r]) => g.add(mountain(r, r * 1.4, 0x4a6a40, (x | 0) + 3, x, z)));
+    { const rail = mat('lakeRail', 0xd8cdb4), zr = 37.4;   // lan can đá dọc bờ hồ: không đi xuống nước
+      for (let x = -84; x <= 84; x += 2.4) { g.add(box(0.32, 1.15, 0.32, rail, x, 0.575, zr)); g.add(box(0.42, 0.14, 0.42, rail, x, 1.22, zr)); }
+      g.add(box(168.6, 0.14, 0.2, rail, 0, 1.02, zr)); g.add(box(168.6, 0.1, 0.16, rail, 0, 0.5, zr)); g.add(box(168.6, 0.18, 0.5, STONE(), 0, 0.09, zr)); }
     g.add(boat(-12, 46, 0.15)); g.add(boat(9, 49, -0.2)); lotusPads(g, 18, 80, 10, 0, 48);
     // núi Thất Tinh (hậu Thất Tinh) phía sau + Chùa Ngọc granit đỏ trên sườn
     g.add(mountain(24, 32, 0x3f6a35, 2, 0, -52)); g.add(mountain(18, 22, 0x4a7a3a, 6, -32, -48)); g.add(mountain(18, 20, 0x56803f, 8, 32, -50));
     const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 13, -38); ngoc.scale.setScalar(0.95); g.add(ngoc);
     g.add(cyl(5, 6.5, 1.3, 20, STONE(), 0, 12.3, -38));
     // tượng Di Lặc đồng trên đồi bên phải (có đài sen, hào quang)
-    g.add(mountain(11, 9, 0x5f8a45, 4, 32, 12)); const dl = maitreya(3.6, BRONZE()); dl.position.set(32, 9, 12); g.add(dl);
-    { const hal = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.12, 10, 36), GOLD()); hal.position.set(32, 15.5, 11.4); hal.userData.noCollide = true; g.add(hal); }
+    { const ds = 3.0, top = 6, dx = 31, dz = 10;   // đồi đỉnh bằng, bệ đá, tượng ngồi vững trên đỉnh, hào quang sau đầu
+      g.add(mountain(12, top, 0x5f8a45, 4, dx, dz, 5));
+      g.add(cyl(3.6, 4.0, 0.8, 24, STONE(), dx, top + 0.4, dz));
+      const dl = maitreya(ds, BRONZE()); dl.position.set(dx, top + 0.8, dz); dl.rotation.y = -0.8; g.add(dl);
+      const hal = new THREE.Mesh(new THREE.TorusGeometry(ds * 0.55, 0.1, 10, 36), GOLD()); hal.position.set(dx + Math.sin(-0.8) * -ds * 0.4, top + 0.8 + ds * 1.9, dz - Math.cos(-0.8) * ds * 0.4); hal.rotation.y = -0.8; hal.userData.noCollide = true; g.add(hal); }
 
     /* === TỔ HỢP CÁC CẤP: đi từ hồ lên, qua các điện cấp thấp (cổng đóng, chỉ vào sân) === */
     const terr = (w, zc, dep, y) => { if (y > 0.05) g.add(box(w, y, dep, STONE(), 0, y / 2, zc)); };   // nền cấp cao, mặt trên đúng y
