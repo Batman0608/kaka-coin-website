@@ -1322,7 +1322,7 @@ function previewRenderer(host) {
 
 /* ---------------- thanh hành động ---------------- */
 /* cửa hàng hoa sen & nạp */
-const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert: (r, t) => { hud(); NET.act('cert', t.icon); NET.profile(); ticker(`${t.icon} ${P.name} vừa nhận chứng nhận ${t.title} tại ${r.templeName || temple.name}`); petalShower(); } });
+const SHOP = initShop({ P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert: (r, t) => { hud(); NET.act('cert', t.icon); NET.profile(); ticker(`${t.icon} ${P.name} vừa nhận chứng nhận ${t.title} tại ${r.templeName || temple.name}`); petalShower(); } }); window.__SHOP = SHOP;   // hỗ trợ kiểm thử
 /* tài khoản người chơi */
 const ACC = initAccount({ P, modal, closeModal, el, $, toast, banner, A, flush: () => { store.set('profile', P); saveS(); } });
 window.__acc = ACC;

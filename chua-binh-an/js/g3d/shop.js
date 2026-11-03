@@ -304,23 +304,28 @@ export function initShop(ctx) {
     // bánh xe pháp mờ ở nền
     k.save(); k.globalAlpha = 0.07; k.translate(W / 2, H / 2 + 40); k.strokeStyle = '#8e1a0e'; k.lineWidth = 18; k.beginPath(); k.arc(0, 0, 260, 0, 7); k.stroke(); k.beginPath(); k.arc(0, 0, 60, 0, 7); k.stroke();
     for (let i = 0; i < 8; i++) { k.rotate(Math.PI / 4); k.beginPath(); k.moveTo(0, 60); k.lineTo(0, 260); k.stroke(); } k.restore();
-    k.textAlign = 'center'; k.textBaseline = 'middle'; const serif = "Georgia, 'Times New Roman', serif";
-    k.fillStyle = '#8e1a0e'; k.font = `700 30px ${serif}`; k.fillText('NAM MÔ BỔN SƯ THÍCH CA MÂU NI PHẬT', W / 2, 140);
-    k.font = `900 76px ${serif}`; k.fillText('GIẤY CHỨNG NHẬN CÔNG ĐỨC', W / 2, 230);
-    k.fillStyle = '#6a4a1a'; k.font = `italic 30px ${serif}`; k.fillText(`${c.templeName || 'Chùa'} trân trọng chứng nhận Phật tử`, W / 2, 315);
-    k.fillStyle = '#8e1a0e'; k.font = `900 82px ${serif}`; k.fillText(c.name || P.name, W / 2, 410);
-    k.fillStyle = '#6a4a1a'; k.font = `600 26px ${serif}`; k.fillText(`Mã nhân vật: ${P.id}`, W / 2, 470);
-    k.font = `30px ${serif}`; k.fillText(`đã phát tâm cúng dường vào hòm công đức số tịnh tài ${vnd(c.amount)}`, W / 2, 535);
-    // danh hiệu
-    k.fillStyle = t.color; k.beginPath(); k.roundRect ? k.roundRect(W / 2 - 330, 585, 660, 110, 55) : k.rect(W / 2 - 330, 585, 660, 110); k.fill();
-    k.fillStyle = '#fff'; k.font = `900 54px ${serif}`; k.shadowColor = 'rgba(0,0,0,.35)'; k.shadowBlur = 6; k.fillText(`${t.icon} ${t.title}`, W / 2, 642); k.shadowBlur = 0;
-    k.fillStyle = '#6a4a1a'; k.font = `italic 28px ${serif}`;
-    k.fillText('Nguyện đem công đức này hướng về khắp tất cả, đệ tử và chúng sanh đều trọn thành Phật đạo.', W / 2, 760);
-    const d = new Date(c.at); k.font = `26px ${serif}`; k.textAlign = 'left'; k.fillText(`Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`, 150, 860);
-    k.textAlign = 'center'; k.fillText(`Mã chứng nhận: ${String(c.id).slice(-10).toUpperCase()}`, W / 2, 900);
+    k.textAlign = 'left'; k.textBaseline = 'middle'; const serif = "Georgia, 'Times New Roman', serif", emo = "'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
+    // đo rồi tự canh giữa (không dựa vào textAlign: Safari iPhone đo sai khi chữ lẫn biểu tượng) · tự thu nhỏ chữ nếu dài quá khung
+    const fit = (txt, style, size, maxW, fam = serif) => { let sz = size; k.font = `${style} ${sz}px ${fam}`; while (k.measureText(txt).width > maxW && sz > 12) { sz -= 2; k.font = `${style} ${sz}px ${fam}`; } return k.measureText(txt).width; };
+    const put = (txt, style, size, y, maxW = W - 260, cx = W / 2) => { const w = fit(txt, style, size, maxW); k.fillText(txt, cx - w / 2, y); return w; };
+    k.fillStyle = '#8e1a0e'; put('NAM MÔ BỔN SƯ THÍCH CA MÂU NI PHẬT', '700', 30, 140);
+    put('GIẤY CHỨNG NHẬN CÔNG ĐỨC', '900', 76, 230, W - 300);
+    k.fillStyle = '#6a4a1a'; put(`${c.templeName || 'Chùa'} trân trọng chứng nhận Phật tử`, 'italic', 30, 315);
+    k.fillStyle = '#8e1a0e'; put(c.name || P.name, '900', 82, 410, W - 400);
+    k.fillStyle = '#6a4a1a'; put(`Mã nhân vật: ${P.id}`, '600', 26, 470);
+    put(`đã phát tâm cúng dường vào hòm công đức số tịnh tài ${vnd(c.amount)}`, '', 30, 535);
+    // danh hiệu: biểu tượng và chữ đo riêng, ô bo tròn vừa khít chữ
+    const iw = fit(t.icon, '', 50, 80, emo), tw = fit(t.title, '900', 54, 760), gap = 18, tot = iw + gap + tw, pw = Math.max(520, tot + 120), px = W / 2 - pw / 2;
+    k.fillStyle = t.color; k.beginPath(); k.roundRect ? k.roundRect(px, 585, pw, 110, 55) : k.rect(px, 585, pw, 110); k.fill();
+    k.shadowColor = 'rgba(0,0,0,.35)'; k.shadowBlur = 6;
+    k.font = `50px ${emo}`; k.fillStyle = '#fff'; k.fillText(t.icon, W / 2 - tot / 2, 642);
+    fit(t.title, '900', 54, 760); k.fillText(t.title, W / 2 - tot / 2 + iw + gap, 642); k.shadowBlur = 0;
+    k.fillStyle = '#6a4a1a'; put('Nguyện đem công đức này hướng về khắp tất cả, đệ tử và chúng sanh đều trọn thành Phật đạo.', 'italic', 28, 755, W - 380);
+    const d = new Date(c.at); k.font = `26px ${serif}`; k.fillText(`Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`, 150, 860);
+    put(`Mã chứng nhận: ${String(c.id).slice(-10).toUpperCase()}`, '', 26, 905, 520, W / 2 - 80);
     // con dấu đỏ
-    k.save(); k.translate(W - 260, 850); k.rotate(-0.12); k.strokeStyle = '#c0261b'; k.fillStyle = 'rgba(192,38,27,.1)'; k.lineWidth = 8; k.beginPath(); k.arc(0, 0, 92, 0, 7); k.fill(); k.stroke(); k.lineWidth = 3; k.beginPath(); k.arc(0, 0, 76, 0, 7); k.stroke();
-    k.fillStyle = '#c0261b'; k.textAlign = 'center'; k.font = `900 26px ${serif}`; k.fillText('CÔNG ĐỨC', 0, -22); k.font = `900 38px ${serif}`; k.fillText('☸', 0, 18); k.font = `700 16px ${serif}`; k.fillText((c.templeName || '').toUpperCase().slice(0, 18), 0, 52); k.restore();
+    k.save(); k.translate(W - 255, 842); k.rotate(-0.12); k.strokeStyle = '#c0261b'; k.fillStyle = 'rgba(192,38,27,.1)'; k.lineWidth = 8; k.beginPath(); k.arc(0, 0, 80, 0, 7); k.fill(); k.stroke(); k.lineWidth = 3; k.beginPath(); k.arc(0, 0, 66, 0, 7); k.stroke();
+    k.fillStyle = '#c0261b'; k.textAlign = 'center'; k.font = `900 22px ${serif}`; k.fillText('CÔNG ĐỨC', 0, -20); k.font = `900 34px ${serif}`; k.fillText('☸', 0, 14); k.font = `700 13px ${serif}`; k.fillText((c.templeName || '').toUpperCase().slice(0, 18), 0, 44); k.restore();
     return cv;
   }
   /* admin bấm vào hòm công đức: xem tổng đã nhận */
