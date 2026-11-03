@@ -49,7 +49,7 @@ let INTERIOR = null;   // game 3D: { set: 'hoanh'|'thu'|'nam' } → chánh đi�
 export const HALLS = [];
 export const ANIM = [];   // hàm cập nhật hiệu ứng mỗi khung hình (game gọi)
 /* ảnh tượng thật (đã tách nền) + màu hào quang */
-const PHOTO = { duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
+const PHOTO = { quanam: ['assets/buddha/quanam.webp', 462 / 539, '#ffe9a8'], duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
 const texLoader = new THREE.TextureLoader();
 function glowTex(color, kind = 'glow') {
   const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
@@ -703,9 +703,20 @@ const SCENES = {
   huong(g) {
     ground(g, 160, 0x4f7a3f);
     const m1 = mountain(18, 30, 0x6a7a5a, 2, 0, -14); g.add(m1); g.add(mountain(14, 22, 0x5a6a4a, 4, -26, -18)); g.add(mountain(13, 20, 0x5f7050, 6, 26, -20));
-    const cave = mesh(new THREE.CircleGeometry(3.4, 24, 0, Math.PI), DARK(), 0, 8.4, 0.2, false); cave.scale.set(1, 1.3, 1); cave.rotation.x = -0.35; g.add(cave);
-    g.add(box(8, 0.6, 3, STONE(), 0, 8.1, 1.2));
     const st = stairs(2.4, 26, 0.31, 0.3); st.position.set(0, 0, 10.5); g.add(st);
+    // sân trước động: mặt sân ngang đúng bậc trên cùng (8,06 m), phủ chồng lên bậc cuối → không còn khe hở rơi xuống
+    const top = 26 * 0.31, cave = mesh(new THREE.CircleGeometry(3.4, 24, 0, Math.PI), DARK(), 0, top, 0.2, false); cave.scale.set(1, 1.3, 1); cave.rotation.x = -0.35; g.add(cave);
+    g.add(box(8, 0.6, 3.55, STONE(), 0, top - 0.3, 1.2));
+    { const wall = box(8, 6, 0.5, DARK(), 0, top + 3, -0.85); wall.visible = false; g.add(wall); }   // chắn vô hình sau cửa động: không đi xuyên vào núi
+    // động Hương Tích thờ Quan Âm: bệ đá, tượng có hào quang ngay cửa động, bàn thờ & lư hương phía trước
+    g.add(box(2.4, 0.5, 1.0, STONE(), 0, top + 0.25, 0.25));
+    g.add(box(1.6, 0.06, 0.8, GOLD(), 0, top + 0.53, 0.25));
+    photoBuddha(g, 'quanam', 0, top + 0.56, 0.45, 3.3);
+    g.add(box(1.5, 0.7, 0.55, mat('caveAltar', 0x7a1a0e), 0, top + 0.35, 1.25)); g.add(box(1.6, 0.06, 0.62, GOLD(), 0, top + 0.72, 1.25));
+    const lu = cyl(0.22, 0.16, 0.3, 12, BRONZE(), 0, top + 0.9, 1.25); g.add(lu);
+    for (let k = 0; k < 5; k++) { const sti = cyl(0.012, 0.012, 0.36, 5, mat('stick', 0xb3261e), (k - 2) * 0.05, top + 1.2, 1.25); sti.userData.noCollide = true; g.add(sti); }
+    [-1, 1].forEach(sx => { g.add(cyl(0.05, 0.05, 0.32, 8, mat('candle', 0xc0392b), sx * 0.55, top + 0.91, 1.25)); const fl = mesh(new THREE.ConeGeometry(0.04, 0.12, 8), mat('flame', 0xffd36b, { emissive: 0xffa020, emissiveIntensity: 2 }), sx * 0.55, top + 1.13, 1.25, false); fl.userData.noCollide = true; g.add(fl); });
+    { const pl = new THREE.PointLight(0xffd9a0, 2.2, 9, 1.6); pl.position.set(0, top + 2.4, 2.4); g.add(pl); }
     // tam quan
     const gate = new THREE.Group(); gate.position.set(0, 0, 12.5);
     [-2.6, 0, 2.6].forEach((x, i) => { if (i === 1) { [-1, 1].forEach(sx => gate.add(box(0.4, 3.2, 0.8, WALL(), sx * 1.0, 1.6, 0))); gate.add(box(2.4, 0.6, 0.8, WALL(), 0, 2.9, 0)); } else gate.add(box(1.8, 2.6, 0.8, WALL(), x, 1.3, 0)); const r = roof(i === 1 ? 3.2 : 2.4, 1.6, 0.9); r.position.set(x, i === 1 ? 3.2 : 2.6, 0); gate.add(r); });

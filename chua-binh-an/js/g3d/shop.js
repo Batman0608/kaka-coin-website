@@ -32,7 +32,7 @@ export function initShop(ctx) {
   const { P, save, modal, closeModal, el, $, toast, banner, A, fmt, onCert } = ctx;
   P.certs = P.certs || [];
   if (!P.id) { let s = 'CBA'; for (let i = 0; i < 6; i++) s += ID_CHARS[(Math.random() * ID_CHARS.length) | 0]; P.id = s; }
-  P.lotus = P.lotus || 0; P.credited = P.credited || {}; save();
+  P.lotus = P.lotus || 0; P.credited = P.credited || {}; P.reqIds = P.reqIds || []; save();   // reqIds: mã các yêu cầu nạp nhân vật đã gửi
   const lotusOf = (vnd) => Math.round(vnd / (CFG.vndPerLotus || 50));
   const contentOf = (vnd, kind) => `${kind === 'donate' ? (CFG.donatePrefix || 'CD') : (CFG.contentPrefix || 'HS')} ${P.id} ${vnd / 1000}K`;
   const vnd = (n) => n.toLocaleString('vi-VN') + 'đ';
@@ -61,10 +61,13 @@ export function initShop(ctx) {
   const backend = hasFb ? firebaseBackend() : localBackend();
   let myReqs = [], pending = [], isAdmin = false;
   const adminHooks = new Set();
-  backend.ready.then(() => backend.watchMine(P.id, (list) => { myReqs = list; creditApproved(); listeners.forEach(f => f()); })).catch(e => console.warn('[Nạp]', e));
+  const onMine = (list) => { myReqs = list; creditApproved(); listeners.forEach(f => f()); };
+  const rewatch = () => backend.watchMine(P.id, onMine);
+  backend.ready.then(rewatch).catch(e => console.warn('[Nạp]', e));
+  const remember = (id) => { if (id && !P.reqIds.includes(id)) { P.reqIds.push(id); if (P.reqIds.length > 60) P.reqIds.splice(0, P.reqIds.length - 60); save(); } };
   // hoa sen về tài khoản khi admin đã chấp nhận
-  async function creditApproved() {
-    for (const r of myReqs) {
+  async function creditApproved(extra) {
+    for (const r of (extra || myReqs)) {
       if (r.status !== 'approved' || r.claimed || P.credited[r.id]) continue;
       P.credited[r.id] = true;
       if (r.kind === 'donate') {
@@ -95,6 +98,7 @@ export function initShop(ctx) {
       async adminLogin(email, pw) { if (pw !== (CFG.demoAdminPassword || 'admin123')) throw new Error('Sai mật khẩu'); return true; },
       async adminLogout() {},
       watchAll(cb) { const f = (l) => cb(l); subs.push(f); f(read()); },
+      watchUnclaimed(cb) { const f = (l) => cb(l.filter(r => r.status === 'approved' && !r.claimed)); subs.push(f); f(read()); return () => { const i = subs.indexOf(f); if (i >= 0) subs.splice(i, 1); }; },
       watchDonations(cb) { const f = (l) => cb(l.filter(r => r.kind === 'donate' && r.status === 'approved')); subs.push(f); f(read()); return () => { const i = subs.indexOf(f); if (i >= 0) subs.splice(i, 1); }; },
       async decide(id, ok, by) { const l = read(); const r = l.find(x => x.id === id); if (r && r.status === 'pending') { r.status = ok ? 'approved' : 'rejected'; r.decidedAt = Date.now(); r.decidedBy = by; write(l); } }
     };
@@ -109,18 +113,27 @@ export function initShop(ctx) {
     })();
     async function checkAdmin() { try { const s = await fs.getDoc(fs.doc(db, 'admins', auth.currentUser.uid)); return s.exists(); } catch (e) { return false; } }
     const rows = (snap) => snap.docs.map(d => Object.assign({ id: d.id }, d.data(), { createdAt: d.data().createdAt && d.data().createdAt.toMillis ? d.data().createdAt.toMillis() : Date.now() }));
-    let unMine = null;
+    let unMine = null, authHooked = false;
     return {
       mode: 'firebase', ready,
-      watchMine(pid, cb) { if (unMine) unMine(); unMine = fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('uid', '==', auth.currentUser.uid)), (s) => cb(rows(s).filter(r => r.pid === pid)), (e) => console.warn('[Nạp]', e)); },
+      // theo dõi yêu cầu của tài khoản đang đăng nhập; đăng nhập / đăng xuất tài khoản thì tự theo dõi lại
+      // (trước đây đổi đăng nhập giữa chừng làm mất theo dõi → được duyệt nhưng không cộng hoa sen)
+      watchMine(pid, cb) {
+        if (unMine) unMine(); unMine = null;
+        if (auth.currentUser) unMine = fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('uid', '==', auth.currentUser.uid)),
+          (s) => cb(rows(s).filter(r => r.pid === pid || P.reqIds.includes(r.id))), (e) => console.warn('[Nạp]', e));
+        if (!authHooked) { authHooked = true; let last = auth.currentUser && auth.currentUser.uid;
+          au.onAuthStateChanged(auth, (u) => { const uid = u && u.uid; if (uid !== last) { last = uid; if (u) backend.watchMine(P.id, cb); } }); }
+      },
       async create(req) { await ready; const r = await fs.addDoc(fs.collection(db, 'topups'), Object.assign({}, req, { uid: auth.currentUser.uid, status: 'pending', claimed: false, createdAt: fs.serverTimestamp() })); return r.id; },
+      watchUnclaimed(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('status', '==', 'approved'), fs.where('claimed', '==', false)), (s) => cb(rows(s)), (e) => console.warn('[Nạp] chưa nhận', e)); },
       async claim(id) { await fs.updateDoc(fs.doc(db, 'topups', id), { claimed: true, claimedAt: fs.serverTimestamp() }); },
       async adminLogin(email, pw) {
         await ready; await au.signInWithEmailAndPassword(auth, email, pw);
         if (!(await checkAdmin())) { await au.signOut(auth); await au.signInAnonymously(auth); throw new Error('Tài khoản này chưa được cấp quyền admin (thiếu tài liệu admins/<UID>)'); }
         return true;
       },
-      async adminLogout() { await au.signOut(auth); await au.signInAnonymously(auth); backend.watchMine(P.id, (l) => { myReqs = l; creditApproved(); }); window.dispatchEvent(new Event('cba-auth-changed')); },
+      async adminLogout() { await au.signOut(auth); await au.signInAnonymously(auth); rewatch(); window.dispatchEvent(new Event('cba-auth-changed')); },
       watchAll(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('status', '==', 'pending')), (s) => cb(rows(s)), (e) => toast('⚠️ Không đọc được yêu cầu nạp: ' + e.message)); },
       watchDonations(cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'topups'), fs.where('kind', '==', 'donate'), fs.where('status', '==', 'approved')), (s) => cb(rows(s)), (e) => toast('⚠️ Không đọc được hòm công đức: ' + e.message)); },
       async decide(id, ok, by) { await fs.updateDoc(fs.doc(db, 'topups', id), { status: ok ? 'approved' : 'rejected', decidedAt: fs.serverTimestamp(), decidedBy: by || 'admin' }); }
@@ -164,7 +177,7 @@ export function initShop(ctx) {
       try {
         const req = { kind, pid: P.id, name: P.name, amount, lotus: L, content };
         if (don) Object.assign(req, { temple: don.id, templeName: don.name });
-        await backend.create(req); toast(don ? '🙏 Đã ghi nhận tâm cúng dường · chờ chùa xác nhận' : '📨 Đã gửi yêu cầu · chờ chùa xác nhận'); closeModal(); don ? openDonate(don) : openTopup();
+        remember(await backend.create(req)); toast(don ? '🙏 Đã ghi nhận tâm cúng dường · chờ chùa xác nhận' : '📨 Đã gửi yêu cầu · chờ chùa xác nhận'); closeModal(); don ? openDonate(don) : openTopup();
       }
       catch (e) { done.disabled = false; done.textContent = '✅ Tôi đã chuyển khoản'; toast('⚠️ Không gửi được: ' + e.message); }
     };
@@ -216,18 +229,25 @@ export function initShop(ctx) {
         pending.forEach(r => {
           const it = el('div', 'req pending'); const info = el('div');
           const what = r.kind === 'donate' ? `💝 Cúng hòm công đức ${r.templeName || ''} → chứng nhận ${tierOf(r.amount).icon} ${tierOf(r.amount).title}` : `🪷 Nạp → ${fmt(r.lotus)} hoa sen`;
-          info.append(el('b', '', `${r.name || '—'} · ${r.pid} · ${vnd(r.amount)}`), el('small', '', `${what} · ${new Date(r.createdAt).toLocaleString('vi-VN')}`), el('code', '', r.content));
+          info.append(el('b', '', `${r.name || '—'} · ${r.pid} · ${vnd(r.amount)}`), el('small', '', `${what} · ${new Date(r.createdAt).toLocaleString('vi-VN')}`), el('code', '', r.content), el('small', '', 'Mã yêu cầu: ' + r.id));
           if (r.kind === 'donate') it.classList.add('don');
           const ok = el('button', 'btn gold sm', '✅ Chấp nhận'), no = el('button', 'btn sm', '❌ Từ chối');
-          ok.onclick = async () => { ok.disabled = no.disabled = true; try { await backend.decide(r.id, true, P.name); toast(r.kind === 'donate' ? `✅ Đã cấp chứng nhận ${tierOf(r.amount).title} cho ${r.name}` : `✅ Đã cộng ${fmt(r.lotus)} hoa sen cho ${r.name}`); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
+          ok.onclick = async () => { ok.disabled = no.disabled = true; try { await backend.decide(r.id, true, P.name); if (r.pid === P.id) creditApproved([Object.assign({}, r, { status: 'approved' })]);   /* admin duyệt cho chính nhân vật trên máy này */ toast(r.kind === 'donate' ? `✅ Đã cấp chứng nhận ${tierOf(r.amount).title} cho ${r.name}` : `✅ Đã cộng ${fmt(r.lotus)} hoa sen cho ${r.name}`); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
           no.onclick = async () => { if (!confirm(`Từ chối yêu cầu ${vnd(r.amount)} của ${r.name}?`)) return; ok.disabled = no.disabled = true; try { await backend.decide(r.id, false, P.name); } catch (e) { toast('⚠️ ' + e.message); ok.disabled = no.disabled = false; } };
           const act = el('div', 'row'); act.append(ok, no); it.append(info, act); box.append(it);
         });
       };
+      // đã duyệt nhưng người chơi chưa nhận được (thường do họ đổi đăng nhập sau khi gửi) → admin thấy để xử lý
+      const un = el('div'); let unOff = null;
+      const paintUn = (l) => { un.innerHTML = ''; if (!l.length) return; un.append(el('h3', '', `⏳ Đã duyệt, người chơi chưa nhận (${l.length})`));
+        l.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20).forEach(r => { const it = el('div', 'req'); const info = el('div');
+          info.append(el('b', '', `${r.name || '—'} · ${r.pid} · ${vnd(r.amount)}`), el('small', '', `${r.kind === 'donate' ? '💝 Công đức' : '🪷 ' + fmt(r.lotus) + ' hoa sen'} · duyệt ${r.decidedAt && r.decidedAt.toDate ? r.decidedAt.toDate().toLocaleString('vi-VN') : ''} · mã ${r.id}`));
+          it.append(info, copyBtn(r.id)); un.append(it); }); };
+      if (backend.watchUnclaimed) unOff = backend.watchUnclaimed(paintUn);
       paint(); adminHooks.add(paint);
       const out = el('button', 'btn sm', 'Thoát quản trị'); out.onclick = async () => { await backend.adminLogout(); isAdmin = false; if (unAll) unAll(); $('bAdmin').hidden = true; closeModal(); toast('Đã thoát chế độ quản trị'); };
-      b.append(el('p', 'note', 'Kiểm tra tài khoản ngân hàng: thấy tiền về đúng số tiền & nội dung thì bấm "Chấp nhận" — hoa sen tự chuyển về người chơi.'), box, out);
-      const cleanup = () => adminHooks.delete(paint); setTimeout(() => { const v = $('veil'); const obs = new MutationObserver(() => { if (v.hidden) { cleanup(); obs.disconnect(); } }); obs.observe(v, { attributes: true }); }, 0);
+      b.append(el('p', 'note', 'Kiểm tra tài khoản ngân hàng: thấy tiền về đúng số tiền & nội dung thì bấm "Chấp nhận" — hoa sen tự chuyển về người chơi.'), box, un, out);
+      const cleanup = () => { adminHooks.delete(paint); if (unOff) unOff(); }; setTimeout(() => { const v = $('veil'); const obs = new MutationObserver(() => { if (v.hidden) { cleanup(); obs.disconnect(); } }); obs.observe(v, { attributes: true }); }, 0);
     }, { wide: true });
   }
   backend.ready.then(() => { if (isAdmin) startAdmin(); });
