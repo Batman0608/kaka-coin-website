@@ -250,7 +250,7 @@ const BUDDHA_IMG = {
   adida:   ['assets/buddha/adida.webp', 576 / 700, 'one', true],
   duocsu:  ['assets/buddha/duocsu.webp', 442 / 700, 'one', true],
   dilac:   ['assets/buddha/dilac.webp', 617 / 700, 'one', true],
-  quanam:  ['assets/buddha/quanam.webp', 396 / 539, 'one', true]
+  quanam:  ['assets/buddha/quanam.webp', 462 / 539, 'one', true]
 };
 const ALTAR_LABEL = { tamthe: 'ĐẠI HÙNG BẢO ĐIỆN', thichca: 'ĐẠI HÙNG BẢO ĐIỆN', adida: 'CỰC LẠC BẢO ĐIỆN', duocsu: 'DƯỢC SƯ BẢO ĐIỆN', dilac: 'ĐẠI HÙNG BẢO ĐIỆN', quanam: 'QUAN ÂM BẢO ĐIỆN' };
 let _carved = null;
