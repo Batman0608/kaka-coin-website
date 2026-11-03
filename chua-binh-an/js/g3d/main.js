@@ -1227,7 +1227,7 @@ function openSettings() {
       tg('Đồ họa nhẹ (máy yếu) — áp dụng khi tải lại', S.low, v => { S.low = v; saveS(); }));
     const row = el('div', 'row'); const ch = el('button', 'btn', 'Đổi nhân vật'); ch.onclick = () => characterForm(false); row.append(ch); b.append(row);
     b.append(el('h3', '', '📡 Phát trực tiếp TikTok LIVE'),
-      el('p', 'note', 'Chế độ livestream: màn hình dọc 9:16 cho TikTok LIVE Studio / OBS, người xem tham gia bằng comment, tim, quà qua TikFinity. Cần chạy game trên máy tính bằng start.bat.'));
+      el('p', 'note', 'Chế độ livestream: màn hình dọc 9:16 cho TikTok LIVE Studio / OBS. Ai tặng quà được đọc tên cảm ơn (quà càng lớn đọc càng dài), thả đèn cầu nguyện, hiện màn hình hiệu ứng theo bậc (Đồng → Huyền Thoại) và ghi tên lên Bảng Công Đức. Trên máy tính đang mở TikFinity, mở bằng Microsoft Edge: http://localhost:8080/live.html?autoconnect=1 (Edge có sẵn giọng đọc tiếng Việt).'));
     const lr = el('div', 'row');
     const a1 = el('a', 'btn gold', 'Bảng điều khiển livestream'); a1.href = 'index.html'; a1.target = '_blank';
     const a2 = el('a', 'btn', 'Màn hình phát 9:16'); a2.href = 'live.html'; a2.target = '_blank';

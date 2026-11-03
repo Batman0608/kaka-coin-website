@@ -79,6 +79,14 @@ Muốn dùng giọng thầy/chùa tự thu: đặt mp3 vào `audio/voice/` và t
 
 Tự kết nối khi mở màn hình phát: `live.html?autoconnect=1` (đổi địa chỉ bằng `&ws=ws://...`).
 
+Khi có người tặng quà:
+- **Đọc tên cảm ơn** (giọng tiếng Việt của Edge/Windows): quà càng giá trị câu đọc càng dài; quà nhỏ (hồng, TikTok…) dồn dập thì gộp tên đọc một lượt, không bỏ sót ai.
+- **Thả đèn cầu nguyện**: 1 đèn cho quà nhỏ, tới 20 đèn cho Rồng vàng.
+- **Màn hình hiệu ứng theo bậc**: Đồng (≥1 xu) · Bạc (≥5) · Vàng (≥30) · Bạch Kim (≥100) · Kim Cương (≥299) · Huyền Thoại (≥1000) — chỉnh mốc ở `giftTiers` trong `js/config.js`.
+- **Ghi tên lên Bảng Công Đức** (buổi live và Bảng Vàng tuần), kèm biểu tượng bậc quà cao nhất người đó đã tặng.
+
+Mở màn hình phát trên **chính máy tính đang chạy TikFinity**, bằng **Microsoft Edge**: `http://localhost:8080/live.html?autoconnect=1` (máy chủ `chay-may-chu.bat`) hoặc `http://127.0.0.1:4173/live.html?autoconnect=1` (`start.bat`). Trong OBS dùng *Window Capture* cửa sổ Edge (Browser Source của OBS không có giọng đọc tiếng Việt). Trong OBS/LIVE Studio nhớ bật thu âm thanh của máy (Desktop Audio) để người xem nghe được giọng đọc.
+
 ## Thêm nhạc, kinh của bạn (ví dụ thư mục `F:\I.Kinh,DanThien`)
 
 Game **tự nhận mọi file âm thanh** (mp3, m4a, wav, ogg, flac…) trong thư mục `audio/`, kể cả thư mục con. Tên file dùng làm tên bài. Loại bài (Kinh, Niệm Phật, Giảng pháp, Vu Lan, Thiền) được đoán theo tên file hoặc tên thư mục: có chữ “kinh”, “chú”, “đại bi” → Kinh; “đàn”, “thiền”, “không lời” → Thiền… Có 3 cách:

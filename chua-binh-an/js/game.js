@@ -757,7 +757,39 @@
         }, 11);
         break;
     }
-    if (coins >= C.ttsMinCoins) A.speak(`Cảm ơn ${name} đã ${tier.label.toLowerCase()}. Chúc bạn và gia đình luôn bình an.`);
+    giftVoice(tier, name, giftName, count, bless);
+    giftLanterns(tier, pos, name);
+    tierScreen(tier, u, giftName, count);
+    const ti = tierIdx(tier.id); if (ti > (u.topTier ?? -1)) { u.topTier = ti; const pr = prof(u); if (ti > (pr.topTier ?? -1)) { pr.topTier = ti; saveP(); } }
+  }
+  /* đọc tên người tặng: quà càng giá trị đọc càng dài, quà nhỏ dồn dập thì gộp tên */
+  function giftVoice(tier, name, giftName, count, bless) {
+    if (!A.announce) return;
+    const k = tierIdx(tier.id), plain = (t) => t.replace(/[—·]/g, ',');
+    if (k <= 0) return A.announce('', 0, name);
+    const lines = [
+      null,
+      `Cảm ơn ${name} đã thắp nến, thỉnh chuông. Nguyện bạn luôn bình an.`,
+      `Cảm ơn ${name} đã dâng mâm ngũ quả lên Tam Bảo. ${plain(bless)}`,
+      `Xin tán dương công đức của ${name}, đã dâng hoa sen vàng${count > 1 ? ' ' + count + ' lần' : ''}. ${plain(bless)} Nam mô A Di Đà Phật.`,
+      `Toàn thể đại chúng, xin cùng tùy hỷ công đức của ${name}, đã thả hoa đăng nguyện cầu. ${plain(bless)} Nguyện cho ${name} cùng gia quyến thân tâm an lạc, vạn sự cát tường. Nam mô A Di Đà Phật.`,
+      `Kính mừng ${name}! Rồng vàng hộ pháp đã hiện về chùa. Xin toàn thể đại chúng chắp tay, cùng hồi hướng công đức lớn lao này cho ${name} và gia đình. ${plain(bless)} Nguyện Tam Bảo gia hộ cho ${name} phước trí trang nghiêm, sở cầu như ý. Nam mô A Di Đà Phật. Nam mô A Di Đà Phật. Nam mô A Di Đà Phật.`
+    ];
+    A.announce(lines[Math.min(k, lines.length - 1)], k);
+  }
+  /* mỗi món quà đều thả đèn cầu nguyện mang tên người tặng; quà lớn thả nhiều đèn hơn */
+  function giftLanterns(tier, pos, name) {
+    const n = [1, 2, 4, 7, 12, 20][Math.max(0, tierIdx(tier.id))] || 1;
+    for (let i = 0; i < n; i++) setTimeout(() => FX.lanternAt(pos.x + (i ? (Math.random() - .5) * 360 : 0), pos.y - (i ? Math.random() * 200 : 0)), i * 180);
+  }
+  /* màn hình hiệu ứng theo đẳng cấp quà: viền sáng & khung tên, bậc cao phủ cả màn hình */
+  function tierScreen(tier, u, giftName, count) {
+    const k = tierIdx(tier.id), box = $('tierFx'); if (!box) return;
+    const lv = ['Đồng', 'Bạc', 'Vàng', 'Bạch Kim', 'Kim Cương', 'Huyền Thoại'][k] || '';
+    box.className = 'tierfx t' + k; void box.offsetWidth; box.classList.add('on');
+    $('tfIcon').textContent = tier.icon; $('tfLv').textContent = `Công đức bậc ${lv}`;
+    $('tfName').textContent = u.name; $('tfGift').textContent = `${tier.label} · ${giftName}${count > 1 ? ' ×' + count : ''}`;
+    clearTimeout(tierScreen.t); tierScreen.t = setTimeout(() => box.classList.remove('on'), [2600, 3200, 4200, 5500, 7000, 9000][k] || 3000);
   }
   function roomIncense(name) {
     const fresh = now() > roomBuffUntil;
@@ -950,7 +982,7 @@
     const ol = $('topMerit'); ol.innerHTML = '';
     if (!top.length) ol.append(el('li', 'empty', 'Hãy là người đầu tiên'));
     top.forEach((u, i) => {
-      const li = el('li', u.id === flashUser ? 'flash' : ''); li.append(el('span', 'rk', String(i + 1)), el('span', 'nm', u.name), el('span', 'sc', fmt(u.merit))); ol.append(li);
+      const li = el('li', u.id === flashUser ? 'flash' : ''); const tt = TIERS[boardWeek ? (P[u.id] || {}).topTier ?? -1 : u.topTier ?? -1]; li.append(el('span', 'rk', String(i + 1)), el('span', 'nm', (tt ? tt.icon + ' ' : '') + u.name), el('span', 'sc', fmt(u.merit))); ol.append(li);
     });
     const tb = users.filter(u => u.beads > 0).sort((a, b) => b.beads - a.beads).slice(0, 3);
     const ob = $('topBeads'); ob.innerHTML = '';

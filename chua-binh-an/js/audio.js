@@ -13,7 +13,7 @@ CBA.Audio = (() => {
   el.preload = 'auto';
 
   const st = {
-    musicOn: true, sfxOn: true, ttsOn: false, storyTtsOn: true,
+    musicOn: true, sfxOn: true, ttsOn: false, storyTtsOn: true, giftTts: true,
     musicVol: 0.55, sfxVol: 0.8,
     index: 0, playing: false, mode: 'next',   // next | loop | shuffle
     lineIdx: -1, missing: {},
@@ -321,6 +321,34 @@ CBA.Audio = (() => {
     speechSynthesis.speak(u);
   }
 
+  /* ---------- đọc tên người tặng quà: hàng đợi riêng, không bỏ sót ----------
+     prio cao (quà lớn) được đọc trước; quà nhỏ dồn dập thì gộp tên đọc một lần. */
+  const annQ = []; let annBusy = false;
+  function announce(text, prio = 0, smallName) {
+    if (!window.speechSynthesis || st.giftTts === false) return;
+    if (!viVoice) pickVoice(); if (!viVoice) return;
+    if (smallName) {   // quà nhỏ: gộp vào lượt cảm ơn chung đang chờ
+      const g = annQ.find(x => x.group);
+      if (g) { if (!g.names.includes(smallName) && g.names.length < 8) g.names.push(smallName); else if (g.names.length >= 8) g.more++; return; }
+      annQ.push({ group: true, names: [smallName], more: 0, prio: 0 });
+    } else annQ.push({ text, prio });
+    annQ.sort((a, b) => b.prio - a.prio);
+    if (annQ.length > 12) annQ.splice(12);
+    if (!annBusy) nextAnn();
+  }
+  function nextAnn() {
+    const j = annQ.shift(); if (!j) { annBusy = false; return; }
+    annBusy = true;
+    const text = j.group ? `Cảm ơn ${j.names.join(', ')}${j.more ? ' và ' + j.more + ' Phật tử khác' : ''} đã dâng hương cúng dường. Nam mô A Di Đà Phật.` : j.text;
+    if (speechSynthesis.speaking || speechSynthesis.pending) { setTimeout(() => { annQ.unshift(j); nextAnn(); }, 700); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = viVoice.lang || 'vi-VN'; u.voice = viVoice; u.rate = 0.95; u.pitch = 1;
+    let done = false; const fin = () => { if (done) return; done = true; st.duck = 1; applyVolume(); setTimeout(nextAnn, 350); };
+    u.onstart = () => { st.duck = 0.3; applyVolume(); }; u.onend = fin; u.onerror = fin;
+    setTimeout(fin, 4000 + text.length * 120);   // Chrome đôi khi không gọi onend
+    speechSynthesis.speak(u);
+  }
+
   /* ---------- tự nhận file nhạc trong thư mục audio/ ----------
      Máy chủ nội bộ (start.bat) liệt kê được nội dung thư mục, nên chỉ cần chép
      file (mp3, m4a, wav, ogg, flac…) vào audio/ — kể cả thư mục con — là game
@@ -512,7 +540,7 @@ CBA.Audio = (() => {
   }
 
   return {
-    ensure, unlocked, unlock, mo, bell, bigBell, smallBell, khanh, speak,
+    ensure, unlocked, unlock, mo, bell, bigBell, smallBell, khanh, speak, announce,
     play, next, prev, toggle, playCategory, stop: () => { stopAll(); onChange(); },
     set, state, scanFolder, addTracks, setTone, playTemple, setTempleTrack, ambience, voices, setVoice, voiceName: () => viVoice ? viVoice.name : '', say, stopVoice, hasVoiceFile, loadSamples, voicePacks, setVoicePack, voicePack: () => PACK,
     onChange: fn => { onChange = fn; }, onBeat: fn => { onBeat = fn; }, onComplete: fn => { onComplete = fn; }
