@@ -380,3 +380,9 @@ body.touch .chatinput { bottom: calc(160px + env(safe-area-inset-bottom, 0px)); 
 .chatbub::after { content: ''; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: rgba(255, 252, 245, .96); border-bottom: 0; }
 .item.on { border-color: var(--gold); background: #4a2410; }
 .item.on .price { color: #5fe08a; }
+
+/* cửa hàng đệm: ảnh minh họa mô hình thật */
+.item.cushrow { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; text-align: left; }
+.cushpic { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; background: radial-gradient(#6a3418, #2a1006); border: 1px solid rgba(240, 192, 80, .35); }
+.cushtxt { display: grid; gap: 2px; min-width: 0; order: 2; } .item.cushrow .cushpic { order: 1; } .item.cushrow .price { grid-column: 3; grid-row: 1; } .item.cushrow .cushpic { grid-column: 1; grid-row: 1; } .item.cushrow .cushtxt { grid-column: 2; grid-row: 1; }
+.prow.pnote b a { color: var(--gold); }

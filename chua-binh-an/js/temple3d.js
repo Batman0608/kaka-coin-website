@@ -419,7 +419,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
       if (Math.abs(x) < 1.6 && z < az + 4.6) continue;   // chừa lối trước lư hương
       if (z > d / 2 - 0.6) continue;
       const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, base + 0.11, z); cu.userData.cushion = true; g.add(cu);
-      g.add(box(0.5, 0.02, 0.5, mat('cushg', 0xe0a93a), x, base + 0.17, z));
+      { const cg = box(0.5, 0.02, 0.5, mat('cushg', 0xe0a93a), x, base + 0.17, z); cg.userData.cushion = true; g.add(cg); }
       cushions.push(new THREE.Vector3(x, base + 0.16, z));
     }
     g.userData.mainHall = { w, d, base, altar: new THREE.Vector3(0, base, az + 1.2), cushions, offerSlots, burner: new THREE.Vector3(0, base, az + 2.6), roofs: [], front: [] };

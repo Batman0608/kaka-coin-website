@@ -292,12 +292,36 @@ function cushionMesh(cfg) {
   return g;
 }
 let meCushion = null;
+/* ảnh minh họa đệm trong cửa hàng: chụp chính mô hình 3D của đệm (đúng như khi ngồi) */
+const cushThumbs = {}; let thumbR = null;
+function cushionThumb(cfg) {
+  if (cushThumbs[cfg.id]) return cushThumbs[cfg.id];
+  return (cushThumbs[cfg.id] = new Promise(res => requestAnimationFrame(() => { try {
+    if (!thumbR) { const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); r.setSize(240, 180); r.outputColorSpace = THREE.SRGBColorSpace; thumbR = r; }
+    const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xfff2dc, 0x3a1a0c, 1.4)); const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.set(2, 4, 3); sc.add(dl);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(0.9, 40), new THREE.MeshStandardMaterial({ color: 0x5a2a12, roughness: 0.9 })); floor.rotation.x = -Math.PI / 2; sc.add(floor);
+    const m = cushionMesh(cfg); if (m.userData.glow) m.userData.glow.material.opacity = 0.55; sc.add(m);
+    const cm = new THREE.PerspectiveCamera(32, 240 / 180, 0.05, 20); cm.position.set(0, 1.05, 1.55); cm.lookAt(0, 0.12, 0);
+    thumbR.render(sc, cm); res(thumbR.domElement.toDataURL('image/png'));
+  } catch (e) { res(''); } })));
+}
 function showMeCushion() {
   hideMeCushion();
   const cfg = CUSHIONS.find(c => c.id === P.cushion) || CUSHIONS[0];
-  meCushion = cushionMesh(cfg); meCushion.position.set(me.pos.x, me.y + 0.01, me.pos.z); meCushion.rotation.y = me.yaw; meCushion.userData.tmp = true; scene.add(meCushion);
+  if (cfg.id === 'moc') return;   // đệm mặc định = chính đệm của chùa, không đặt thêm
+  const h = W && W.halls.find(x => x.cushions.includes(me.seated)) || (W && W.halls[0]);
+  hideTempleCushion(me.pos, true);
+  meCushion = cushionMesh(cfg); meCushion.position.set(me.pos.x, me.y - 0.15, me.pos.z);   // đặt sát sàn, đúng chỗ đệm chùa
+  meCushion.rotation.y = h && h.yaw ? new THREE.Euler().setFromQuaternion(h.yaw, 'YXZ').y : 0;   // thẳng hàng với các đệm khác
+  meCushion.userData.tmp = true; scene.add(meCushion);
 }
-function hideMeCushion() { if (meCushion) { scene.remove(meCushion); meCushion = null; } }
+let hiddenCush = [];
+function hideTempleCushion(p, on) {   // ẩn / hiện đệm của chùa tại chỗ ngồi
+  hiddenCush.forEach(o => { o.visible = true; }); hiddenCush = [];
+  if (!on || !W) return; const v = new THREE.Vector3();
+  W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.getWorldPosition(v) && Math.hypot(v.x - p.x, v.z - p.z) < 0.3) { o.visible = false; hiddenCush.push(o); } });
+}
+function hideMeCushion() { hideTempleCushion(null, false); if (meCushion) { scene.remove(meCushion); meCushion = null; } }
 function stepMeCushion(t) { if (meCushion && meCushion.userData.glow) { const k = 0.75 + 0.25 * Math.sin(t * 2.4); meCushion.userData.glow.material.opacity = 0.7 * k; if (meCushion.userData.pl) meCushion.userData.pl.intensity = 0.8 * meCushion.userData.gi * k; } }
 function sitOn(c, hall, quiet) {
   me.seated = c; c.taken = true; me.pos.set(c.x, 0, c.z); me.y = c.y; me.yaw = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); me.av.setPose('kneel'); cam.yaw = me.yaw + Math.PI; showMeCushion();
@@ -579,7 +603,9 @@ function openOffer(tab = 'free') {
       CUSHIONS.forEach(cu => {
         const owned = P.cushions.includes(cu.id), using = P.cushion === cu.id;
         const r = el('button', 'item shopitem' + (using ? ' on' : ''));
-        r.append(el('b', '', `💺 ${cu.n}${cu.glow ? ' ✨' : ''}`), el('small', '', cu.note), el('em', 'price', using ? 'Đang dùng' : owned ? 'Đã có · chọn' : `🪷 ${cu.price}`));
+        const pic = el('img', 'cushpic'); pic.alt = cu.n; cushionThumb(cu).then(u => { if (u) pic.src = u; else pic.remove(); });
+        const txt = el('div', 'cushtxt'); txt.append(el('b', '', `${cu.n}${cu.glow ? ' ✨' : ''}`), el('small', '', cu.note));
+        r.classList.add('cushrow'); r.append(pic, txt, el('em', 'price', using ? 'Đang dùng' : owned ? 'Đã có · chọn' : `🪷 ${cu.price}`));
         r.onclick = () => {
           if (using) return;
           if (!owned) { if (cu.price > 0 && !SHOP.spend(cu.price)) { toast(`Cần ${cu.price} hoa sen · nhận quà hằng ngày hoặc nạp thêm`); return; } P.cushions.push(cu.id); toast(`💺 Đã mua ${cu.n}`); }
@@ -928,12 +954,23 @@ const SANGHA = {
 const sangha = () => SANGHA[temple && temple.id] || SANGHA['binh-an'];
 /* đệm tòa sen vàng cho quý thầy + vầng sáng tỏa trên sàn phía dưới */
 function monkSeat(p) {
-  const g = cushionMesh(CUSHIONS.find(c => c.id === 'haoquang')); g.position.set(p.x, p.y + 0.01, p.z); g.userData.tmp = true;
-  g.scale.set(1.22, 0.9, 1.22);   // tòa sen rộng hơn vạt cà sa, cánh sen xòe ra ngoài
+  /* tọa cụ của quý thầy: bệ bát giác sơn son viền vàng, cánh sen vàng xòe thấp quanh bệ (không chạm áo cà sa),
+     bồ đoàn tròn vàng nghệ có viền chỉ vàng, vầng sáng dưới sàn */
+  const g = new THREE.Group(); g.position.set(p.x, p.y - 0.15, p.z); g.userData.tmp = true;
+  g.userData.hid = []; const wv = new THREE.Vector3(); W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.visible && o.getWorldPosition(wv) && Math.hypot(wv.x - p.x, wv.z - p.z) < 0.3) { o.visible = false; g.userData.hid.push(o); } });   // ẩn đệm chùa ở chỗ thầy ngồi
+  const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.55 }, o));
+  const lac = M(0x7a140c, { roughness: 0.35 }), gold = M(0xe8b84a, { metalness: 0.7, roughness: 0.3 }), saffron = M(0xe0902a, { roughness: 0.75 });
+  const dais = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.58, 0.1, 8), lac); dais.position.y = 0.05; g.add(dais);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.555, 0.02, 6, 8), gold); rim.rotation.set(Math.PI / 2, 0, Math.PI / 8); rim.position.y = 0.1; g.add(rim);
+  // hai lớp cánh sen tròn bầu, khum lên ôm lấy bồ đoàn
+  [[0.5, 20, 0.11, 0.42, gold], [0.42, 16, 0.15, 0.7, M(0xf3cf6a, { metalness: 0.55, roughness: 0.32 })]].forEach(([r, n, y, tilt, m], row) => {
+    for (let i = 0; i < n; i++) { const a = (i + row * 0.5) / n * Math.PI * 2, pe = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), m);
+      pe.scale.set(1.05, 0.28, 0.85); pe.position.set(Math.cos(a) * r, y, Math.sin(a) * r); pe.rotation.order = 'YXZ'; pe.rotation.y = -a; pe.rotation.z = tilt; g.add(pe); } });
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.12, 32), saffron); pad.position.y = 0.2; g.add(pad);
+  const pip = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.016, 6, 32), gold); pip.rotation.x = Math.PI / 2; pip.position.y = 0.26; g.add(pip);
+  const pl = new THREE.PointLight(0xffd36b, 0.36, 2.2, 1.6); pl.position.y = 0.12; g.add(pl); g.userData.pl = pl; g.userData.gi = 0.45;
   const disc = new THREE.Mesh(new THREE.CircleGeometry(0.85, 32), new THREE.MeshBasicMaterial({ map: cushionGlowTex(), color: 0xffd36b, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; g.add(disc); g.userData.disc = disc;
-  if (g.userData.glow) { g.remove(g.userData.glow); g.userData.glow = null; }   // không để quầng sáng che người thầy, chỉ sáng dưới sàn
-  if (g.userData.pl) { g.userData.pl.position.y = 0.12; g.userData.pl.distance = 2.2; g.userData.gi = 0.45; }
   scene.add(g); return g;
 }
 function pulseSeat(g, t, ph = 0) {
@@ -1075,7 +1112,7 @@ function showMonks() {
 }
 function hideMonks() {
   if (!monks) return;
-  monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props); monks.cush.forEach(c => scene.remove(c));
+  monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props); monks.cush.forEach(c => { scene.remove(c); c.userData.hid.forEach(o => { o.visible = true; }); });
   monks.seats.forEach(c => { if (me.seated !== c) c.taken = false; }); monks = null;
   if (resMonk) { resMonk.av.root.visible = true; resMonk.label.style.display = ''; resMonk.cush.visible = true; if (resMonk.seat) resMonk.seat.taken = true; resSit(); }
 }
@@ -1240,7 +1277,7 @@ function openSettings() {
     const tel = el('a', 'btn gold', '📞 Gọi / Zalo: ' + phone); tel.href = 'tel:' + phone.replace(/[^0-9]/g, '');
     cr.append(tel);
     if (contact.zalo) { const z = el('a', 'btn', '💬 Zalo'); z.href = contact.zalo; z.target = '_blank'; cr.append(z); }
-    if (contact.facebook) { const f = el('a', 'btn', 'Facebook'); f.href = contact.facebook; f.target = '_blank'; cr.append(f); }
+    { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/61596243718616/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
     b.append(el('p', 'note', `Phiên bản 2026.11.01 · Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).`));
@@ -1739,7 +1776,8 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene };   // hỗ trợ kiểm thử
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene, cushionThumb };
+window.__sit = (c, h) => sitOn(c, h, true);   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');

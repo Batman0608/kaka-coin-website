@@ -167,6 +167,10 @@ export function initShop(ctx) {
     const row = (k, v, copy) => { const r = el('div', 'prow'); r.append(el('span', '', k), el('b', '', v)); if (copy) r.append(copyBtn(copy)); rows.append(r); };
     row('Ngân hàng', CFG.bank.bankName || CFG.bank.bank || '—');
     row('Số tài khoản', CFG.bank.account || '—', CFG.bank.account || '');
+    { const ct = (CBA.shop && CBA.shop.contact) || {}, ph = ct.phone || '0938.225.268', fp = ct.facebook || 'https://www.facebook.com/61596243718616/';
+      const r = el('div', 'prow pnote'); r.append(el('span', '', '💬 Hãy nhắn tin cho admin'));
+      const v = el('b'); const t = el('a', '', ph); t.href = 'tel:' + ph.replace(/[^0-9]/g, ''); const f = el('a', '', 'Fanpage'); f.href = fp; f.target = '_blank'; f.rel = 'noopener';
+      v.append(t, document.createTextNode(' · '), f); r.append(v); rows.append(r); }
     row('Chủ tài khoản', CFG.bank.owner || '—');
     row('Số tiền', vnd(amount), String(amount));
     row('Nội dung CK', content, content);
