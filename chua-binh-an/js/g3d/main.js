@@ -100,7 +100,7 @@ const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 v
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  hideMonks(); if (resMonk) { resMonk.label.remove(); resMonk = null; }
+  hideMonks(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -127,7 +127,7 @@ function loadTemple(id) {
   smokes = W.burners.map(b => { const f = smoke(scene, b); return { update: f }; });
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
-  abbot = { av: ab, label: label(C.storyteller.replace('Sư Ông', 'Sư trụ trì') || 'Sư trụ trì', 'abbot') }; abbot.av.root.userData.tmp = true;
+  abbot = { av: ab, label: label('Sư trụ trì ' + sangha().tru, 'abbot') }; abbot.av.root.userData.tmp = true;
   setupAbbot(); spawnResMonk();
   if (W.merit) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
@@ -909,6 +909,37 @@ function kinhTick(force) {
   showKinhBar(win, muted);
   if (muted) pauseKinh(); else playKinh(win);
 }
+/* pháp danh chư Tăng mỗi chùa (nhân vật trong game): trụ trì · sư thường trực · 3 vị tụng kinh */
+const SANGHA = {
+  'binh-an':     { tru: 'Tâm An',     res: 'Minh Tâm',   tung: ['Trí Thiện', 'Tâm Hòa', 'Nhuận Pháp'] },
+  'bai-dinh':    { tru: 'Đức Viên',   res: 'Quảng Tịnh', tung: ['Minh Giác', 'Pháp Hải', 'Tịnh Huệ'] },
+  'tam-chuc':    { tru: 'Thanh Phong', res: 'Viên Minh', tung: ['Hải Đăng', 'Tuệ Quang', 'Thiện Chí'] },
+  'mot-cot':     { tru: 'Liên Hoa',   res: 'Thanh Liên', tung: ['Phổ Tế', 'Từ Nhẫn', 'Quang Huy'] },
+  'huong':       { tru: 'Đạo Nguyên', res: 'Huyền Không', tung: ['Thanh Tịnh', 'Diệu Âm', 'Bảo Châu'] },
+  'yen-tu':      { tru: 'Thiền Tâm',  res: 'Trúc Minh',  tung: ['Vân Sơn', 'Tùng Lâm', 'Hạnh Thông'] },
+  'thien-mu':    { tru: 'Thiên Ân',   res: 'Nguyên Trí', tung: ['Phước Hậu', 'Tâm Đạo', 'Hương Giang'] },
+  'linh-ung':    { tru: 'Hải Tuệ',    res: 'Phổ Quang',  tung: ['Thiện Duyên', 'Diệu Hạnh', 'An Lạc'] },
+  'long-son':    { tru: 'Long Hưng',  res: 'Thiện Tâm',  tung: ['Bảo Quang', 'Trí Hải', 'Đồng Chơn'] },
+  'vinh-nghiem': { tru: 'Vĩnh Phúc',  res: 'Tịnh Liên',  tung: ['Thiện Hạnh', 'Nhật Quang', 'Huệ Minh'] },
+  'giac-lam':    { tru: 'Giác Nhiên', res: 'Viên Giác',  tung: ['Lâm Tuệ', 'Phúc Điền', 'Hạnh Đức'] },
+  'doi':         { tru: 'Sơn Ngọc',   res: 'Thạch Sa',   tung: ['Lâm Sóc', 'Kim Danh', 'Danh Thol'] }
+};
+const sangha = () => SANGHA[temple && temple.id] || SANGHA['binh-an'];
+/* đệm tòa sen vàng cho quý thầy + vầng sáng tỏa trên sàn phía dưới */
+function monkSeat(p) {
+  const g = cushionMesh(CUSHIONS.find(c => c.id === 'haoquang')); g.position.set(p.x, p.y + 0.01, p.z); g.userData.tmp = true;
+  g.scale.set(1.22, 0.9, 1.22);   // tòa sen rộng hơn vạt cà sa, cánh sen xòe ra ngoài
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.85, 32), new THREE.MeshBasicMaterial({ map: cushionGlowTex(), color: 0xffd36b, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; g.add(disc); g.userData.disc = disc;
+  if (g.userData.glow) { g.remove(g.userData.glow); g.userData.glow = null; }   // không để quầng sáng che người thầy, chỉ sáng dưới sàn
+  if (g.userData.pl) { g.userData.pl.position.y = 0.12; g.userData.pl.distance = 2.2; g.userData.gi = 0.45; }
+  scene.add(g); return g;
+}
+function pulseSeat(g, t, ph = 0) {
+  if (!g) return; const k = 0.75 + 0.25 * Math.sin(t * 2.2 + ph);
+  if (g.userData.glow) g.userData.glow.material.opacity = 0.55 * k; if (g.userData.pl) g.userData.pl.intensity = 0.8 * (g.userData.gi || 1) * k;
+  g.userData.disc.material.opacity = 0.6 * k; g.userData.disc.scale.setScalar(0.95 + 0.08 * k);
+}
 /* ---------------- sư trụ trì đi quanh chánh điện, thỉnh thoảng nói lời hay; bấm vào để nghe sự tích ---------------- */
 const SAYINGS = [
   'Tâm bình thì thế giới bình.', 'Buông bỏ được thì tự tại.', 'Gieo nhân lành, ắt gặt quả lành.',
@@ -973,7 +1004,7 @@ function spawnResMonk() {
   const av = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 77, kasaya: true }); av.root.userData.tmp = true; scene.add(av.root);
   const f = hallFrame(h), side = Math.max(2, Math.min(4.5, (h.w || 12) / 2 - 1.6));
   const loop = [[f.sMax + 1.2, side * 0.8], [3.0, side], [3.0, -side], [f.sMax + 1.2, -side * 0.8]].map(([su, sv]) => f.at(su, sv)).filter(walkable);
-  resMonk = { av, home, seat, h, loop, mode: 'sit', t: 50 + Math.random() * 70, i: 0, say: 6 + Math.random() * 10, label: label('🙏 Thầy Minh Tâm', 'npc') };
+  resMonk = { av, home, seat, h, loop, mode: 'sit', t: 50 + Math.random() * 70, i: 0, say: 6 + Math.random() * 10, label: label('🙏 Thầy ' + sangha().res, 'npc'), cush: monkSeat(home) };
   resSit();
 }
 function resSit() {
@@ -982,6 +1013,7 @@ function resSit() {
 }
 function stepResMonk(dt) {
   const m = resMonk; if (!m || monks) return; const r = m.av.root, p = r.position; let moving = false;
+  pulseSeat(m.cush, performance.now() / 1000);
   placeLabel(m.label, p, m.av.height + 0.15);
   if (m.mode === 'sit') {
     m.t -= dt; m.say -= dt;
@@ -1006,7 +1038,7 @@ function monkSpots(h) {
   const info = cs.map(c => ({ c, s: (c.x - a.x) * u.x + (c.z - a.z) * u.z, l: (c.x - a.x) * v.x + (c.z - a.z) * v.z }));
   const f = Math.min(...info.map(i => i.s)), front = info.filter(i => i.s < f + 0.3), y = front[0].c.y;
   if (!front.some(i => Math.abs(i.l) < 1.0)) {   // hàng đầu chừa lối giữa → sư ngồi ngay giữa lối đó
-    return { u, seats: [], spots: [-1.15, 0, 1.15].map(l => new THREE.Vector3(a.x + u.x * f + v.x * l, y, a.z + u.z * f + v.z * l)) };
+    return { u, seats: [], spots: [-1.4, 0, 1.4].map(l => new THREE.Vector3(a.x + u.x * f + v.x * l, y, a.z + u.z * f + v.z * l)) };
   }
   const pick = front.filter(i => me.seated !== i.c).sort((p, q) => Math.abs(p.l) - Math.abs(q.l)).slice(0, 3).sort((p, q) => p.l - q.l);   // 3 đệm giữa hàng đầu
   return { u, seats: pick.map(i => i.c), spots: pick.map(i => i.c.clone()) };
@@ -1017,11 +1049,12 @@ function showMonks() {
   sp.seats.forEach(c => { c.taken = true; npcs.forEach(n => { if (n.sit === c) { n.sit = null; n.av.setPose('idle'); n.wait = 0.3; } if (n.goSit === c) { n.goSit = null; n.target = null; } }); });
   const props = new THREE.Group(); props.userData.tmp = true; scene.add(props);
   const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o));
+  const seats = [];
   const list = sp.spots.map((p, i) => {
     const av = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 31 + i * 17, kasaya: true });
     av.root.position.copy(p); av.root.rotation.y = Math.atan2(h.altar.x - p.x, h.altar.z - p.z); av.setPose('lotus'); av.root.userData.tmp = true; scene.add(av.root);
-    const mat = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 24), M(0xe0a93a)); mat.position.set(p.x, p.y - 0.03, p.z); props.add(mat);   // tọa cụ vàng
-    return { av, label: i === 1 ? label('🙏 Chư Tăng đang tụng kinh', 'abbot') : null };   // một nhãn chung trên vị giữa, không chồng nhau
+    seats.push(monkSeat(p));   // tòa sen vàng tỏa sáng
+    return { av, label: i === 1 ? label('🙏 Thầy ' + sangha().tung.join(' · Thầy '), 'abbot') : null };   // một nhãn chung trên vị giữa, không chồng nhau
   });
   const fwd = (p, d) => new THREE.Vector3(p.x - sp.u.x * d, p.y, p.z - sp.u.z * d);
   // mõ gỗ trước vị sư giữa + dùi gõ
@@ -1035,18 +1068,18 @@ function showMonks() {
   const bp = fwd(sp.spots[2], 0.55);
   const bellCush = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 16), M(0xa3231a)); bellCush.position.set(bp.x, bp.y + 0.035, bp.z); props.add(bellCush);
   const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.16, 20, 1, true), M(0xc89a3a, { metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide })); bell.position.set(bp.x, bp.y + 0.15, bp.z); props.add(bell);
-  monks = { list, seats: sp.seats, props, striker, t: 0 };
-  if (resMonk) { resMonk.av.root.visible = false; resMonk.label.style.display = 'none'; }   // sư thường trực nhập vào khóa tụng
+  monks = { list, seats: sp.seats, cush: seats, props, striker, t: 0 };
+  if (resMonk) { resMonk.av.root.visible = false; resMonk.label.style.display = 'none'; resMonk.cush.visible = false; }   // sư thường trực nhập vào khóa tụng
   ticker('🙏 Quý thầy đã an tọa giữa hàng đầu chánh điện · bắt đầu khóa tụng');
 }
 function hideMonks() {
   if (!monks) return;
-  monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props);
+  monks.list.forEach(m => { scene.remove(m.av.root); if (m.label) m.label.remove(); }); scene.remove(monks.props); monks.cush.forEach(c => scene.remove(c));
   monks.seats.forEach(c => { if (me.seated !== c) c.taken = false; }); monks = null;
-  if (resMonk) { resMonk.av.root.visible = true; resMonk.label.style.display = ''; if (resMonk.seat) resMonk.seat.taken = true; resSit(); }
+  if (resMonk) { resMonk.av.root.visible = true; resMonk.label.style.display = ''; resMonk.cush.visible = true; if (resMonk.seat) resMonk.seat.taken = true; resSit(); }
 }
 function stepMonks(dt) {
-  if (!monks) return; monks.t += dt;
+  if (!monks) return; monks.t += dt; monks.cush.forEach((c, i) => pulseSeat(c, monks.t, i));
   monks.list.forEach(m => { m.av.update(dt, false); if (m.label) placeLabel(m.label, m.av.root.position, m.av.height + 0.15); });
   const ph = (monks.t * 1.65) % 1; monks.striker.rotation.x = ph < 0.18 ? 0.55 * Math.sin(ph / 0.18 * Math.PI) : 0;   // gõ mõ đều tay
 }
