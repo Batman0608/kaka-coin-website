@@ -547,10 +547,10 @@ function meditate(min) {
 
 /* Dâng lễ */
 const OFFERS = [
-  { id: 'nen', icon: '🕯', n: 'Đôi nến đỏ', m: 20, cd: 120 },
-  { id: 'qua', icon: '🍑', n: 'Mâm ngũ quả', m: 30, cd: 180 },
-  { id: 'sen', icon: '🌸', n: 'Bình hoa sen', m: 50, cd: 300 },
-  { id: 'tra', icon: '🍵', n: 'Chén trà dâng Phật', m: 15, cd: 90 }
+  { id: 'nen', icon: '🕯', n: 'Đôi nến đỏ', m: 20, cd: 7200 },   // lễ vật miễn phí: 2 giờ mới dâng lại được, muốn dâng ngay thì mua trong Cửa hàng
+  { id: 'qua', icon: '🍑', n: 'Mâm ngũ quả', m: 30, cd: 7200 },
+  { id: 'sen', icon: '🌸', n: 'Bình hoa sen', m: 50, cd: 7200 },
+  { id: 'tra', icon: '🍵', n: 'Chén trà dâng Phật', m: 15, cd: 7200 }
 ];
 function openOffer(tab = 'free') {
   const cds = store.get('cd', {});
@@ -569,11 +569,12 @@ function openOffer(tab = 'free') {
       OFFERS.forEach(o => {
         const left = Math.max(0, Math.ceil(((cds[o.id] || 0) - Date.now()) / 1000));
         const r = el('button', 'item' + (left ? ' wait' : '')); r.disabled = !!left;
-        r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Đợi ${Math.ceil(left / 60)} phút` : `Miễn phí · +${o.m} công đức · cầm lên tay, đặt trên bàn thờ`));
+        r.append(el('b', '', `${o.icon} ${o.n}`), el('small', '', left ? `Dâng lại sau ${left >= 3600 ? Math.floor(left / 3600) + ' giờ ' : ''}${Math.ceil(left % 3600 / 60)} phút · muốn dâng ngay hãy mua trong 🏪 Cửa hàng` : `Miễn phí · +${o.m} công đức · 2 giờ dâng được một lần`));
         r.onclick = () => { cds[o.id] = Date.now() + o.cd * 1000; store.set('cd', cds); closeModal(); carryOffering(o); };
         list.append(r);
       });
-      b.append(el('p', 'note', 'Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương". Lễ vật thường miễn phí, dâng lại sau ít phút.'));
+      b.append(el('p', 'note', 'Lễ vật thường miễn phí, mỗi món 2 giờ dâng được một lần. Muốn dâng ngay, mua lễ vật trong Cửa hàng. Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương".'));
+      if (OFFERS.some(o => (cds[o.id] || 0) > Date.now())) { const go = el('button', 'btn gold sm', '🏪 Mua lễ vật dâng ngay'); go.onclick = () => { closeModal(); openOffer('shop'); }; b.append(go); }
     } else if (tab === 'cushion') {
       CUSHIONS.forEach(cu => {
         const owned = P.cushions.includes(cu.id), using = P.cushion === cu.id;
@@ -1428,12 +1429,28 @@ setInterval(() => {
   const rows = [[P.name, P.beads], ...NET.peers().map(p => [p.name, p.beads]), ...npcs.map(n => [n.label.textContent, n.beads || (n.beads = 200 + (Math.random() * 3000 | 0))])].sort((a, b) => b[1] - a[1]).map(([n, v]) => [n, fmt(v)]);
   const meritRows = [[P.name, P.merit], ...NET.peers().map(p => [p.name, p.merit]), ...npcs.map(n => [n.label.textContent, (n.merit = n.merit || (Math.random() * 400 | 0))])].sort((a, b) => b[1] - a[1]);
   BOARDS.forEach((b, i) => b.draw(i === 0 ? rows : meritRows.map(([n, v]) => [n, fmt(v)])));
-  checkRanks(meritRows); drawRank(meritRows);
+  checkRanks(meritRows); drawRank(meritRows); decorateAll(meritRows);
   // hào quang theo công đức: từ 1000 phát sáng, từ 2000 sáng nhiều
   if (me.av) me.av.setAura(P.merit >= 1000, 0xffe08a, P.merit >= 2000);
   npcs.forEach(n => n.av && n.av.setAura((n.merit || 0) >= 1000, 0xffe08a, (n.merit || 0) >= 2000));
   NET.auraByMerit && NET.auraByMerit();
 }, 3000);
+/* danh hiệu theo mốc công đức (hiện dưới tên trên đầu) + biểu tượng hạng nếu đứng trong Bảng Công Đức */
+const MERIT_TITLES = [[10000, '👑', 'Đại Thí Chủ'], [5000, '☀️', 'Công Đức Vô Lượng'], [2000, '🌟', 'Đại Phước Đức'], [1000, '✨', 'Phước Đức Viên'], [500, '🪷', 'Thiện Nhân'], [200, '🍃', 'Hộ Pháp'], [50, '🌱', 'Thiện Tín']];
+const RANK_ICON = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+const titleOf = (m) => MERIT_TITLES.find(t => (m || 0) >= t[0]) || null;
+function decorate(lbl, merit, rank) {
+  if (!lbl) return; const t = titleOf(merit), tt = t ? `${t[1]} ${t[2]}` : '', r = rank >= 1 && rank <= RANK_ICON.length ? RANK_ICON[rank - 1] : '';
+  if (lbl.dataset.title !== tt) lbl.dataset.title = tt; if (lbl.dataset.rank !== r) lbl.dataset.rank = r;
+}
+function decorateAll(rows) {
+  const rk = (name) => rows.findIndex(r => r[0] === name) + 1;
+  decorate(me.label, P.merit, rk(P.name));
+  npcs.forEach(n => decorate(n.label, n.merit, rk(n.label.textContent)));
+  NET.decorate && NET.decorate((lbl, name, m) => decorate(lbl, m, rk(name)));
+  const t = titleOf(P.merit), k = t ? MERIT_TITLES.length - MERIT_TITLES.indexOf(t) : 0;   // mốc mới → chúc mừng
+  if (k > (P.titleK || 0)) { P.titleK = k; save(); A.smallBell && A.smallBell(); banner('🏵 Danh hiệu mới', `${t[1]} ${t[2]}`, `Đạt ${fmt(t[0])} công đức · danh hiệu hiện dưới tên trên đầu nhân vật`); }
+}
 /* bảng xếp hạng công đức góc trái */
 let rankPrev = [];
 function drawRank(rows) {

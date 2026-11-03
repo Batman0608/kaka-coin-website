@@ -53,5 +53,23 @@ window.TEMPLE_PHOTO_CREDITS = {
   "lic": "CC BY-SA 4.0",
   "page": "https://commons.wikimedia.org/wiki/File:Long_Son_Pagoda_2.jpg",
   "title": "File:Long Son Pagoda 2.jpg"
+ },
+ "linh-ung": {
+  "artist": "Christophe95",
+  "lic": "CC BY-SA 4.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Linh_Ung_Pagoda_10.jpg",
+  "title": "File:Linh Ung Pagoda 10.jpg"
+ },
+ "tam-chuc": {
+  "artist": "Hoangvantoanajc",
+  "lic": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:C%E1%BA%A3nh_tr%C3%AAn_H%E1%BB%93_Tam_Ch%C3%BAc,_Ninh_B%C3%ACnh.jpg",
+  "title": "File:Cảnh trên Hồ Tam Chúc, Ninh Bình.jpg"
+ },
+ "binh-an": {
+  "artist": "Ảnh dựng từ mô hình 3D trong game (chùa nhà, không phải chùa có thật)",
+  "lic": "",
+  "page": "",
+  "title": "Chùa Bình An · mô hình 3D"
  }
 };

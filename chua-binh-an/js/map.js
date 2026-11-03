@@ -112,7 +112,7 @@ function select(id) {
   const ph = $('photo'), box = $('viewPhoto'); box.classList.remove('empty');
   ph.onerror = () => box.classList.add('empty'); ph.src = `assets/temples/${t.id}.jpg`;
   const cr = (window.TEMPLE_PHOTO_CREDITS || {})[t.id];
-  $('photoCredit').innerHTML = cr ? `Ảnh: ${cr.artist || ''} · <a href="${cr.page}" target="_blank" rel="noopener">${cr.lic}</a>` : '';
+  $('photoCredit').innerHTML = cr ? (cr.page ? `Ảnh: ${cr.artist || ''} · <a href="${cr.page}" target="_blank" rel="noopener">${cr.lic}</a>` : cr.artist || '') : '';
   show3d();
 }
 function show3d() {

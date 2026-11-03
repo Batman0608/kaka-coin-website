@@ -13,5 +13,8 @@
 | `thien-mu.jpg` | Thien Mu Pagoda 2011.jpg | Jean-Etienne Minh-Duy Poirrier from Bruxelles, Belgium | CC BY-SA 2.0 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Thien_Mu_Pagoda_2011.jpg) |
 | `vinh-nghiem.jpg` | Cổng chùa Vĩnh Nghiêm.jpg | Bùi Thụy Đào Nguyên | CC BY-SA 3.0 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:C%E1%BB%95ng_ch%C3%B9a_V%C4%A9nh_Nghi%C3%AAm.jpg) |
 | `yen-tu.jpg` | Vườn tháp Huệ Quang, chùa Đồng, Yên Tử.jpg | Thang Nguyen from Nottingham, United Kingdom | CC BY-SA 2.0 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:V%C6%B0%E1%BB%9Dn_th%C3%A1p_Hu%E1%BB%87_Quang,_ch%C3%B9a_%C4%90%E1%BB%93ng,_Y%C3%AAn_T%E1%BB%AD.jpg) |
+| `linh-ung.jpg` | Linh Ung Pagoda 10.jpg | Christophe95 | CC BY-SA 4.0 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Linh_Ung_Pagoda_10.jpg) |
+| `tam-chuc.jpg` | Cảnh trên Hồ Tam Chúc, Ninh Bình.jpg | Hoangvantoanajc | CC0 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:C%E1%BA%A3nh_tr%C3%AAn_H%E1%BB%93_Tam_Ch%C3%BAc,_Ninh_B%C3%ACnh.jpg) |
 
-Chưa có ảnh: **Chùa Linh Ứng Bãi Bụt** — đặt ảnh của bạn tên `linh-ung.jpg` vào thư mục này (ảnh ngang, khoảng 1100px). Muốn thay ảnh khác: chép đè đúng tên file và sửa `credits.js`.
+`binh-an.jpg`: ảnh chụp từ mô hình 3D trong game (Chùa Bình An là chùa nhà của game, không có ảnh thật).
+Muốn thay ảnh khác: chép đè đúng tên file và sửa `credits.js`.

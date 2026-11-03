@@ -8,6 +8,7 @@
 | `thichca.webp` | Phật Thích Ca, hợp kim đồng mạ vàng, vương quốc Khasa Malla | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Gilt_Copper_Alloy_Figure_of_Shakyamuni_Buddha_from_Khasa_Malla_kingdom.jpg) | Tác phẩm cổ | Public domain |
 | `adida.webp` | Phật A Di Đà ngồi thiền, Bảo tàng Nghệ thuật Châu Á San Francisco | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Seated_Amitabha_front_SF_Asian_Art_Museum_B60S10%2B.JPG) | Ảnh: BrokenSphere | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 | `dilac.webp` | Phật Di Lặc (Bố Đại) mạ vàng ngồi trên tòa sen | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Laughing_Buddha_Budai_(11949994793).jpg) | Ảnh: shankar s. | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) |
+| `quanam-dung.webp` | Tượng Quan Âm đứng cầm bình cam lồ, chùa Linh Ứng Sơn Trà (tách nền, cắt phần tượng & tòa sen) — dùng ở động Hương Tích, Chùa Hương | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:T%C6%B0%E1%BB%A3ng_B%E1%BB%93_T%C3%A1t_t%E1%BA%A1i_Ch%C3%B9a_Linh_%E1%BB%A8ng,_S%C6%A1n_Tr%C3%A0,_%C4%90%C3%A0_N%E1%BA%B5ng,_th%C3%A1ng_3_n%C4%83m_2021_(3).jpg) | Ảnh: Phương Huy | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (ảnh phái sinh cũng theo CC BY-SA 4.0) |
 
 `adida.webp` là tác phẩm phái sinh (tách nền, cắt, chỉnh màu) từ ảnh CC BY-SA 3.0 của BrokenSphere, nên cũng được phát hành theo **CC BY-SA 3.0**. Khi dùng lại ảnh này phải ghi nguồn như trên.
 

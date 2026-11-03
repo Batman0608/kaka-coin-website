@@ -49,7 +49,7 @@ let INTERIOR = null;   // game 3D: { set: 'hoanh'|'thu'|'nam' } → chánh đi�
 export const HALLS = [];
 export const ANIM = [];   // hàm cập nhật hiệu ứng mỗi khung hình (game gọi)
 /* ảnh tượng thật (đã tách nền) + màu hào quang */
-const PHOTO = { quanam: ['assets/buddha/quanam.webp', 462 / 539, '#ffe9a8'], duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
+const PHOTO = { quanamdung: ['assets/buddha/quanam-dung.webp', 561 / 880, '#fff3d6'], quanam: ['assets/buddha/quanam.webp', 462 / 539, '#ffe9a8'], duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
 const texLoader = new THREE.TextureLoader();
 function glowTex(color, kind = 'glow') {
   const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
@@ -711,7 +711,7 @@ const SCENES = {
     // động Hương Tích thờ Quan Âm: bệ đá, tượng có hào quang ngay cửa động, bàn thờ & lư hương phía trước
     g.add(box(2.4, 0.5, 1.0, STONE(), 0, top + 0.25, 0.25));
     g.add(box(1.6, 0.06, 0.8, GOLD(), 0, top + 0.53, 0.25));
-    photoBuddha(g, 'quanam', 0, top + 0.56, 0.45, 3.3);
+    photoBuddha(g, 'quanamdung', 0, top + 0.56, 0.45, 3.7);   // Quan Âm đứng cầm bình cam lồ
     g.add(box(1.5, 0.7, 0.55, mat('caveAltar', 0x7a1a0e), 0, top + 0.35, 1.25)); g.add(box(1.6, 0.06, 0.62, GOLD(), 0, top + 0.72, 1.25));
     const lu = cyl(0.22, 0.16, 0.3, 12, BRONZE(), 0, top + 0.9, 1.25); g.add(lu);
     for (let k = 0; k < 5; k++) { const sti = cyl(0.012, 0.012, 0.36, 5, mat('stick', 0xb3261e), (k - 2) * 0.05, top + 1.2, 1.25); sti.userData.noCollide = true; g.add(sti); }
