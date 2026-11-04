@@ -57,51 +57,76 @@ export class Avatar {
     const r = this.root; while (r.children.length) r.remove(r.children[0]);
     const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.kasaya ? 'hau' : this.monk ? 'tang' : L.robe] || ROBES.lam;
     const robe = T(robeC), robeD = T(new THREE.Color(robeC).multiplyScalar(0.82)), gold = T(0xe0a93a), hairM = T(this.hairC), dark = T(0x2a1a14), bead = T(0xb7774a);
+    const lite = (c, k) => new THREE.Color(c).lerp(new THREE.Color(0xffffff), k);
+    const robeL = T(lite(robeC, 0.35)), pants = T(lite(robeC, 0.18)), sash = T(0xf2c14e), wood = T(0x9a6232), sole = T(0x5a3418), white = new THREE.MeshBasicMaterial({ color: 0xffffff });
     this.hips = pivot(0, 0.5, 0); r.add(this.hips);
-    // vạt áo dưới (dáng chuông)
-    this.skirt = lathe([[0.001, -0.3], [0.37, -0.3], [0.35, -0.22], [0.3, -0.08], [0.26, 0.02], [0.001, 0.02]], robe); this.hips.add(this.skirt);
-    put(this.hips, part(new THREE.TorusGeometry(0.36, 0.018, 6, 30), gold, 0, -0.29, 0)).rotation.x = Math.PI / 2;   // viền gấu áo
-    // chân
+    // vạt áo tràng ngắn (tới đùi), viền đậm
+    this.skirt = lathe([[0.001, -0.21], [0.3, -0.21], [0.295, -0.13], [0.265, -0.03], [0.245, 0.02], [0.001, 0.02]], robe); this.hips.add(this.skirt);
+    put(this.skirt, part(new THREE.TorusGeometry(0.298, 0.016, 6, 32), robeD, 0, -0.2, 0)).rotation.x = Math.PI / 2;
+    // chân: quần ống rộng, bàn chân, dép quai
     const leg = (sx) => {
-      const thigh = pivot(sx * 0.1, -0.02, 0); this.hips.add(thigh);
-      thigh.add(part(new THREE.CapsuleGeometry(0.055, 0.12, 4, 8), dark, 0, -0.1, 0));
-      const knee = pivot(0, -0.22, 0); thigh.add(knee);
-      knee.add(part(new THREE.CapsuleGeometry(0.05, 0.1, 4, 8), dark, 0, -0.09, 0));
-      put(knee, part(new THREE.SphereGeometry(0.075, 10, 8), T(0x3a2418), 0, -0.22, 0.04)).scale.set(0.9, 0.55, 1.4);
+      const thigh = pivot(sx * 0.095, -0.06, 0); this.hips.add(thigh);
+      thigh.add(part(new THREE.CylinderGeometry(0.085, 0.09, 0.17, 12), pants, 0, -0.08, 0));
+      const knee = pivot(0, -0.16, 0); thigh.add(knee);
+      knee.add(part(new THREE.CylinderGeometry(0.088, 0.105, 0.17, 14), pants, 0, -0.085, 0));
+      put(knee, part(new THREE.TorusGeometry(0.1, 0.012, 6, 16), robeD, 0, -0.17, 0)).rotation.x = Math.PI / 2;   // gấu quần
+      put(knee, part(new THREE.SphereGeometry(0.05, 10, 8), sk, 0, -0.2, 0.035)).scale.set(0.95, 0.6, 1.5);        // bàn chân
+      knee.add(part(new THREE.BoxGeometry(0.11, 0.024, 0.19), sole, 0, -0.232, 0.035));                         // đế dép
+      put(knee, part(new THREE.TorusGeometry(0.045, 0.01, 4, 10, Math.PI), sole, 0, -0.215, 0.07)).rotation.y = 0;  // quai dép
       return { thigh, knee };
     };
     this.lLeg = leg(-1); this.rLeg = leg(1);
-    // thân trên
+    // thân trên: áo tràng cổ chéo
     this.torso = pivot(0, 0, 0); this.hips.add(this.torso);
-    this.torso.add(lathe([[0.001, 0], [0.26, 0], [0.24, 0.16], [0.21, 0.3], [0.15, 0.4], [0.07, 0.44], [0.001, 0.45]], robe));
-    const sash = part(new THREE.TorusGeometry(0.22, 0.03, 8, 30), gold, 0, 0.2, 0); sash.rotation.set(Math.PI / 2 + 0.15, 0.55, 0); sash.scale.set(1.05, 1.05, 1); this.torso.add(sash);   // dải vàng chéo ngực
-    const neck = pivot(0, 0.42, 0); this.torso.add(neck); this.necklace = neck;
-    for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; neck.add(part(new THREE.SphereGeometry(0.022, 6, 5), bead, Math.cos(a) * 0.13, -0.03 - Math.max(0, Math.sin(a)) * 0.05, Math.sin(a) * 0.11)); }   // chuỗi hạt
-    // tay áo rộng
+    this.torso.add(lathe([[0.001, 0], [0.25, 0], [0.245, 0.12], [0.222, 0.25], [0.165, 0.35], [0.085, 0.4], [0.001, 0.41]], robe));
+    [[1, -0.4], [-1, 0.4]].forEach(([sx, rz]) => { const c = part(new THREE.BoxGeometry(0.05, 0.25, 0.02), robeL, sx * 0.05, 0.27, 0.2); c.rotation.set(-0.45, 0, rz); this.torso.add(c); });   // vạt cổ chéo
+    this.torso.add(part(new THREE.CylinderGeometry(0.085, 0.1, 0.05, 16), robeL, 0, 0.385, 0));   // cổ áo
+    // thắt lưng vàng + nút thắt & hai dải buông
+    put(this.torso, part(new THREE.TorusGeometry(0.252, 0.03, 8, 32), sash, 0, 0.03, 0)).rotation.x = Math.PI / 2;
+    this.torso.add(part(new THREE.SphereGeometry(0.042, 10, 8), sash, 0.07, 0.03, 0.25));
+    [[0.05, -0.15], [0.1, 0.12]].forEach(([x, rz]) => { const t = part(new THREE.BoxGeometry(0.045, 0.2, 0.018), sash, x, -0.07, 0.262); t.rotation.z = rz; this.torso.add(t); });
+    // tràng hạt gỗ to đeo cổ, buông xuống ngực, có hạt mẫu & tua
+    const neck = pivot(0, 0, 0); this.torso.add(neck); this.necklace = neck;
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2, f = Math.max(0, Math.sin(a)), rr = 0.13 + 0.135 * f;
+      neck.add(part(new THREE.SphereGeometry(0.03, 10, 8), wood, Math.cos(a) * rr, 0.385 - f * 0.17, Math.sin(a) * rr)); }
+    neck.add(part(new THREE.SphereGeometry(0.042, 10, 8), wood, 0, 0.17, 0.262));
+    put(neck, part(new THREE.ConeGeometry(0.028, 0.07, 8), sash, 0, 0.115, 0.262)).rotation.x = Math.PI;
+    // tay áo rộng, cổ tay viền sáng
     const arm = (sx) => {
-      const shoulder = pivot(sx * 0.19, 0.34, 0); this.torso.add(shoulder);
-      shoulder.add(part(new THREE.CylinderGeometry(0.06, 0.085, 0.16, 12), robeD, 0, -0.08, 0));
+      const shoulder = pivot(sx * 0.2, 0.33, 0); this.torso.add(shoulder);
+      shoulder.add(part(new THREE.CylinderGeometry(0.07, 0.095, 0.16, 12), robeD, 0, -0.08, 0));
       const elbow = pivot(0, -0.16, 0); elbow.rotation.order = 'YXZ'; shoulder.add(elbow);
-      elbow.add(part(new THREE.CylinderGeometry(0.085, 0.115, 0.16, 12), robe, 0, -0.08, 0));
-      elbow.add(part(new THREE.SphereGeometry(0.048, 10, 8), sk, 0, -0.18, 0));
+      elbow.add(part(new THREE.CylinderGeometry(0.095, 0.13, 0.17, 14), robe, 0, -0.085, 0));
+      elbow.add(part(new THREE.CylinderGeometry(0.128, 0.128, 0.025, 14), robeD, 0, -0.17, 0));   // cổ tay áo
+      elbow.add(part(new THREE.SphereGeometry(0.055, 10, 8), sk, 0, -0.215, 0));
       return { shoulder, elbow };
     };
     this.lArm = arm(-1); this.rArm = arm(1);
     this.incense = new THREE.Group(); this.incense.visible = false;
     [-0.025, 0.025].forEach(x => { this.incense.add(part(new THREE.CylinderGeometry(0.007, 0.007, 0.3, 5), T(0xb3261e), x, 0.13, 0)); this.incense.add(part(new THREE.SphereGeometry(0.016, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffa020 }), x, 0.29, 0)); });
-    this.rArm.elbow.add(this.incense); this.incense.position.set(-0.07, -0.2, 0.04);
-    // đầu to tròn
-    const head = pivot(0, 0.45, 0); this.torso.add(head); this.head = head;
-    const hr = nu ? 0.235 : 0.245;
-    head.add(part(new THREE.SphereGeometry(hr, 28, 22), sk, 0, hr * 0.92, 0));
-    const hy = hr * 0.92;
+    this.rArm.elbow.add(this.incense); this.incense.position.set(-0.07, -0.21, 0.04);
+    // đầu to tròn kiểu chibi
+    const head = pivot(0, 0.41, 0); this.torso.add(head); this.head = head;
+    const hr = nu ? 0.29 : 0.3, hy = hr * 0.92;
+    head.add(part(new THREE.SphereGeometry(hr, 32, 24), sk, 0, hy, 0));
+    const onFace = (yaw, pitch, items) => { const g = pivot(0, hy, 0); g.rotation.set(pitch, yaw, 0, 'YXZ'); items.forEach(o => g.add(o)); head.add(g); return g; };
+    const brow = this.monk || L.hair === 'troc' ? T(0x7a5038) : hairM;
     [-1, 1].forEach(sx => {
-      put(head, part(new THREE.SphereGeometry(0.028, 10, 8), T(0x1a1010), sx * 0.085, hy - 0.01, hr * 0.9)).scale.set(0.8, 1.15, 0.5);   // mắt
-      head.add(part(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), sx * 0.085 + 0.008, hy + 0.005, hr * 0.95));
-      put(head, part(new THREE.SphereGeometry(0.03, 8, 6), T(0xf3a0a0, { transparent: true, opacity: 0.55 }), sx * 0.14, hy - 0.06, hr * 0.84)).scale.set(1, 0.6, 0.4);   // má hồng
-      put(head, part(new THREE.SphereGeometry(0.045, 8, 6), sk, sx * hr * 0.98, hy - 0.01, 0)).scale.set(0.5, 0.9, 0.7);   // tai
+      // mắt to: lòng trắng, mống nâu, con ngươi, hai đốm sáng
+      const ew = part(new THREE.SphereGeometry(0.082, 18, 14), white, 0, 0, hr * 0.9); ew.scale.set(0.8, 1.06, 0.34);
+      const ir = part(new THREE.SphereGeometry(0.064, 18, 14), T(0x6a3a1a), 0, -0.008, hr * 0.955); ir.scale.set(0.8, 1, 0.3);
+      const pu = part(new THREE.SphereGeometry(0.034, 12, 10), T(0x120808), 0, -0.008, hr * 0.99); pu.scale.set(0.85, 1, 0.3);
+      const h1 = part(new THREE.SphereGeometry(0.019, 8, 6), white, 0.02 * -sx, 0.024, hr * 1.02), h2 = part(new THREE.SphereGeometry(0.009, 6, 5), white, -0.016 * -sx, -0.028, hr * 1.015);
+      onFace(sx * 0.37, 0.07, [ew, ir, pu, h1, h2]);
+      const br = part(new THREE.CapsuleGeometry(0.009, 0.045, 4, 6), brow, 0, 0, hr * 0.985); br.rotation.z = Math.PI / 2 + sx * 0.18;
+      onFace(sx * 0.37, -0.25, [br]);
+      const ck = part(new THREE.SphereGeometry(0.035, 10, 8), T(0xf39a9a, { transparent: true, opacity: 0.5 }), 0, 0, hr * 0.95); ck.scale.set(1.1, 0.65, 0.3);
+      onFace(sx * 0.62, 0.3, [ck]);   // má hồng
+      put(head, part(new THREE.SphereGeometry(0.055, 10, 8), sk, sx * hr * 0.98, hy - 0.01, 0)).scale.set(0.45, 0.9, 0.7);   // tai
     });
-    put(head, part(new THREE.TorusGeometry(0.03, 0.007, 4, 10, Math.PI), T(0x9a3a2a), 0, hy - 0.08, hr * 0.92)).rotation.z = Math.PI;   // miệng cười
+    onFace(0, 0.27, [part(new THREE.SphereGeometry(0.017, 8, 6), sk, 0, 0, hr * 1.0)]);   // mũi
+    const mo = part(new THREE.TorusGeometry(0.034, 0.008, 5, 14, Math.PI), T(0x9a3a2a), 0, 0, hr * 0.985); mo.rotation.z = Math.PI;
+    onFace(0, 0.42, [mo]);   // miệng cười
     const hair = this.monk ? 'troc' : L.hair;
     if (hair !== 'troc') { const cap = part(new THREE.SphereGeometry(hr * 1.04, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58), hairM, 0, hy + 0.005, -0.012); cap.rotation.x = -0.42; head.add(cap); }
     if (hair === 'bui') {
@@ -140,7 +165,7 @@ export class Avatar {
     } else if (this.aura) { this.aura.visible = this.auraLight.visible = false; }
   }
   bow() { this.bowT = 0; }
-  get height() { return this.pose.hipY + 1.0; }
+  get height() { return this.pose.hipY + 1.08; }
   update(dt, moving) {
     const tgt = Object.assign({}, POSES[moving && this.target !== 'carry' ? 'idle' : this.target]);
     if (moving) {
