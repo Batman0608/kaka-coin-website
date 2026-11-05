@@ -127,16 +127,19 @@ export class Avatar {
   setLook(look) { Object.assign(this.look, look); this.build(); }
   setPose(name) { if (POSES[name]) this.target = name; }
   setGlow(on) { this.halo.visible = !!on; }
-  setAura(on, color = 0xffe08a, strong = false) {
+  setAura(on, color = 0xffe08a, strong = false) {   // hào quang công đức: vầng sáng & vòng vàng dưới chân (không làm lóa người)
     if (on) {
       if (!this.aura) {
-        const hy = 1.7;
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: auraTex(), color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 }));
-        sp.position.y = hy * 0.5; sp.renderOrder = -2; this.root.add(sp); this.aura = sp;
-        const pl = new THREE.PointLight(color, 1.0, 4.5, 1.6); pl.position.y = hy * 0.6; this.root.add(pl); this.auraLight = pl;
-      } else { this.aura.material.color.setHex(color); this.auraLight.color.setHex(color); }
-      const hy = 1.7, sc = strong ? 2.4 : 1.5; this.aura.scale.set(hy * sc * 0.62, hy * sc * 0.72, 1); this._auraStrong = strong;
-      this.aura.visible = this.auraLight.visible = true; this.halo.visible = true;
+        const g = new THREE.Group(); g.position.y = 0.03; this.root.add(g); this.aura = g;
+        const mk = (geo, op) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: geo.type === 'CircleGeometry' ? auraTex() : null, color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; m.renderOrder = -2; g.add(m); return m; };
+        this.auraDisc = mk(new THREE.CircleGeometry(0.75, 40), 0.55);
+        this.auraRing = mk(new THREE.RingGeometry(0.5, 0.54, 48), 0.7);
+        this.auraRing2 = mk(new THREE.RingGeometry(0.66, 0.68, 48), 0.45);
+        const pl = new THREE.PointLight(color, 0.35, 2.2, 1.8); pl.position.y = 0.25; this.root.add(pl); this.auraLight = pl;
+      }
+      [this.auraDisc, this.auraRing, this.auraRing2].forEach(m => m.material.color.setHex(color)); this.auraLight.color.setHex(color);
+      this._auraStrong = strong; this.aura.scale.setScalar(strong ? 1.35 : 1); this.auraRing2.visible = strong;
+      this.aura.visible = this.auraLight.visible = true;
     } else if (this.aura) { this.aura.visible = this.auraLight.visible = false; }
   }
   bow() { this.bowT = 0; }
@@ -160,7 +163,7 @@ export class Avatar {
     for (const key in tgt) this.pose[key] += (tgt[key] - this.pose[key]) * (moving ? Math.min(1, lerp * 3) : lerp);
     this.incense.visible = this.target === 'incense';
     if (this.halo.visible) this.halo.rotation.z += dt;
-    if (this.aura && this.aura.visible) { const st = this._auraStrong, k = 0.78 + 0.22 * Math.sin(performance.now() / 320); this.aura.material.opacity = (st ? 0.9 : 0.6) * k; this.auraLight.intensity = (st ? 1.5 : 0.7) * k; this.aura.material.rotation += dt * 0.3; }
+    if (this.aura && this.aura.visible) { const st = this._auraStrong, k = 0.75 + 0.25 * Math.sin(performance.now() / 320); this.auraDisc.material.opacity = (st ? 0.6 : 0.42) * k; this.auraRing.material.opacity = 0.75 * k; this.auraLight.intensity = (st ? 0.5 : 0.3) * k; this.auraRing.scale.setScalar(0.94 + 0.12 * k); this.aura.rotation.y += dt * 0.6; this.aura.position.y = 0.03 - (this.pose.hipY < 0.4 ? 0 : 0); }
     this.apply();
   }
   apply() {

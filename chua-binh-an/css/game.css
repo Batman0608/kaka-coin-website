@@ -390,3 +390,8 @@ body.touch .chatinput { bottom: calc(160px + env(safe-area-inset-bottom, 0px)); 
 
 /* tạm ẩn số người chơi / kênh, chỉ giữ đồng hồ Phật Quang nhỏ */
 .online { font-size: 0 !important; } .online i, .online #online { display: none !important; } .online .pq { font-size: 11px; }
+
+/* thanh báo lễ rước kiệu ở chùa khác */
+.kinhbar.festbar { top: calc(100px + env(safe-area-inset-top, 0px)); background: linear-gradient(90deg, #8e1a0e, #c98a1c); }
+body.touch .kinhbar.festbar { top: calc(134px + env(safe-area-inset-top, 0px)); }
+body:has(.veil:not([hidden])) .festbar { display: none; }

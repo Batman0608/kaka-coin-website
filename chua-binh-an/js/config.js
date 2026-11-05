@@ -74,6 +74,10 @@ CBA.config = {
     { at: 1080000, name: 'Viên Mãn Tâm' }
   ],
 
+  /* Lễ rước kiệu hằng ngày (giờ Việt Nam): mỗi ngày một chùa, lần lượt theo danh sách chùa.
+     h:m giờ bắt đầu, dur phút, speed m/giây của đoàn rước. */
+  ruocKieu: { enabled: true, h: 18, m: 0, dur: 20, speed: 0.55 },
+
   /* Công đức tối đa mỗi ngày từ tu tập miễn phí (hương, mõ, lễ vật thường, đèn nguyện). Lễ vật mua & hòm công đức không giới hạn. */
   meritDailyCap: 300,
 

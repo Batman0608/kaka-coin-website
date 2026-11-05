@@ -607,7 +607,7 @@ const SCENES = {
   hall(g) {
     ground(g); courtyard(g, 18, 10, 5);
     g.add(hall({ w: 10, d: 6 })); g.add(burner(0, 12));
-    [-8, 8].forEach(x => g.add(tree(6, LEAF(), x, 3)));
+    [-11.5, 11.5].forEach(x => g.add(tree(6, LEAF(), x, 8)));   // cây sân trước, ngoài chánh điện (điện rộng ±7,5)
     return { cam: [14, 9, 18], target: [0, 3, 0] };
   },
   motcot(g) {
@@ -752,7 +752,7 @@ const SCENES = {
     g.add(box(40, 1, 30, mat('cliff', 0x8a8a7a), 0, 0.5, 0));
     const s = standingGuanyin(24); s.position.set(0, 1, 8); s.rotation.y = 0; g.add(s);
     const h = hall({ w: 12, d: 7, h: 3.6, tiers: 2, wall: YWALL(), roofColor: 0x2f5a7a }); h.position.set(-12, 1, -6); g.add(h);
-    [10, 16, -20, 20].forEach((x, i) => g.add(tree(5, LEAF(), x, -4 - (i % 2) * 4)));
+    [10, 16, -28, 20].forEach((x, i) => g.add(tree(5, LEAF(), x, -4 - (i % 2) * 4)));   // cây ngoài chánh điện (điện rộng tới x≈-21)
     g.add(mountain(26, 24, 0x3f6a35, 2, 16, -50));
     return { cam: [-22, 16, 38], target: [0, 11, 4] };
   },

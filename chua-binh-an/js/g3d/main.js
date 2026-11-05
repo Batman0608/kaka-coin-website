@@ -86,7 +86,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 $('view').append(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.fov = w < h ? 70 : 58; camera.updateProjectionMatrix(); }   // màn dọc điện thoại: góc nhìn rộng hơn
 addEventListener('resize', resize); resize();
 const hemi = new THREE.HemisphereLight(0xfff4dd, 0x5a4a3a, 0.95); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe2b0, 1.5); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
@@ -94,13 +94,13 @@ Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, n
 
 let W = null, temple = null, smokes = [];
 const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, busy: null, label: null };
-const cam = { yaw: 0, pitch: 0.38, dist: 6.5 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
+const cam = { yaw: 0, pitch: 0.38, dist: 8 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
 const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
 
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  hideMonks(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
+  festDispose(); hideMonks(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -247,6 +247,8 @@ let ctxAction = null;
 const near = (p, r) => Math.hypot(me.pos.x - p.x, me.pos.z - p.z) < r && Math.abs(me.y - (p.y || 0)) < 2.5;
 function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
+  if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
+  if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
   if (W.merit && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
   if (hall) { const c = hall.cushions.filter(c => !c.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]; if (c && near(c, 1.4)) return { label: '🧘 Ngồi lên đệm', fn: () => sitOn(c, hall) }; }
@@ -978,6 +980,154 @@ function pulseSeat(g, t, ph = 0) {
   if (g.userData.glow) g.userData.glow.material.opacity = 0.55 * k; if (g.userData.pl) g.userData.pl.intensity = 0.8 * (g.userData.gi || 1) * k;
   g.userData.disc.material.opacity = 0.6 * k; g.userData.disc.scale.setScalar(0.95 + 0.08 * k);
 }
+/* ======================= LỄ RƯỚC KIỆU HẰNG NGÀY =======================
+   Mỗi ngày một chùa (xoay vòng), đúng giờ C.ruocKieu, kéo dài dur phút ngoài đời.
+   Vị trí đoàn rước tính theo đồng hồ → mọi người chơi cùng thấy kiệu ở cùng một chỗ.
+   Kiệu do 4 người khiêng; người chơi đến gần bấm "Khiêng kiệu" để thay một người khiêng. */
+let fest = null, festNoticed = '';
+function festWindow() {
+  const F = C.ruocKieu; if (!F || F.enabled === false) return null;
+  const vn = kinhVN(), dayNum = Math.floor(Date.UTC(vn.getFullYear(), vn.getMonth(), vn.getDate()) / 86400000);
+  const tId = window.__festForce || TEMPLES[dayNum % TEMPLES.length].id, t = TEMPLES.find(x => x.id === tId) || TEMPLES[0];
+  const start = new Date(vn); start.setHours(F.h, F.m || 0, 0, 0);
+  const sec = (vn - start) / 1000, dur = (F.dur || 20) * 60;
+  return { temple: t, day: dayNum, sec, dur, active: sec >= 0 && sec < dur, soon: sec < 0 && sec > -600, at: `${F.h}:${String(F.m || 0).padStart(2, '0')}` };
+}
+function festRoute() {   // vòng rước: vào theo một làn, vòng quay đầu trước chánh điện, ra theo làn kia, vòng quay đầu phía cổng
+  const L = W.layout, h = W.halls[0], V = (x, z) => new THREE.Vector3(x, 0, z), col = W.col;
+  const outs = [V(L.spawn[0], L.spawn[1])], Y = L.yard && L.yard[0];
+  if (Y && Y.gate) { const [x0, z0, x1, z1] = Y.r, [gs, gat] = Y.gate; const g = { '+z': V(gat, z1 - 2), '-z': V(gat, z0 + 2), '+x': V(x1 - 2, gat), '-x': V(x0 + 2, gat) }[gs]; if (g) outs.push(g); }
+  const ins = h && h.group && h.d ? [7, 4.5, 2.5].map(k => h.group.localToWorld(new THREE.Vector3(0, 0, h.d / 2 + k)).setY(0)) : [h ? h.altar.clone().setY(0) : V(L.spawn[0], L.spawn[1] - 15)];
+  const okPt = (x, z, yRef, y0) => { const hh = col.heightAt(x, z, yRef + 0.3); if (hh == null || Math.abs(hh - yRef) > 0.45 || Math.abs(hh - y0) > 0.7) return null; if (W.burners.some(b => Math.hypot(b.x - x, b.z - z) < 1.9)) return null; return hh; };
+  const pairs = []; outs.forEach(o => ins.forEach(i => pairs.push([o, i])));
+  if (h && h.group && h.d) [4.5, 6, 8, 3, 2.3].forEach(k => [10, 7.5, 5.5].forEach(w => pairs.push([h.group.localToWorld(new THREE.Vector3(w, 0, h.d / 2 + k)).setY(0), h.group.localToWorld(new THREE.Vector3(-w, 0, h.d / 2 + k)).setY(0)])));   // đi ngang dọc mặt tiền chánh điện
+  let best = null;
+  for (const [outer, inner] of pairs) {
+    const ax = inner.clone().sub(outer); const full = ax.length(); if (full < 4) continue; ax.normalize(); const nv = V(ax.z, -ax.x);
+    const y0 = col.heightAt(outer.x, outer.z, 2.2) ?? col.heightAt(outer.x, outer.z, 50) ?? 0;   // mặt sân (không lấy nóc mái phía trên)
+    const lane = (o) => { const pts = []; let y = y0; for (let d = 0; d <= full; d += 0.4) { const x = outer.x + ax.x * d + nv.x * o, z = outer.z + ax.z * d + nv.z * o, hh = okPt(x, z, y, y0); if (hh == null) break; y = hh; pts.push(new THREE.Vector3(x, y, z)); } return pts; };
+    const arc = (pa, pb, dir, o) => { const pts = []; const cx = (pa.x + pb.x) / 2, cz = (pa.z + pb.z) / 2; let y = pa.y;
+      for (let i = 1; i < 10; i++) { const t = Math.PI * i / 10, d = -Math.cos(t) * o, f = Math.sin(t) * Math.max(o, 1.2) * dir, x = cx + nv.x * d + ax.x * f, z = cz + nv.z * d + ax.z * f, hh = okPt(x, z, y, y0); if (hh == null) return null; y = hh; pts.push(new THREE.Vector3(x, y, z)); }
+      return pts; };
+    for (const o of [2.2, 3.4, 4.6, 1.4, 1.0, 0.6, 0]) {   // o = 0: một làn, đi tới rồi quay ngược lại
+      if (o === 0 && best && best.score >= 20) continue;
+      const A = lane(-o), B = o ? lane(o) : A; let n = Math.min(A.length, B.length);
+      // lùi điểm quay đầu tới khi cả vòng trong & vòng ngoài đều đi được
+      let ai = null, ao = arc(A[0] || outer, B[0] || outer, -1, o);
+      if (!ao) continue;
+      while (n > 6 && !(ai = arc(A[n - 1], B[n - 1], 1, o))) n--;
+      if (!ai || n <= 6) continue;
+      const pts = [...A.slice(0, n), ...ai.reverse().map(p => p).reverse(), ...B.slice(0, n).reverse(), ...ao.slice().reverse()];
+      const cum = [0]; for (let i = 1; i <= pts.length; i++) cum.push(cum[i - 1] + pts[i % pts.length].distanceTo(pts[i - 1]));
+      const len = cum[cum.length - 1], yards = L.yard || [];
+      const inside = pts.filter(p => yards.some(Yd => p.x > Yd.r[0] + 0.8 && p.x < Yd.r[2] - 0.8 && p.z > Yd.r[1] + 0.8 && p.z < Yd.r[3] - 0.8)).length / pts.length;
+      const score = len * inside * inside;   // ưu tiên vòng nằm trong sân chùa
+      if (!best || score > best.score) best = { pts, cum, len, score };
+    }
+  }
+  return best;
+}
+function festAt(R, s) {   // vị trí, hướng, pháp tuyến tại quãng s trên vòng rước
+  s = ((s % R.len) + R.len) % R.len; let i = 1; while (i < R.cum.length - 1 && R.cum[i] < s) i++;
+  const a = R.pts[i - 1], b = R.pts[i % R.pts.length], k = (s - R.cum[i - 1]) / Math.max(1e-6, R.cum[i] - R.cum[i - 1]);
+  const p = a.clone().lerp(b, k), dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1;
+  return { p, yaw: Math.atan2(dx, dz), nx: dz / L, nz: -dx / L };
+}
+let _flagTex = null;
+function flagTex() {   // cờ Phật giáo năm màu
+  if (_flagTex) return _flagTex; const c = document.createElement('canvas'); c.width = 100; c.height = 150; const g = c.getContext('2d');
+  ['#2a5bd7', '#f5c518', '#d7262b', '#ffffff', '#f08a24'].forEach((col, i) => { g.fillStyle = col; g.fillRect(i * 20, 0, 20, 110); });
+  ['#2a5bd7', '#f5c518', '#d7262b', '#ffffff', '#f08a24'].forEach((col, i) => { g.fillStyle = col; g.fillRect(0, 110 + i * 8, 100, 8); });
+  _flagTex = new THREE.CanvasTexture(c); _flagTex.colorSpace = THREE.SRGBColorSpace; return _flagTex;
+}
+function kieuMesh() {
+  const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.5 }, o));
+  const red = M(0x9a1a10), gold = M(0xe2b048, { metalness: 0.65, roughness: 0.3 }), wood = M(0x5a2a12);
+  const B = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+  [-0.62, 0.62].forEach(x => B(0.08, 0.08, 3.0, wood, x, 0, 0));                 // hai đòn khiêng
+  B(1.0, 0.12, 1.2, red, 0, 0.08, 0); B(1.08, 0.04, 1.28, gold, 0, 0.15, 0);       // bệ kiệu
+  [[-0.42, -0.5], [0.42, -0.5], [-0.42, 0.5], [0.42, 0.5]].forEach(([x, z]) => B(0.06, 0.95, 0.06, gold, x, 0.62, z));   // 4 cột
+  const roofG = new THREE.CylinderGeometry(0.12, 0.85, 0.45, 4, 1); roofG.rotateY(Math.PI / 4);
+  const roof = new THREE.Mesh(roofG, red); roof.scale.set(1.05, 1, 1.25); roof.position.y = 1.3; g.add(roof);
+  B(1.16, 0.05, 1.36, gold, 0, 1.08, 0);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), gold); top.position.y = 1.6; g.add(top);
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4, r = 0.82; const c = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 6), gold); c.position.set(Math.cos(a) * r * 0.75, 1.12, Math.sin(a) * r * 0.85); c.rotation.z = 0.9 * (Math.cos(a) > 0 ? -1 : 1); g.add(c); }
+  [-1, 1].forEach(sx => { const cur = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.8), new THREE.MeshStandardMaterial({ color: 0xf2c14e, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })); cur.position.set(sx * 0.42, 0.62, 0.52); cur.rotation.y = sx * 0.5; g.add(cur); });   // rèm vàng vén hai bên
+  const tex = new THREE.TextureLoader().load('assets/buddha/thichca.webp'); tex.colorSpace = THREE.SRGBColorSpace;
+  const bud = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, toneMapped: false })); bud.position.set(0, 0.48, 0.05); g.add(bud);
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.2, 32), new THREE.MeshBasicMaterial({ color: 0xffe08a, side: THREE.DoubleSide, toneMapped: false })); halo.position.set(0, 0.68, 0.0); g.add(halo);
+  const pl = new THREE.PointLight(0xffd9a0, 0.8, 4, 1.6); pl.position.set(0, 0.7, 0.3); g.add(pl);
+  g.traverse(o => { o.userData.noCollide = true; }); return g;
+}
+function festBuild(win) {
+  const R = festRoute(); if (!R) return null;
+  const grp = new THREE.Group(); grp.userData.tmp = true; scene.add(grp);
+  const kieu = kieuMesh(); grp.add(kieu);
+  const mk = (seed, look, pose) => { const a = new Avatar({ look, seed }); a.setPose(pose); a.root.userData.tmp = true; grp.add(a.root); return a; };
+  const looks = ['lam', 'nau', 'xam', 'trang'];
+  const bearers = [[-0.62, 1.25], [0.62, 1.25], [-0.62, -1.25], [0.62, -1.25]].map(([lx, lz], i) => ({ lx, lz, av: mk(200 + i, { g: 'nam', hair: 'troc', robe: 'vang' }, 'carry') }));
+  // đoàn cờ hội: 2 cặp đi trước, 2 cặp theo sau kiệu
+  const flags = [[2.0, -0.75], [2.0, 0.75], [3.6, -0.75], [3.6, 0.75], [-2.9, -0.75], [-2.9, 0.75], [-4.5, -0.75], [-4.5, 0.75]].map(([back, lx], i) => {
+    const av = mk(300 + i, { g: i % 2 ? 'nu' : 'nam', hair: ['bui', 'ngan', 'dai', 'troc'][i % 4], robe: looks[i % 4] }, 'idle');
+    const pole = new THREE.Group(); pole.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.5, 6), new THREE.MeshStandardMaterial({ color: 0x8a5a2a })));
+    pole.children[0].position.y = 1.25;
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.8), new THREE.MeshStandardMaterial({ map: flagTex(), side: THREE.DoubleSide })); fl.position.set(0.3, 2.05, 0); pole.add(fl);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshStandardMaterial({ color: 0xe2b048, metalness: 0.6 })); knob.position.y = 2.52; pole.add(knob);
+    pole.position.set(0.26, 0.35, 0.12); av.root.add(pole);
+    return { back, lx, av, fl, ph: i * 0.7 };
+  });
+  const lbl = label('🏮 Lễ rước kiệu · ' + win.temple.name, 'abbot');
+  return { R, grp, kieu, bearers, flags, lbl, temple: win.temple.id, day: win.day, beat: 0, bellT: 0 };
+}
+function festDispose() {
+  if (!fest) return; if (me.bearing) festLeave(true);
+  scene.remove(fest.grp); fest.lbl.remove(); fest = null;
+}
+function festPose(off, lx) {   // điểm cách đầu kiệu `off` mét (dương: phía trước), lệch ngang lx
+  const F = C.ruocKieu, win = fest.win, s = win.sec * (F.speed || 0.55) + off, q = festAt(fest.R, s);
+  return { x: q.p.x + q.nx * lx, z: q.p.z + q.nz * lx, y: W.col.heightAt(q.p.x + q.nx * lx, q.p.z + q.nz * lx, q.p.y + 0.4) ?? q.p.y, yaw: q.yaw, q };
+}
+function festStep(dt) {
+  if (!fest) return;
+  if (fest.win && fest.win.t0) fest.win.sec = (Date.now() - fest.win.t0) / 1000;   // vị trí đoàn rước tính thẳng theo đồng hồ
+  const c = festPose(0, 0), bob = Math.abs(Math.sin(fest.win.sec * 3.2)) * 0.04;
+  fest.kieu.position.set(c.x, c.y + 0.95 + bob, c.z); fest.kieu.rotation.y = c.yaw;
+  fest.bearers.forEach((b, i) => { const p = festPose(b.lz, b.lx); b.av.root.position.set(p.x, p.y, p.z); b.av.root.rotation.y = p.yaw; b.av.root.visible = !(me.bearing && me.bearing.slot === i); b.av.update(dt, true); });
+  fest.flags.forEach(f => { const p = festPose(f.back, f.lx); f.av.root.position.set(p.x, p.y, p.z); f.av.root.rotation.y = p.yaw; f.av.update(dt, true); f.fl.rotation.y = 0.25 * Math.sin(fest.win.sec * 2.2 + f.ph); });
+  placeLabel(fest.lbl, fest.kieu.position, 1.9);
+  // trống mõ nhịp đều khi ở gần
+  const d = me.av ? Math.hypot(me.pos.x - c.x, me.pos.z - c.z) : 99;
+  fest.beat -= dt; if (fest.beat <= 0) { fest.beat = 0.9; if (d < 28) A.mo(Math.max(0.15, 0.7 - d / 40)); }
+  fest.bellT -= dt; if (fest.bellT <= 0) { fest.bellT = 12; if (d < 28) A.khanh(); }
+}
+function festFreeSlot() { if (!fest) return -1; const order = [0, 1, 2, 3]; return order.find(i => !(me.bearing && me.bearing.slot === i)) ?? -1; }
+function festJoin() {
+  if (!fest || me.bearing) return; if (me.seated) standUp(); if (malaOn) closeMala();
+  me.bearing = { slot: festFreeSlot(), t: 0 }; me.av.setPose('carry');
+  toast('🙌 Bạn đã vào khiêng kiệu · mỗi phút khiêng được cộng công đức · đẩy joystick để rời kiệu'); A.khanh();
+  ticker(`🙌 ${P.name} cùng khiêng kiệu rước Phật tại ${temple.name}`);
+}
+function festLeave(quiet) { if (!me.bearing) return; me.bearing = null; me.av.setPose('idle'); if (!quiet) toast('Bạn đã rời đoàn khiêng kiệu'); }
+function festBear(dt, manual) {
+  if (!me.bearing) return;
+  if (!fest || manual) { festLeave(!fest); return; }
+  const b = fest.bearers[me.bearing.slot], p = festPose(b.lz, b.lx);
+  me.pos.set(p.x, 0, p.z); me.y = p.y; me.yaw = p.yaw; me.moving = true;
+  me.bearing.t += dt; if (me.bearing.t >= 60) { me.bearing.t = 0; const gm = addMerit(10, true); addBeads(9); toast(`🙌 Khiêng kiệu tròn một phút · +9 hạt${gm ? ' · +' + gm + ' công đức' : ''}`); }
+}
+function festTick() {
+  const win = festWindow(); if (!win) return;
+  const here = temple && win.temple.id === temple.id, key = win.day + ':' + win.temple.id;
+  if (win.soon && festNoticed !== key + 's') { festNoticed = key + 's'; ticker(`🏮 Còn ${Math.ceil(-win.sec / 60)} phút nữa rước kiệu tại ${win.temple.name} (${win.at})`); }
+  if (win.active && festNoticed !== key + 'a') { festNoticed = key + 'a'; A.bigBell(); banner('🏮 Lễ rước kiệu', win.temple.name, here ? 'Đoàn kiệu đang đi quanh sân chùa · đến gần kiệu bấm "Khiêng kiệu" để cùng rước' : `Từ ${win.at} trong ${C.ruocKieu.dur || 20} phút · bấm thanh "Rước kiệu" để đến xem`); }
+  if (win.active && here && W && (!fest || fest.temple !== temple.id)) { festDispose(); fest = festBuild(win); }
+  if (fest) fest.win = Object.assign(fest.win || {}, win, { t0: Date.now() - win.sec * 1000 });   // mốc giờ bắt đầu theo đồng hồ
+  if ((!win.active || !here) && fest) festDispose();
+  const bar = $('festBar');
+  if (win.active && !here) { bar.hidden = false; bar.textContent = `🏮 Đang rước kiệu ở ${win.temple.name} · bấm để đến`; bar.onclick = () => fade(() => loadTemple(win.temple.id)); }
+  else bar.hidden = true;
+}
+setInterval(festTick, 1000);
 /* ---------------- sư trụ trì đi quanh chánh điện, thỉnh thoảng nói lời hay; bấm vào để nghe sự tích ---------------- */
 const SAYINGS = [
   'Tâm bình thì thế giới bình.', 'Buông bỏ được thì tự tại.', 'Gieo nhân lành, ắt gặt quả lành.',
@@ -1736,7 +1886,8 @@ function loop() {
       me.av.speed = mag * (keys.ShiftLeft ? 1.5 : 1);
     }
     if (!me.seated) { const g = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.01) ?? me.y; me.y += (g - me.y) * Math.min(1, dt * (g < me.y ? 6 : 14)); }
-    me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving || autoMoving);
+    festBear(dt, manual);
+    me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving || autoMoving || !!me.bearing);
     showerStep(dt); dragonStep(dt);
     // camera
     const tgt = new THREE.Vector3(me.pos.x, me.y + 1.05, me.pos.z);
@@ -1746,15 +1897,25 @@ function loop() {
     camInHall = !!hallIn;
     const inHall = !!hallIn;
     // trong điện: camera ở tầm mắt, dưới trần gỗ, nhìn thấy Tam Thế Phật, trần, đèn treo và người chơi
-    const dist = malaOn ? 3.2 : inHall ? Math.max(4.2, Math.min(cam.dist + 1.2, 8)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
-    let cp = new THREE.Vector3(tgt.x + Math.sin(cam.yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(cam.yaw) * Math.cos(pitch) * dist);
-    const hit = rayBoxes(tgt, cp); if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
+    const dist = malaOn ? 3.2 : inHall ? Math.max(5, Math.min(cam.dist + 1.5, 10)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
+    const camAt = (yw) => new THREE.Vector3(tgt.x + Math.sin(yw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yw) * Math.cos(pitch) * dist);
+    let cp = camAt(cam.yaw), hit = rayBoxes(tgt, cp);
+    if (hit < 0.55 && !drag && !pinch && !malaOn) {   // bị tường/cột chắn sát lưng → tự xoay dần sang hướng thoáng gần nhất
+      let bestY = cam.yaw, bestH = hit;
+      for (const d of [0.25, -0.25, 0.5, -0.5, 0.8, -0.8]) { const h = rayBoxes(tgt, camAt(cam.yaw + d)); if (h > bestH + 0.15) { bestH = h; bestY = cam.yaw + d; } }
+      if (bestY !== cam.yaw) { cam.yaw += (bestY - cam.yaw) * Math.min(1, dt * 1.5); cp = camAt(cam.yaw); hit = rayBoxes(tgt, cp); }
+    }
+    if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
+    if (inHall && hallIn.group && hallIn.w) {   // giữ camera trong lòng chánh điện (không lọt ra ngoài nhìn xuyên tường)
+      const lc = hallIn.group.worldToLocal(cp.clone()), hw = hallIn.w / 2 - 0.55, hd = hallIn.d / 2;
+      lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 0.6, lc.z)); cp = hallIn.group.localToWorld(lc);
+    }
     if (inHall && hallIn.ceilY) cp.y = Math.min(cp.y, hallIn.ceilY - 0.75);
     camera.position.lerp(cp, Math.min(1, dt * 8)); camera.lookAt(tgt);
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt);
+    NET.step(dt); stepMonks(dt); festStep(dt);
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
@@ -1777,7 +1938,10 @@ function loop() {
 }
 
 window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene, cushionThumb };
-window.__sit = (c, h) => sitOn(c, h, true);   // hỗ trợ kiểm thử
+window.__sit = (c, h) => sitOn(c, h, true);
+window.__ray = (a, b) => rayBoxes(a, b);
+window.__fest = () => fest;
+window.__festRoute = () => { const R = festRoute(); return R && { score: +R.score.toFixed(1), len: +R.len.toFixed(1), n: R.pts.length, ymin: +Math.min(...R.pts.map(p => p.y)).toFixed(2), ymax: +Math.max(...R.pts.map(p => p.y)).toFixed(2) }; };   // hỗ trợ kiểm thử
 /* ---------------- bắt đầu ---------------- */
 $('loading').remove();
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
