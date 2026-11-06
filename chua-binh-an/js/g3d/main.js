@@ -8,8 +8,10 @@ import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { initTuHanh } from './tuhanh.js';
 import { initDuyen } from './duyen.js';
+import { initShare } from './share.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 let DY = null;   // cầu duyên (chùa Hà)
+let SH = null;   // kêu gọi chia sẻ game lên Facebook
 Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
@@ -185,6 +187,13 @@ function spawnNpcs() {
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
     npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: Math.random() * 4, sit: null, hall: false });
   }
+  // chùa Hà: khách thập phương đứng quanh Cây tình duyên ngắm dải lụa, khấn nguyện
+  const T = W.duyenTree;
+  if (T) for (let j = 0; j < 10; j++, n++) {
+    const { h, av } = mkAv(n), a = j / 10 * Math.PI * 2 + 0.3, r = 6.6 + (j % 3) * 1.2, x = T.center.x + Math.cos(a) * r, z = T.center.z + Math.sin(a) * r;
+    av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); av.root.rotation.y = Math.atan2(T.center.x - x, T.center.z - z); scene.add(av.root); av.root.userData.tmp = true;
+    npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: 4 + Math.random() * 14, sit: null, hall: false, tree: T });
+  }
 }
 function npcThink(n, dt) {
   const p = n.av.root.position;
@@ -192,7 +201,8 @@ function npcThink(n, dt) {
   if (!n.target) {
     n.wait -= dt; if (n.wait > 0) return false;
     const hall = W.halls[0];
-    if (hall && Math.random() < (n.hall ? 0.92 : 0.45)) { const free = hall.cushions.filter(c => !c.taken && !(me.seated === c)); if (free.length) { const c = free[(Math.random() * free.length) | 0]; c.taken = true; n.target = c.clone(); n.goSit = c; } }
+    if (n.tree) { const T = n.tree, a = Math.random() * Math.PI * 2, r = 6.2 + Math.random() * 3.8; n.target = new THREE.Vector3(T.center.x + Math.cos(a) * r, 0, T.center.z + Math.sin(a) * r); }
+    else if (hall && Math.random() < (n.hall ? 0.92 : 0.45)) { const free = hall.cushions.filter(c => !c.taken && !(me.seated === c)); if (free.length) { const c = free[(Math.random() * free.length) | 0]; c.taken = true; n.target = c.clone(); n.goSit = c; } }
     if (!n.target) {
       if (n.hall && hall && monks) { n.wait = 3; return false; }   // đang tụng kinh: không đi qua lại trước quý thầy
       if (n.hall && hall) { const a = hall.altar; n.target = new THREE.Vector3(a.x + (Math.random() - 0.5) * 4, 0, a.z + 2.5 + Math.random() * 2.5); }   // bot trong điện quanh quẩn gần bàn thờ
@@ -202,6 +212,7 @@ function npcThink(n, dt) {
   const dx = n.target.x - p.x, dz = n.target.z - p.z, d = Math.hypot(dx, dz);
   if (d < 0.25) {
     if (n.goSit) { n.sit = n.goSit; n.goSit = null; n.av.root.rotation.y = W.halls[0] ? Math.atan2(W.halls[0].altar.x - p.x, W.halls[0].altar.z - p.z) : 0; n.av.setPose('kneel'); n.wait = 20 + Math.random() * 30; }
+    if (n.tree) { n.av.root.rotation.y = Math.atan2(n.tree.center.x - p.x, n.tree.center.z - p.z); if (Math.random() < 0.6) setTimeout(() => n.av.bow(), 400); n.target = null; n.wait = 6 + Math.random() * 14; return false; }
     n.target = null; n.wait = 2 + Math.random() * 5; return false;
   }
   const sp = 1.3 * dt, nx = p.x + dx / d * sp, nz = p.z + dz / d * sp, h = W.col.heightAt(nx, nz, p.y);
@@ -385,7 +396,7 @@ function offerIncense(bur) {
   me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1); if (TH) TH.practiced();
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
   setTimeout(() => { me.av.bow(); }, 600); NET.act('incense');
-  setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; const gm = addMerit(10, true); addBeads(10); toast('🕯️ Đã thắp nén hương · ' + meritTxt(gm)); }, 2800);
+  setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; const gm = addMerit(10, true); addBeads(10); toast('🕯️ Đã thắp nén hương · ' + meritTxt(gm)); if (SH) SH.share('incense'); }, 2800);
 }
 let smokeBoost = 0;
 function ringBell() { if (Date.now() - (ringBell.t || 0) < 20000) return toast('Tiếng chuông còn đang ngân…'); ringBell.t = Date.now(); A.bigBell(); me.av.bow(); NET.act('bell'); addBeads(9); toast('🔔 Một hồi chuông vang xa · nguyện chúng sanh thức tỉnh'); }
@@ -689,7 +700,7 @@ function carryOffering(o) {
       const fly = () => { const k = Math.min(1, (performance.now() - t0) / 700); item.position.lerpVectors(from, slot, k); item.position.y += Math.sin(k * Math.PI) * 0.25; if (k < 1) requestAnimationFrame(fly); };
       fly();
       me.av.setPose('idle'); setTimeout(() => { me.av.bow(); A.smallBell(); if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }); }, 600);
-      const gm = addMerit(o.m, !o.price); addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · ${meritTxt(gm)}`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`); NET.act('offer', o.n.toLowerCase());
+      const gm = addMerit(o.m, !o.price); addBeads(o.m); toast(`${o.icon} Đã dâng ${o.n.toLowerCase()} · ${meritTxt(gm)}`); ticker(`${o.icon} ${P.name} vừa dâng ${o.n.toLowerCase()} lên Tam Thế Phật`); NET.act('offer', o.n.toLowerCase()); if (SH) SH.share('incense');
     });
   };
   const inside = insideHall(h);
@@ -1508,7 +1519,7 @@ function openSettings() {
     const tel = el('a', 'btn gold', '📞 Gọi / Zalo: ' + phone); tel.href = 'tel:' + phone.replace(/[^0-9]/g, '');
     cr.append(tel);
     if (contact.zalo) { const z = el('a', 'btn', '💬 Zalo'); z.href = contact.zalo; z.target = '_blank'; cr.append(z); }
-    { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/61596243718616/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); }
+    { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/share/19u9bTRswX/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); const sh = el('button', 'btn gold', '📣 Chia sẻ game lên Facebook'); sh.onclick = () => { closeModal(); setTimeout(() => SH && SH.open('time'), 80); }; cr.append(sh); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
     b.append(el('p', 'note', `Phiên bản 2026.11.01 · Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).`));
@@ -1565,7 +1576,8 @@ TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, f
   getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
   meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
 if (W && temple) TH.onTemple();
-DY = initDuyen({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
+SH = initShare({ P, save, modal, closeModal, el, toast, addBeads });
+DY = initDuyen({ share: (r) => SH && SH.share(r), P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
 if (W && temple) DY.onTemple();
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];

@@ -11,6 +11,7 @@
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), os = require('os');
 const { WebSocketServer } = require('ws');
+const BOTD = require('./duyen-bot.js');
 
 const PORT = +process.env.PORT || 8080;
 const ROOM_CAP = +process.env.ROOM_CAP || 30;        // người / kênh (giới hạn để điện thoại vẽ mượt)
@@ -224,16 +225,17 @@ const FACE = (() => {
 // đạt khi có ≥ 1 khuôn mặt rõ (độ tin cậy ≥ 0,6) chiếm đủ lớn trong ảnh (cạnh ≥ 8% cạnh ngắn của ảnh)
 const faceOk = (r) => (r.faces || []).some(f => f.s >= 0.6 && Math.max(f.w, f.h) >= 0.08 * Math.min(r.W, r.H));
 function makeDuyen({ D, mark, online, reply, U }) {
-  const Y = D.duyen = Object.assign({ prof: {}, pairs: {}, matches: {}, no: {}, likes: {}, reports: {}, up: {} }, D.duyen || {});
+  const Y = D.duyen = Object.assign({ prof: {}, pairs: {}, matches: {}, no: {}, likes: {}, reports: {}, up: {}, botAt: {} }, D.duyen || {}); Y.botAt = Y.botAt || {};
+  const PR = (uid) => Y.prof[uid] || BOTD.BOT[uid];   // hồ sơ người thật hoặc bạn đồng hành ảo
   const key = (a, b) => a < b ? a + '|' + b : b + '|' + a;
   const age = (pr) => vnYear() - pr.by;
-  const card = (pr) => pr && { pid: pr.pid, nick: pr.nick, g: pr.g, age: age(pr), prov: pr.prov, ward: pr.ward, ints: pr.ints, about: pr.about, want: pr.want, photos: pr.photos, t: pr.t };
+  const card = (pr) => pr && { bot: !!pr.bot, pid: pr.pid, nick: pr.nick, g: pr.g, age: age(pr), prov: pr.prov, ward: pr.ward, ints: pr.ints, about: pr.about, want: pr.want, photos: pr.photos, t: pr.t };
   const tell = (uid, o) => { const pp = online.get(uid); if (pp) reply(pp, o); };
   const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   function pendingOf(uid) { return Object.values(Y.pairs).filter(x => (x.a === uid || x.b === uid) && !x.done); }
   function matchesOf(uid) { return Object.values(Y.matches).filter(x => x.a === uid || x.b === uid); }
-  function viewPair(x, uid) { const me = x.a === uid ? 'a' : 'b', o = me === 'a' ? x.b : x.a; return { id: x.id, other: card(Y.prof[o]), why: x.why, mine: x['s' + me], theirs: x['s' + (me === 'a' ? 'b' : 'a')], t: x.t }; }
-  function viewMatch(x, uid) { const o = x.a === uid ? x.b : x.a; return { id: x.id, other: card(Y.prof[o]) || { nick: (D.users[o] || {}).name || 'Người ấy' }, msgs: x.msgs.slice(-60).map(mm => ({ me: mm.f === uid, x: mm.x, t: mm.t })), online: online.has(o) }; }
+  function viewPair(x, uid) { const me = x.a === uid ? 'a' : 'b', o = me === 'a' ? x.b : x.a; return { id: x.id, other: card(PR(o)), why: x.why, mine: x['s' + me], theirs: x['s' + (me === 'a' ? 'b' : 'a')], t: x.t }; }
+  function viewMatch(x, uid) { const o = x.a === uid ? x.b : x.a; return { id: x.id, other: card(PR(o)) || { nick: (D.users[o] || {}).name || 'Người ấy' }, msgs: x.msgs.slice(-60).map(mm => ({ me: mm.f === uid, x: mm.x, t: mm.t })), online: BOTD.isBot(o) || online.has(o) }; }
   function stateFor(uid) { return { op: 'du.me', prof: Y.prof[uid] || null, pairs: pendingOf(uid).map(x => viewPair(x, uid)), matches: matchesOf(uid).map(x => viewMatch(x, uid)) }; }
   // ---- ghép đôi: khác giới theo mong muốn đôi bên, cùng tỉnh, chung ≥1 sở thích, tuổi chênh ≤ 6 ----
   function score(A, B) {
@@ -248,7 +250,7 @@ function makeDuyen({ D, mark, online, reply, U }) {
     return { s: shared.length * 10 - d * 3 + (ward ? 15 : 0), shared, d, ward };
   }
   function makePair(A, B, why) {
-    const x = { id: rid(), a: A.uid, b: B.uid, sa: 0, sb: 0, t: Date.now(), why };
+    const x = { id: rid(), a: A.uid, b: B.uid, sa: 0, sb: B.bot ? 1 : 0, t: Date.now(), why, bot: !!B.bot };
     Y.pairs[x.id] = x; mark();
     [A.uid, B.uid].forEach(uid => tell(uid, { op: 'du.pair', pair: viewPair(x, uid) }));
     console.log(`[cầu duyên] se duyên ${A.nick} ♥ ${B.nick} (${why})`);
@@ -257,7 +259,7 @@ function makeDuyen({ D, mark, online, reply, U }) {
     const now = Date.now();
     Object.values(Y.pairs).forEach(x => { if (!x.done && now - x.t > 72 * 3600000) { x.done = 1; Y.no[key(x.a, x.b)] = 1; mark(); } });   // quá 3 ngày chưa trả lời → thôi
     Object.keys(Y.pairs).forEach(k => { if (Y.pairs[k].done && now - Y.pairs[k].t > 7 * 86400000) { delete Y.pairs[k]; mark(); } });
-    const busy = new Set(); Object.values(Y.pairs).forEach(x => { if (!x.done) { busy.add(x.a); busy.add(x.b); } });
+    const busy = new Set(); Object.values(Y.pairs).forEach(x => { if (!x.done && !x.bot) { busy.add(x.a); busy.add(x.b); } });
     const L = Object.values(Y.prof).filter(pr => !pr.hidden && now - pr.up < 60 * 86400000).sort((a, b) => a.t - b.t);
     for (const A of L) {
       if (busy.has(A.uid)) continue;
@@ -266,6 +268,36 @@ function makeDuyen({ D, mark, online, reply, U }) {
       const { B, sc } = best; busy.add(A.uid); busy.add(B.uid);
       makePair(A, B, `Cùng ${A.prov}${sc.ward ? ' · cùng ' + A.ward : ''} · cùng thích ${sc.shared.slice(0, 3).join(', ')} · ${sc.d ? 'hơn kém ' + sc.d + ' tuổi' : 'bằng tuổi'}`);
     }
+    // chưa có ai hợp duyên → giới thiệu một bạn đồng hành ảo (ghi rõ là ảo) để người chơi không thấy vắng
+    for (const A of L) {
+      if (busy.has(A.uid) || !online.has(A.uid) || now - A.up < 25000) continue;
+      if (matchesOf(A.uid).length || pendingOf(A.uid).length || now - (Y.botAt[A.uid] || 0) < 20 * 3600000) continue;
+      const B = botFor(A); if (!B) continue;
+      Y.botAt[A.uid] = now; const sh = A.ints.filter(i => B.ints.includes(i));
+      makePair(A, B, `🤖 Bạn đồng hành ảo · trò chuyện cho vui trong lúc Cây tình duyên tìm người thật hợp với bạn${sh.length ? ' · cùng thích ' + sh.slice(0, 2).join(', ') : ''}`);
+    }
+  }
+  function botFor(A) {   // bạn ảo khác giới theo mong muốn, ưu tiên cùng tỉnh → chung sở thích → gần tuổi
+    let best = null;
+    for (const B of BOTD.BOTS) {
+      if (B.g !== A.seek || Y.no[key(A.uid, B.uid)]) continue;
+      const s = (B.prov === A.prov ? 30 : 0) + A.ints.filter(i => B.ints.includes(i)).length * 8 - Math.abs(B.by - A.by) * 2 + Math.random() * 3;
+      if (!best || s > best.s) best = { B, s };
+    }
+    return best && best.B;
+  }
+  // bạn ảo trả lời tin nhắn: trễ vài giây như đang gõ
+  const botMem = {};
+  function botSay(mt, botUid, text, delay) {
+    setTimeout(() => {
+      if (!Y.matches[mt.id]) return; const t = Date.now(), msg = { f: botUid, x: text, t }; mt.msgs.push(msg); if (mt.msgs.length > 200) mt.msgs.splice(0, mt.msgs.length - 200); mark();
+      const user = mt.a === botUid ? mt.b : mt.a; tell(user, { op: 'du.msg', match: mt.id, msg: { me: false, x: text, t }, from: BOTD.BOT[botUid].nick });
+    }, delay);
+  }
+  function botReply(mt, botUid, text) {
+    const user = mt.a === botUid ? mt.b : mt.a, mem = (botMem[mt.id] = botMem[mt.id] || {});
+    const ans = BOTD.answer(BOTD.BOT[botUid], Y.prof[user], text, mem);
+    botSay(mt, botUid, ans, 1800 + Math.min(5000, ans.length * 45) + Math.random() * 1500);
   }
   setInterval(runMatch, 60000);
   function delPhotos(list) { (list || []).forEach(id => { if (/^[a-z0-9]{8,20}$/.test(id)) fs.unlink(path.join(PHOTO_DIR, id + '.jpg'), () => {}); }); }
@@ -285,17 +317,18 @@ function makeDuyen({ D, mark, online, reply, U }) {
       delPhotos(up.filter(id => !photos.includes(id) && !(old && old.photos.includes(id)))); Y.up[uid] = photos.slice();
       Y.prof[uid] = { pid: old ? old.pid : rid(), uid, nick, g, seek: f.seek === 'nam' ? 'nam' : f.seek === 'nu' ? 'nu' : (g === 'nam' ? 'nu' : 'nam'), by, prov, ward: maskContact(clean(f.ward, 40)),
         ints, about: maskContact(clean(f.about, 220)), want: maskContact(clean(f.want, 140)), photos, t: old ? old.t : now, up: now, hidden: old ? old.hidden : false };
-      mark(); runMatch(); reply(p, stateFor(uid));
+      mark(); runMatch(); setTimeout(runMatch, 30000); reply(p, stateFor(uid));
       return reply(p, { op: 'note', msg: '💞 Hồ sơ đã treo lên Cây tình duyên · khi có người hợp duyên, hệ thống sẽ báo cho cả hai' });
     }
     if (op === 'du.del') { const pr = Y.prof[uid]; if (pr) { delPhotos(pr.photos); delete Y.prof[uid]; } Object.values(Y.pairs).forEach(x => { if (!x.done && (x.a === uid || x.b === uid)) x.done = 1; }); Y.up[uid] = []; mark(); return reply(p, stateFor(uid)); }
-    if (op === 'du.tree') { const L = Object.values(Y.prof).filter(pr => !pr.hidden && now - pr.up < 60 * 86400000).sort((a, b) => b.up - a.up).slice(0, 80); return reply(p, { op: 'du.tree', list: L.map(card), mine: Y.prof[uid] ? Y.prof[uid].pid : '' }); }
+    if (op === 'du.tree') { const L = Object.values(Y.prof).filter(pr => !pr.hidden && now - pr.up < 60 * 86400000).sort((a, b) => b.up - a.up).slice(0, 80); return reply(p, { op: 'du.tree', list: L.map(card), bots: BOTD.BOTS.map(b => Object.assign(card(b), { wish: b.wish })), mine: Y.prof[uid] ? Y.prof[uid].pid : '' }); }
     if (op === 'du.like') {
-      const B = Object.values(Y.prof).find(x => x.pid === clean(m.pid, 20)), A = Y.prof[uid]; if (!B || B.uid === uid) return;
+      const pid = clean(m.pid, 20), B = Object.values(Y.prof).find(x => x.pid === pid) || BOTD.BOTS.find(x => x.pid === pid), A = Y.prof[uid]; if (!B || B.uid === uid) return;
       if (!A) return reply(p, { op: 'err', msg: 'Hãy treo hồ sơ của bạn lên cây trước khi thả tim' });
       Y.likes[uid] = Y.likes[uid] || []; if (!Y.likes[uid].includes(B.uid)) Y.likes[uid].push(B.uid); mark();
       reply(p, { op: 'note', msg: `💗 Đã thả tim cho ${B.nick}` });
       const k = key(uid, B.uid);
+      if (B.bot) { if (!Y.no[k] && !pendingOf(uid).some(x => x.bot) && !matchesOf(uid).some(x => key(x.a, x.b) === k)) makePair(A, B, '🤖 Bạn đồng hành ảo · bạn vừa thả tim cho dải cầu duyên này trên cây'); return; }
       if ((Y.likes[B.uid] || []).includes(uid) && !Y.no[k] && !Object.values(Y.pairs).some(x => !x.done && key(x.a, x.b) === k) && !Object.values(Y.matches).some(x => key(x.a, x.b) === k)) makePair(A, B, 'Hai bạn cùng thả tim cho nhau trên Cây tình duyên');
       return;
     }
@@ -306,6 +339,7 @@ function makeDuyen({ D, mark, online, reply, U }) {
       if (x.sa === 1 && x.sb === 1) {
         x.done = 1; const mt = { id: rid(), a: x.a, b: x.b, t: Date.now(), msgs: [] }; Y.matches[mt.id] = mt; mark();
         [x.a, x.b].forEach(id => tell(id, { op: 'du.matched', match: viewMatch(mt, id) }));
+        if (x.bot) { const bu = BOTD.isBot(x.a) ? x.a : x.b, hu = bu === x.a ? x.b : x.a; BOTD.greet(BOTD.BOT[bu], Y.prof[hu]).forEach((g, i) => botSay(mt, bu, g, 2500 + i * 4500)); }
       } else { reply(p, { op: 'note', msg: '💞 Đã đồng ý · chờ người ấy trả lời' }); tell(other, { op: 'du.pair', pair: viewPair(x, other) }); }
       return reply(p, stateFor(uid));
     }
@@ -315,17 +349,18 @@ function makeDuyen({ D, mark, online, reply, U }) {
       const text = clean(m.text, 300); if (!text) return;
       const msg = { f: uid, x: text, t: now }; x.msgs.push(msg); if (x.msgs.length > 200) x.msgs.splice(0, x.msgs.length - 200); mark();
       const other = x.a === uid ? x.b : x.a;
-      tell(other, { op: 'du.msg', match: x.id, msg: { me: false, x: text, t: now }, from: (Y.prof[uid] || {}).nick || p.name });
+      if (BOTD.isBot(other)) botReply(x, other, text);
+      else tell(other, { op: 'du.msg', match: x.id, msg: { me: false, x: text, t: now }, from: (Y.prof[uid] || {}).nick || p.name });
       return reply(p, { op: 'du.msg', match: x.id, msg: { me: true, x: text, t: now } });
     }
     if (op === 'du.end') {
       const x = Y.matches[clean(m.match, 20)]; if (!x || (x.a !== uid && x.b !== uid)) return; const other = x.a === uid ? x.b : x.a;
       delete Y.matches[x.id]; Y.no[key(x.a, x.b)] = m.block ? 2 : 1; mark();
       tell(other, { op: 'du.ended', match: x.id, msg: 'Cuộc trò chuyện đã kết thúc. Chúc bạn sớm gặp duyên lành 🙏' });
-      if (m.report) report(uid, other, clean(m.reason, 120));
+      if (m.report && !BOTD.isBot(other)) report(uid, other, clean(m.reason, 120));
       return reply(p, stateFor(uid));
     }
-    if (op === 'du.report') { const B = Object.values(Y.prof).find(x => x.pid === clean(m.pid, 20)); if (B) report(uid, B.uid, clean(m.reason, 120)); return reply(p, { op: 'note', msg: '🙏 Cảm ơn bạn đã báo cáo. Hồ sơ vi phạm sẽ bị ẩn.' }); }
+    if (op === 'du.report') { if (String(m.pid || '').startsWith('bot')) return reply(p, { op: 'note', msg: '🙏 Đây là bạn đồng hành ảo của hệ thống, không phải người thật.' }); const B = Object.values(Y.prof).find(x => x.pid === clean(m.pid, 20)); if (B) report(uid, B.uid, clean(m.reason, 120)); return reply(p, { op: 'note', msg: '🙏 Cảm ơn bạn đã báo cáo. Hồ sơ vi phạm sẽ bị ẩn.' }); }
   }
   function report(from, target, reason) {
     const R = (Y.reports[target] = Y.reports[target] || []); if (R.some(r => r.from === from)) return;
@@ -333,7 +368,13 @@ function makeDuyen({ D, mark, online, reply, U }) {
     console.log(`[cầu duyên] BÁO CÁO hồ sơ ${(Y.prof[target] || {}).nick || target}: ${reason || '(không ghi lý do)'} · tổng ${R.length}`);
     if (R.length >= 3 && Y.prof[target]) { Y.prof[target].hidden = true; console.log(`[cầu duyên] ẨN hồ sơ ${Y.prof[target].nick} do bị báo cáo 3 lần`); }
   }
-  function onSeen(p) { setTimeout(() => { if (Y.prof[p.uid] || pendingOf(p.uid).length || matchesOf(p.uid).length) reply(p, stateFor(p.uid)); }, 1500); }
+  function onSeen(p) {
+    setTimeout(() => { if (Y.prof[p.uid] || pendingOf(p.uid).length || matchesOf(p.uid).length) reply(p, stateFor(p.uid)); }, 1500);
+    // bạn ảo hỏi thăm khi người chơi quay lại (tối đa 1 lần / 6 giờ)
+    setTimeout(() => { matchesOf(p.uid).forEach(mt => { const bu = BOTD.isBot(mt.a) ? mt.a : BOTD.isBot(mt.b) ? mt.b : null; if (!bu) return;
+      const last = mt.msgs.length ? mt.msgs[mt.msgs.length - 1].t : mt.t, lastBot = Math.max(0, ...mt.msgs.filter(x => x.f === bu).map(x => x.t)); if (Date.now() - last < 6 * 3600000 || Date.now() - lastBot < 6 * 3600000) return;
+      botSay(mt, bu, BOTD.welcomeBack(BOTD.BOT[bu], Y.prof[p.uid], (Date.now() - last) / 3600000), 6000); }); runMatch(); }, 4000);
+  }
   // ảnh: nhận qua HTTP POST thô (image/jpeg), trả về mã ảnh
   function upload(req, res) {
     const uid = cleanUid(req.headers['x-uid']), J = (c, o) => { res.writeHead(c, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(o)); };

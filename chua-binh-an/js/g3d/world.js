@@ -7,9 +7,9 @@ import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tre
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
   // Chùa Hà (Cầu Giấy): chùa CẦU DUYÊN — Cây tình duyên giữa sân, Điện Mẫu bên trái, biển "CẦU DUYÊN" trên lối vào
-  'chua-ha': { yard: [{ r: [-25, -18, 25, 36], gate: ['+z', 0, 5] }], spawn: [0, 41], abbot: [3.5, 9], decor: 'chua-ha', walk: [-13, -13, 13, 15], pois: [
+  'chua-ha': { yard: [{ r: [-34, -18, 34, 64], gate: ['+z', 0, 5] }], spawn: [0, 69], abbot: [3.5, 9], decor: 'chua-ha', walk: [-13, -13, 13, 15], tree: [0, 38], pois: [
     ['Chánh điện', 0, 1, 6, 'Lễ Phật trước, rồi sang Điện Mẫu và Cây tình duyên để cầu duyên.'],
-    ['Cây tình duyên', 0, 23, 5.5, 'CẦU DUYÊN: điền thông tin, đính ảnh và treo hồ sơ lên cây. Hệ thống tự se duyên cho người cùng tỉnh, hợp tuổi, chung sở thích.', 'duyen'],
+    ['Cây tình duyên', 0, 38, 9, 'CẦU DUYÊN: điền thông tin, đính ảnh và treo hồ sơ lên cây. Hệ thống tự se duyên cho người cùng tỉnh, hợp tuổi, chung sở thích.', 'duyen'],
     ['Điện Mẫu · nơi cầu duyên', -18, 3, 4.5, 'Người đi lễ chùa Hà thường khấn cầu nhân duyên ở ban thờ Mẫu.'],
     ['Lư hương trước sân', 0, 12, 3, 'Thắp nén hương, nguyện gặp được người tri kỷ.']] },
   // Bình An: sân rộng ~3 lần (54 × 56 m) — lối đá vào, đường kinh hành vòng quanh chánh điện, hồ sen, gác chuông, vườn Quan Âm
@@ -496,57 +496,98 @@ function yardGreen(root, L) {
 }
 const LAYOUT_OF = (L, yi) => L.__orig && L.__orig[yi];
 
-/* ---------------- CHÙA HÀ: Cây tình duyên, Điện Mẫu, biển CẦU DUYÊN ---------------- */
+/* ---------------- CHÙA HÀ: quảng trường Cây tình duyên, Điện Mẫu, biển CẦU DUYÊN ---------------- */
 function haDecor(root, L) {
   const g = new THREE.Group(); root.add(g);
+  const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
   const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
+  const disc = (r0, r1, m, x, z, y) => { const o = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 64), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
   const pave = mat('pave', 0xcfc2a6, { roughness: 0.95 }), paveE = mat('paveEdge', 0x8f8270), stone = STONE();
-  flat(4.2, 18, pave, 0, 27); [-1, 1].forEach(s => flat(0.25, 18, paveE, s * 2.2, 27, 0.024));
+  const pink = mat('haPave', 0xd9b3a8, { roughness: 0.95 }), rose2 = mat('haPave2', 0xb7848a, { roughness: 0.95 });
+  const [TX, TZ] = L.tree, R = 13;   // tâm cây & bán kính quảng trường
+  // lối đá: cổng → quảng trường → chánh điện
+  flat(4.6, 64 - (TZ + R) + 1, pave, 0, (64 + TZ + R) / 2); [-1, 1].forEach(s => flat(0.25, 64 - (TZ + R), paveE, s * 2.4, (64 + TZ + R) / 2, 0.024));
+  flat(4.6, TZ - R - 15 + 1, pave, 0, (TZ - R + 15) / 2);
   const [wx0, wz0, wx1, wz1] = L.walk, ww = 3.2;   // đường kinh hành quanh chánh điện
   flat(wx1 - wx0 + ww, ww, pave, 0, wz0); flat(wx1 - wx0 + ww, ww, pave, 0, wz1); flat(ww, wz1 - wz0, pave, wx0, (wz0 + wz1) / 2); flat(ww, wz1 - wz0, pave, wx1, (wz0 + wz1) / 2);
-  // ===== CÂY TÌNH DUYÊN giữa sân =====
-  const T = new THREE.Group(); T.position.set(0, 0, 23); g.add(T);
-  T.add(cyl(3.6, 3.8, 0.45, 32, stone, 0, 0.225, 0));                                   // bệ đá tròn (bước lên được)
-  T.add(cyl(3.62, 3.62, 0.08, 32, mat('haRed', 0xa3233a), 0, 0.47, 0));
-  const bark = mat('bark', 0x5a3a24, { roughness: 1 });
-  T.add(cyl(0.75, 1.05, 4.2, 12, bark, 0, 2.55, 0));                                      // thân cây
+  // quảng trường tròn lát gạch hồng, viền đá, vòng hoa văn
+  disc(0, R, pink, TX, TZ, 0.025); disc(R - 0.35, R, paveE, TX, TZ, 0.03); disc(7.4, 8.0, rose2, TX, TZ, 0.03); disc(10.2, 10.5, rose2, TX, TZ, 0.03);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, o = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.28), rose2); o.rotation.set(-Math.PI / 2, 0, -a); o.position.set(TX + Math.cos(a) * 9.1, 0.031, TZ + Math.sin(a) * 9.1); o.userData.noCollide = true; g.add(o); }
+  // ===== CÂY TÌNH DUYÊN cổ thụ giữa quảng trường =====
+  const T = new THREE.Group(); T.position.set(TX, 0, TZ); g.add(T);
+  const haRed = mat('haRed', 0xa3233a);
+  T.add(cyl(5.4, 5.6, 0.35, 48, stone, 0, 0.175, 0), cyl(5.42, 5.42, 0.06, 48, haRed, 0, 0.36, 0));        // bệ hai tầng (bước lên được)
+  T.add(cyl(4.3, 4.45, 0.35, 48, stone, 0, 0.525, 0), cyl(4.32, 4.32, 0.06, 48, haRed, 0, 0.71, 0));
+  const bark = mat('bark', 0x5a3a24, { roughness: 1 }), barkD = mat('barkD', 0x45291a, { roughness: 1 });
+  T.add(cyl(1.15, 1.6, 6.4, 14, bark, 0, 3.9, 0));                                       // thân cây to
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.2, r = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.45, 2.4, 6), barkD); r.position.set(Math.cos(a) * 1.55, 1.15, Math.sin(a) * 1.55); r.rotation.set(Math.sin(a) * 0.95, 0, -Math.cos(a) * 0.95); r.userData.noCollide = true; T.add(r); }   // rễ nổi
+  const crown = new THREE.Group(); crown.userData.gate = true; T.add(crown);   // tán cây: tự ẩn khi che camera
   const anchors = [];
-  for (let i = 0; i < 7; i++) {   // cành lớn tỏa ra
-    const a = i / 7 * Math.PI * 2 + 0.3, len = 3.2 + (i % 3) * 0.5, br = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.32, len, 7), bark);
-    br.position.set(Math.cos(a) * len * 0.42, 4.6 + (i % 2) * 0.5, Math.sin(a) * len * 0.42); br.rotation.set(Math.sin(a) * 1.05, 0, -Math.cos(a) * 1.05); br.castShadow = true; br.userData.noCollide = true; T.add(br);
-    for (let k = 0; k < 6; k++) { const r = 1.6 + k * 0.5, h = 4.25 + k * 0.05 + (i % 2) * 0.4, ang = a + (k - 2.5) * 0.12; anchors.push(new THREE.Vector3(Math.cos(ang) * r, h, Math.sin(ang) * r)); }
+  for (let i = 0; i < 10; i++) {   // cành lớn tỏa rộng
+    const a = i / 10 * Math.PI * 2 + 0.3, len = 5.2 + (i % 3) * 0.8, tilt = 1.12 - (i % 2) * 0.12, br = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.42, len, 7), bark);
+    br.position.set(Math.cos(a) * len * 0.44, 6.9 + (i % 2) * 0.6, Math.sin(a) * len * 0.44); br.rotation.set(Math.sin(a) * tilt, 0, -Math.cos(a) * tilt); br.castShadow = true; br.userData.noCollide = true; crown.add(br);
+    for (let k = 0; k < 6; k++) { const r = 2.6 + k * 0.85, h = 6.5 + k * 0.12 + (i % 2) * 0.45, ang = a + (k - 2.5) * 0.09; anchors.push(new THREE.Vector3(Math.cos(ang) * r, h, Math.sin(ang) * r)); }
   }
-  const leafA = mat('duyenLeaf', 0x4f8a3a, { flatShading: true }), leafB = mat('duyenLeaf2', 0x3f7a35, { flatShading: true }), bloom = mat('duyenBloom', 0xf5a3c0, { flatShading: true, emissive: 0x7a2040, emissiveIntensity: 0.15 });
-  [[0, 7.4, 0, 3.0, leafA], [2.6, 6.6, 1.2, 2.3, leafB], [-2.5, 6.7, -1.0, 2.4, leafA], [1.0, 6.5, -2.6, 2.2, leafB], [-1.2, 6.4, 2.6, 2.2, leafA], [3.4, 5.9, -1.4, 1.6, bloom], [-3.4, 6.0, 1.5, 1.6, bloom], [0.2, 8.6, 0.6, 1.6, bloom], [-0.6, 6.2, -3.4, 1.4, bloom]].forEach(([x, y, z, r, m]) => {
-    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m); c.position.set(x, y, z); c.castShadow = true; c.userData.noCollide = true; T.add(c); });
-  // dây đỏ se duyên rủ xuống từ các cành (sợi chỉ hồng)
+  const leafA = mat('duyenLeaf', 0x4f8a3a, { flatShading: true }), leafB = mat('duyenLeaf2', 0x3f7a35, { flatShading: true }), bloom = mat('duyenBloom', 0xf5a3c0, { flatShading: true, emissive: 0x7a2040, emissiveIntensity: 0.15 }), bloom2 = mat('duyenBloom2', 0xff7fa8, { flatShading: true, emissive: 0x7a2040, emissiveIntensity: 0.2 });
+  const blobs = [[0, 11.4, 0, 4.4, leafA]];
+  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, r = 5.0 + (i % 2) * 0.9; blobs.push([Math.cos(a) * r, 9.2 + (i % 3) * 0.5, Math.sin(a) * r, 2.6 + (i % 2) * 0.5, i % 2 ? leafB : leafA]); }
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + 0.25, r = 3.2 + (i % 3) * 1.6; blobs.push([Math.cos(a) * r, 10.2 + (i % 4) * 0.55, Math.sin(a) * r, 1.4 + (i % 3) * 0.35, i % 2 ? bloom : bloom2]); }
+  blobs.forEach(([x, y, z, r, m]) => { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m); c.scale.y = 0.78; c.position.set(x, y, z); c.castShadow = true; c.userData.noCollide = true; crown.add(c); });
+  // sợi chỉ đỏ se duyên rủ xuống
   const thread = mat('thread', 0xd7263d, { emissive: 0x5a0a14, emissiveIntensity: 0.3 });
-  anchors.forEach((p, i) => { if (i % 2) return; const len = 0.9 + (i % 5) * 0.25, t = new THREE.Mesh(new THREE.BoxGeometry(0.03, len, 0.03), thread); t.position.set(p.x, p.y - len / 2, p.z); t.userData.noCollide = true; T.add(t); });
-  // vài trái tim trang trí cố định (trái tim hồ sơ người chơi do duyen.js gắn thêm)
-  const heartM = mat('heartDeco', 0xe2264a, { emissive: 0x8a0a20, emissiveIntensity: 0.4 });
-  for (let i = 0; i < 18; i++) { const p = anchors[(i * 5) % anchors.length], h = heartMesh(0.16, heartM); h.position.set(p.x * 0.85, p.y - 1.3 - (i % 3) * 0.2, p.z * 0.85); h.rotation.y = Math.atan2(p.x, p.z); T.add(h); }
-  const lamp = new THREE.PointLight(0xff8aa8, 1.1, 12, 1.6); lamp.position.set(0, 3.2, 0); T.add(lamp);
-  // biển CẦU DUYÊN đặt trên bệ cây, quay về phía cổng
-  const sign = plaque('CẦU DUYÊN', 'Cây tình duyên · vào lẻ bóng, ra có đôi', 3.4, 0.95); sign.position.set(0, 1.55, 3.8); T.add(sign); [-1.55, 1.55].forEach(x => T.add(cyl(0.07, 0.07, 1.6, 8, RED(), x, 0.8, 3.72)));
+  anchors.forEach((p, i) => { if (i % 3) return; const len = 1.0 + (i % 5) * 0.3, t = new THREE.Mesh(new THREE.BoxGeometry(0.03, len, 0.03), thread); t.position.set(p.x, p.y - len / 2, p.z); t.userData.noCollide = true; crown.add(t); });
+  // ===== 20 DẢI CẦU DUYÊN (lụa đỏ / hồng + thẻ gỗ ghi lời nguyện) — duyen.js gắn hồ sơ bạn đồng hành vào =====
+  const silk = [mat('silkR', 0xd7263d, { side: THREE.DoubleSide, emissive: 0x5a0a14, emissiveIntensity: 0.35, roughness: 0.6 }), mat('silkP', 0xf06aa0, { side: THREE.DoubleSide, emissive: 0x6a1a40, emissiveIntensity: 0.35, roughness: 0.6 })];
+  const tag = mat('woodTag', 0xc8a165, { roughness: 0.8 }), ribbons = [];
+  for (let i = 0; i < 20; i++) {
+    const p = anchors[(i * 3 + 1) % anchors.length], len = 1.6 + (i % 4) * 0.3, rb = new THREE.Group();
+    rb.position.set(p.x, p.y - 0.05, p.z); rb.rotation.y = Math.atan2(p.x, p.z);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.26, len, 1, 4), silk[i % 2]); strip.position.y = -len / 2; strip.castShadow = true;
+    const tg = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.46, 0.04), tag); tg.position.y = -len - 0.2;
+    const knot = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), silk[i % 2]);
+    [strip, tg, knot].forEach(o => { o.userData.noCollide = true; o.userData.ribbon = i; rb.add(o); });
+    rb.userData.ph = i * 0.9; crown.add(rb); ribbons.push(rb);
+  }
+  const lamp = new THREE.PointLight(0xff8aa8, 1.3, 18, 1.6); lamp.position.set(0, 4.5, 0); T.add(lamp);
+  // biển CẦU DUYÊN trên bệ, quay về phía cổng
+  const sign = plaque('CẦU DUYÊN', 'Cây tình duyên · vào lẻ bóng, ra có đôi', 3.8, 1.0); sign.position.set(0, 2.0, 5.75); T.add(sign); [-1.75, 1.75].forEach(x => T.add(cyl(0.08, 0.08, 2.1, 8, RED(), x, 1.05, 5.68)));
   T.traverse(o => { if (o !== T && o.isMesh && o.geometry.type !== 'CylinderGeometry') o.userData.noCollide = true; });
-  root.userData.duyenTree = { group: T, anchors, center: T.position.clone() };
+  root.userData.duyenTree = { group: T, anchors, ribbons, center: T.position.clone(), radius: R - 3.5 };
+  // ===== vòng đèn lồng đỏ, dây chỉ hồng nối các cột, ghế đá quanh quảng trường =====
+  const red = mat('lanternRed', 0xd7261e, { emissive: 0xff4020, emissiveIntensity: 0.55 }), rose = mat('rose', 0xd0283a), leaf = LEAF2();
+  const posts = [];
+  for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2 + Math.PI / 14; if (Math.abs(Math.sin(a)) > 0.97) continue; const x = TX + Math.cos(a) * 11.8, z = TZ + Math.sin(a) * 11.8;
+    g.add(cyl(0.07, 0.08, 3.0, 6, RED(), x, 1.5, z)); const l = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), red); l.scale.y = 1.25; l.position.set(x, 2.75, z); l.userData.noCollide = true; g.add(l); posts.push(new THREE.Vector3(x, 3.0, z)); }
+  posts.forEach((p, i) => { const q = posts[(i + 1) % posts.length], d = p.distanceTo(q); if (d > 7) return; const t = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, d), thread); t.position.copy(p).add(q).multiplyScalar(0.5).setY(2.95); t.lookAt(q.x, 2.95, q.z); t.userData.noCollide = true; g.add(t);
+    for (let k = 1; k < 4; k++) { const hh = heartMesh(0.11, mat('heartDeco', 0xe2264a, { emissive: 0x8a0a20, emissiveIntensity: 0.4 })); hh.position.lerpVectors(p, q, k / 4).setY(2.7); hh.lookAt(TX, 2.7, TZ); g.add(hh); } });
+  const benchM = mat('bench', 0xa69a88, { roughness: 0.9 });
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 8, x = TX + Math.cos(a) * 9.1, z = TZ + Math.sin(a) * 9.1; if (Math.sin(a) > 0.9 || Math.sin(a) < -0.9) continue;
+    const b = new THREE.Group(); b.position.set(x, 0, z); b.rotation.y = -a + Math.PI / 2; b.add(at(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 0.55), benchM), 0, 0.46, 0), at(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.45), benchM), -0.8, 0.21, 0), at(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.45), benchM), 0.8, 0.21, 0)); g.add(b); }
+  // luống hoa hồng vòng ngoài quảng trường
+  for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; if (Math.abs(Math.sin(a)) > 0.95) continue; const x = TX + Math.cos(a) * 13.8, z = TZ + Math.sin(a) * 13.8;
+    const bu = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 0), leaf); bu.position.set(x, 0.42, z); bu.userData.noCollide = true; g.add(bu);
+    for (let k = 0; k < 5; k++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), i % 3 ? rose : mat('rosePink', 0xf28cb0)); f.position.set(x + Math.cos(k * 1.3) * 0.45, 0.66 + (k % 2) * 0.15, z + Math.sin(k * 1.3) * 0.45); f.userData.noCollide = true; g.add(f); } }
+  // đào hồng quanh quảng trường
+  const peach = mat('peach', 0xf7a8c4, { flatShading: true, emissive: 0x6a2040, emissiveIntensity: 0.12 });
+  [[-17.5, TZ - 8], [17.5, TZ - 8], [-17.5, TZ + 8], [17.5, TZ + 8], [-21, TZ], [21, TZ]].forEach(([x, z]) => { g.add(cyl(0.22, 0.32, 3.2, 8, bark, x, 1.6, z));
+    [[0, 3.9, 0, 1.7], [1.0, 3.5, 0.5, 1.1], [-0.9, 3.6, -0.4, 1.2]].forEach(([dx, y, dz, r]) => { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), peach); c.position.set(x + dx, y, z + dz); c.userData.noCollide = true; g.add(c); }); });
   // ===== cổng chào CẦU DUYÊN trên lối vào =====
-  [-3.4, 3.4].forEach(x => g.add(cyl(0.18, 0.2, 4.6, 10, RED(), x, 2.3, 31.5)));
-  const ban = plaque('CHÙA HÀ · CẦU DUYÊN', 'Vào lẻ bóng · ra có đôi', 7.2, 1.2); ban.position.set(0, 4.3, 31.6); g.add(ban);
-  const ban2 = plaque('CẦU DUYÊN', 'Nam mô Quán Thế Âm Bồ Tát', 7.2, 1.2); ban2.position.set(0, 4.3, 31.4); ban2.rotation.y = Math.PI; g.add(ban2);
+  const GZ = 57;
+  [-3.6, 3.6].forEach(x => g.add(cyl(0.2, 0.22, 4.8, 10, RED(), x, 2.4, GZ)));
+  const ban = plaque('CHÙA HÀ · CẦU DUYÊN', 'Vào lẻ bóng · ra có đôi', 7.6, 1.25); ban.position.set(0, 4.5, GZ + 0.1); g.add(ban);
+  const ban2 = plaque('CẦU DUYÊN', 'Nam mô Quán Thế Âm Bồ Tát', 7.6, 1.25); ban2.position.set(0, 4.5, GZ - 0.1); ban2.rotation.y = Math.PI; g.add(ban2);
+  // đèn lồng & bụi hồng dọc lối vào
+  for (let z = TZ + R + 2; z <= 62; z += 3.6) [-3.6, 3.6].forEach(x => { if (Math.abs(z - GZ) < 1.2) return; g.add(cyl(0.06, 0.07, 2.6, 6, RED(), x, 1.3, z)); const l = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), red); l.scale.y = 1.25; l.position.set(x, 2.4, z); l.userData.noCollide = true; g.add(l); });
+  for (let z = TZ + R + 1; z <= 62; z += 2.4) [-5.6, 5.6].forEach(x => { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), leaf); b.position.set(x, 0.42, z); b.userData.noCollide = true; g.add(b);
+    for (let k = 0; k < 5; k++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), rose); f.position.set(x + Math.cos(k * 1.3) * 0.42, 0.62 + (k % 2) * 0.15, z + Math.sin(k * 1.3) * 0.42); f.userData.noCollide = true; g.add(f); } });
   // ===== Điện Mẫu (bên trái), quay vào giữa sân =====
   const dm = hall({ w: 5, d: 4.6, h: 2.8, tiers: 2 }); dm.position.set(-19.5, 0, 3); dm.rotation.y = Math.PI / 2; g.add(dm);
   const dmp = plaque('ĐIỆN MẪU', 'cầu duyên · cầu an', 2.6, 0.7); dmp.position.set(-16.8, 2.9, 3); dmp.rotation.y = Math.PI / 2; g.add(dmp);
-  // ===== đèn lồng đỏ & bụi hoa hồng dọc lối vào =====
-  const red = mat('lanternRed', 0xd7261e, { emissive: 0xff4020, emissiveIntensity: 0.55 }), rose = mat('rose', 0xd0283a), leaf = LEAF2();
-  [27, 31.5, 35].forEach(z => [-3.4, 3.4].forEach(x => { if (z === 31.5) return; const pst = cyl(0.06, 0.07, 2.6, 6, RED(), x, 1.3, z); g.add(pst); const l = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), red); l.scale.y = 1.25; l.position.set(x, 2.4, z); l.userData.noCollide = true; g.add(l); }));
-  for (let z = 26; z <= 34; z += 2.2) [-5.2, 5.2].forEach(x => { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), leaf); b.position.set(x, 0.42, z); b.userData.noCollide = true; g.add(b);
-    for (let k = 0; k < 5; k++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), rose); f.position.set(x + Math.cos(k * 1.3) * 0.42, 0.62 + (k % 2) * 0.15, z + Math.sin(k * 1.3) * 0.42); f.userData.noCollide = true; g.add(f); } });
   // hàng cây quanh tường
   const TR = (x, z, h = 6) => g.add(tree(h, (Math.abs(x * 7 + z) | 0) % 2 ? LEAF() : LEAF2(), x, z));
-  for (let z = -14; z <= 30; z += 7.5) [-22.5, 22.5].forEach(x => { if (Math.abs(z - 3) < 4 && x < 0) return; TR(x, z, 6); });
-  for (let x = -17; x <= 17; x += 6.8) TR(x, -15.5, 6.5);
-  [[-11.5, 8], [11.5, 8]].forEach(([x, z]) => TR(x, z, 5.5));
+  for (let z = -14; z <= 60; z += 7.4) [-31, 31].forEach(x => TR(x, z, 6.5));
+  for (let x = -26; x <= 26; x += 6.5) TR(x, -15.5, 6.5);
+  [[-11.5, 8], [11.5, 8], [-24, 22], [24, 22], [-24, 54], [24, 54], [-14, 58], [14, 58]].forEach(([x, z]) => TR(x, z, 5.5));
 }
 function heartMesh(s, m) {   // trái tim phẳng có độ dày
   const sh = new THREE.Shape(); sh.moveTo(0, -0.9); sh.bezierCurveTo(-1.6, 0.2, -0.7, 1.4, 0, 0.6); sh.bezierCurveTo(0.7, 1.4, 1.6, 0.2, 0, -0.9);

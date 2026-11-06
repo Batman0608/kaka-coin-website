@@ -17,7 +17,7 @@ const INTS = ['Du lịch', 'Nấu ăn', 'Đọc sách', 'Âm nhạc', 'Thiền �
 export function initDuyen(X) {
   const { P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas, THREE } = X;
   const W = () => X.getW(), temple = () => X.getTemple();
-  let st = { prof: null, pairs: [], matches: [] }, tree = [], myPid = '', unread = {}, chatOpen = null, view = null;
+  let st = { prof: null, pairs: [], matches: [] }, tree = [], bots = [], saves = 0, myPid = '', unread = {}, chatOpen = null, view = null;
   const year = () => new Date(Date.now() + 7 * 3600000).getUTCFullYear();
   const photoUrl = (id) => `${NET.httpBase()}/duyen/anh/${id}.jpg`;
   const btn = (t, cls, fn) => { const b = el('button', 'btn' + (cls ? ' ' + cls : ''), t); b.onclick = fn; return b; };
@@ -27,7 +27,7 @@ export function initDuyen(X) {
   /* ---------------- tin từ máy chủ ---------------- */
   NET.onSoc((m) => {
     if (m.op === 'du.me') { st = { prof: m.prof, pairs: m.pairs || [], matches: m.matches || [] }; badge(); if (view) view(); refreshChat(); }
-    else if (m.op === 'du.tree') { tree = m.list || []; myPid = m.mine || ''; hangHearts(); if (view) view(); }
+    else if (m.op === 'du.tree') { tree = m.list || []; bots = m.bots || []; myPid = m.mine || ''; hangHearts(); if (view) view(); }
     else if (m.op === 'du.pair') { const i = st.pairs.findIndex(p => p.id === m.pair.id); if (i >= 0) st.pairs[i] = m.pair; else st.pairs.push(m.pair); badge(); if (!m.pair.mine) announcePair(m.pair); if (view) view(); }
     else if (m.op === 'du.closed') { st.pairs = st.pairs.filter(p => p.id !== m.pair); toast(m.msg); badge(); if (view) view(); }
     else if (m.op === 'du.matched') { st.pairs = st.pairs.filter(p => !p.other || p.other.pid !== (m.match.other || {}).pid); st.matches.push(m.match); badge(); A.bigBell(); X.banner('💞 Duyên đã thành', `Bạn và ${m.match.other.nick} cùng đồng ý`, 'Khung trò chuyện riêng đã mở'); openChat(m.match.id); }
@@ -48,6 +48,8 @@ export function initDuyen(X) {
       const str = new THREE.Mesh(new THREE.BoxGeometry(0.012, drop, 0.012), new THREE.MeshBasicMaterial({ color: 0xb01830 })); str.position.set(a.x * 0.92, a.y - drop / 2, a.z * 0.92);
       hGroup.add(h, str); hearts.push(h);
     });
+    // 20 dải cầu duyên trên cây = 20 bạn đồng hành ảo
+    (T.ribbons || []).forEach((rb, i) => { const c = bots[i]; rb.traverse(o => { if (o.isMesh) { o.userData.card = c || null; if (c) hearts.push(o); } }); });
   }
   // bấm vào trái tim (không phải kéo xoay camera) để xem hồ sơ
   const ray = new THREE.Raycaster(), v2 = new THREE.Vector2(); let down = null;
@@ -55,7 +57,7 @@ export function initDuyen(X) {
   canvas.addEventListener('pointerup', (e) => {
     if (!down || !hearts.length) return; const d = Math.hypot(e.clientX - down.x, e.clientY - down.y), dt = performance.now() - down.t; down = null; if (d > 8 || dt > 500) return;
     const r = canvas.getBoundingClientRect(); v2.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(v2, camera);
-    const hit = ray.intersectObjects(hearts, false)[0]; if (hit) showCard(hit.object.userData.card);
+    const hit = ray.intersectObjects(hearts.filter(h => h.visible !== false), false)[0]; if (hit && hit.object.userData.card) showCard(hit.object.userData.card);
   });
 
   /* ---------------- xem hồ sơ (ảnh + thông tin) ---------------- */
@@ -63,9 +65,11 @@ export function initDuyen(X) {
     const wrap = el('div', 'dcard');
     if (c.photos && c.photos.length) { const ph = el('div', 'dphotos'); c.photos.forEach(id => { const im = new Image(); im.src = photoUrl(id); im.alt = c.nick; im.loading = 'lazy'; im.onclick = () => zoom(im.src); ph.append(im); }); wrap.append(ph); }
     else wrap.append(el('div', 'dnophoto', gIcon(c.g)));
+    if (c.bot) wrap.append(el('p', 'dbot', '🤖 Bạn đồng hành ảo · không phải người thật — trò chuyện cho vui trong lúc Cây tình duyên tìm người thật hợp với bạn'));
     wrap.append(el('h3', '', `${gIcon(c.g)} ${c.nick} · ${c.age} tuổi`), el('p', 'dloc', `📍 ${c.prov}${c.ward ? ' · ' + c.ward : ''}`));
     const chips = el('div', 'dchips'); (c.ints || []).forEach(i => chips.append(el('span', '', i))); wrap.append(chips);
     if (c.about) wrap.append(el('p', '', `💬 ${c.about}`)); if (c.want) wrap.append(el('p', 'note', `💗 Mong muốn: ${c.want}`));
+    if (c.wish) wrap.append(el('p', 'dwhy', `🎐 Lời nguyện trên dải lụa: “${c.wish}”`));
     if (opts.why) wrap.append(el('p', 'dwhy', `✨ ${opts.why}`));
     box.append(wrap); return wrap;
   }
@@ -74,6 +78,7 @@ export function initDuyen(X) {
     modal('💞 Cây tình duyên', (b) => {
       cardView(c, b);
       if (c.pid === myPid) { b.append(el('p', 'note', 'Đây là hồ sơ của bạn.')); return; }
+      if (c.bot) { const r = el('div', 'row'); r.append(btn('💬 Trò chuyện với bạn đồng hành', 'gold', () => { if (!st.prof) { toast('Hãy treo hồ sơ của bạn lên cây trước'); V._edit = true; return openHub('hoso'); } NET.soc('du.like', { pid: c.pid }); closeModal(); })); b.append(r); return; }
       const r = el('div', 'row'); r.append(btn('💗 Thả tim', 'gold', () => { NET.soc('du.like', { pid: c.pid }); closeModal(); }), btn('🚩 Báo cáo', 'ghost', () => reportForm(c.pid))); b.append(r);
       b.append(el('p', 'note', 'Nếu hai người cùng thả tim cho nhau, hệ thống sẽ hỏi cả hai có muốn trò chuyện không.'));
     });
@@ -116,11 +121,11 @@ export function initDuyen(X) {
       form(b, pr);
     },
     cay(b) {
-      if (!tree.length) { b.append(el('p', 'note', 'Cây tình duyên chưa có hồ sơ nào. Hãy là người đầu tiên treo lời nguyện!')); return; }
+      if (!tree.length && !bots.length) { b.append(el('p', 'note', 'Cây tình duyên chưa có hồ sơ nào. Hãy là người đầu tiên treo lời nguyện!')); return; }
       const f = el('select'); [['', 'Tất cả tỉnh thành'], ...PROVS.map(x => [x, x])].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; f.append(o); }); if (st.prof) f.value = st.prof.prov;
       const grid = el('div', 'dgrid'); b.append(f, grid);
-      const draw = () => { grid.innerHTML = ''; tree.filter(c => !f.value || c.prov === f.value).forEach(c => { const it = el('button', 'ditem' + (c.pid === myPid ? ' me' : '')); if (c.photos && c.photos[0]) { const im = new Image(); im.src = photoUrl(c.photos[0]); im.loading = 'lazy'; it.append(im); } else it.append(el('i', '', gIcon(c.g)));
-        it.append(el('b', '', `${c.nick}, ${c.age}`), el('small', '', c.prov)); it.onclick = () => showCard(c); grid.append(it); }); if (!grid.children.length) grid.append(el('p', 'note', 'Chưa có hồ sơ ở tỉnh này.')); };
+      const draw = () => { grid.innerHTML = ''; [...tree, ...bots].filter(c => !f.value || c.prov === f.value).forEach(c => { const it = el('button', 'ditem' + (c.pid === myPid ? ' me' : '') + (c.bot ? ' bot' : '')); if (c.photos && c.photos[0]) { const im = new Image(); im.src = photoUrl(c.photos[0]); im.loading = 'lazy'; it.append(im); } else it.append(el('i', '', gIcon(c.g)));
+        it.append(el('b', '', `${c.bot ? '🤖 ' : ''}${c.nick}, ${c.age}`), el('small', '', c.bot ? 'bạn đồng hành ảo' : c.prov)); it.onclick = () => showCard(c); grid.append(it); }); if (!grid.children.length) grid.append(el('p', 'note', 'Chưa có hồ sơ ở tỉnh này.')); };
       f.onchange = draw; draw();
     },
     se(b) {
@@ -136,10 +141,10 @@ export function initDuyen(X) {
     chat(b) {
       if (!st.matches.length) { b.append(el('p', 'note', 'Khi cả hai cùng bấm "Đồng ý", khung trò chuyện riêng sẽ mở ở đây.')); return; }
       st.matches.forEach(m => { const it = el('button', 'ditem wide'); if (m.other.photos && m.other.photos[0]) { const im = new Image(); im.src = photoUrl(m.other.photos[0]); it.append(im); } else it.append(el('i', '', gIcon(m.other.g)));
-        it.append(el('b', '', `${m.other.nick}${unread[m.id] ? ` · ${unread[m.id]} tin mới` : ''}`), el('small', '', m.msgs.length ? m.msgs[m.msgs.length - 1].x.slice(0, 40) : 'Hãy gửi lời chào 🙏')); it.onclick = () => { closeModal(); openChat(m.id); }; b.append(it); });
+        it.append(el('b', '', `${m.other.bot ? '🤖 ' : ''}${m.other.nick}${unread[m.id] ? ` · ${unread[m.id]} tin mới` : ''}`), el('small', '', m.msgs.length ? m.msgs[m.msgs.length - 1].x.slice(0, 40) : 'Hãy gửi lời chào 🙏')); it.onclick = () => { closeModal(); openChat(m.id); }; b.append(it); });
     }
   };
-  function goTree() { closeModal(); if (temple().id !== 'chua-ha') X.fade(() => X.loadTemple('chua-ha')); else X.walkTo([new THREE.Vector3(0, 0, 27.6)]); }
+  function goTree() { closeModal(); if (temple().id !== 'chua-ha') X.fade(() => X.loadTemple('chua-ha')); else { const T = W().duyenTree; X.walkTo([new THREE.Vector3(T.center.x, 0, T.center.z + T.radius - 1)]); } }
 
   /* ---------------- form hồ sơ ---------------- */
   function form(b, pr) {
@@ -175,7 +180,7 @@ export function initDuyen(X) {
       const yb = +by.value; if (!g.value) return toast('Chọn giới tính'); if (!yb || year() - yb < 18) return toast('⚠️ Cầu duyên chỉ dành cho người từ 18 tuổi'); if (!prov.value) return toast('Chọn tỉnh / thành phố');
       if (!chosen.size) return toast('Chọn ít nhất 1 sở thích'); if (!c1.checked || !c2.checked) return toast('Hãy xác nhận hai ô cam kết');
       V._edit = false; NET.soc('du.save', { prof: { nick: nick.value.trim(), g: g.value, seek: seek.value, by: yb, prov: prov.value, ward: ward.value.trim(), ints: [...chosen], about: about.value.trim(), want: want.value.trim(), photos, adult: true } });
-      A.khanh(); X.addBeads(9);
+      A.khanh(); X.addBeads(9); P.dSaves = (P.dSaves || 0) + 1; save(); if (P.dSaves >= 2 && X.share) setTimeout(() => X.share('duyen'), 2500);
       setTimeout(() => NET.soc('du.tree'), 600);
     }));
     if (pr.nick) r.append(btn('Hủy', 'ghost', () => { V._edit = false; view(); }));
@@ -214,7 +219,7 @@ export function initDuyen(X) {
     if (!chatEl) { chatEl = el('div', 'dchat'); document.body.append(chatEl); }
     chatEl.hidden = false; chatEl.innerHTML = '';
     const head = el('div', 'dch-h'); const av = m.other.photos && m.other.photos[0] ? Object.assign(new Image(), { src: photoUrl(m.other.photos[0]) }) : el('i', '', gIcon(m.other.g)); av.onclick = () => showCard(m.other);
-    const tt = el('div', 'dch-t'); tt.append(el('b', '', m.other.nick || 'Người ấy'), el('small', '', `${m.other.age ? m.other.age + ' tuổi · ' : ''}${m.other.prov || ''}`));
+    const tt = el('div', 'dch-t'); tt.append(el('b', '', (m.other.bot ? '🤖 ' : '') + (m.other.nick || 'Người ấy')), el('small', '', m.other.bot ? 'Bạn đồng hành ảo · không phải người thật' : `${m.other.age ? m.other.age + ' tuổi · ' : ''}${m.other.prov || ''}`));
     const menu = el('div', 'dch-m'); menu.append(btn('⋯', 'ghost', () => endMenu(m)), btn('✕', 'ghost', closeChat));
     head.append(av, tt, menu);
     const log = el('div', 'dch-log'); log.id = 'dchLog';
@@ -242,10 +247,10 @@ export function initDuyen(X) {
   /* ---------------- vòng đời ---------------- */
   function onTemple() { hearts = []; hGroup = null; if (W() && W().duyenTree && NET.online) NET.soc('du.tree'); }
   function dispose() { hearts = []; hGroup = null; }
-  function step(dt, t) { hearts.forEach(h => { h.rotation.z = Math.sin(t * 1.6 + h.userData.ph) * 0.18; }); }
+  function step(dt, t) { hearts.forEach(h => { if (h.userData.ph != null) h.rotation.z = Math.sin(t * 1.6 + h.userData.ph) * 0.18; }); const T = W() && W().duyenTree; if (T && T.ribbons) T.ribbons.forEach(rb => { rb.rotation.x = Math.sin(t * 1.3 + rb.userData.ph) * 0.12; rb.rotation.z = Math.sin(t * 0.9 + rb.userData.ph * 1.7) * 0.08; }); }
   function context() {
     const T = W() && W().duyenTree; if (!T) return null; const c = T.center;
-    if (Math.hypot(me.pos.x - c.x, me.pos.z - c.z) < 5.6) return { label: st.prof ? '💞 Cây tình duyên' : '💞 Cầu duyên · treo hồ sơ', fn: () => openHub() };
+    if (Math.hypot(me.pos.x - c.x, me.pos.z - c.z) < (T.radius || 5.6)) return { label: st.prof ? '💞 Cây tình duyên' : '💞 Cầu duyên · treo hồ sơ', fn: () => openHub() };
     return null;
   }
   const b0 = $('bDuyen'); if (b0) b0.onclick = () => openHub();
