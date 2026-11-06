@@ -162,7 +162,7 @@ export function initDuyen(X) {
     const want = el('textarea'); want.maxLength = 140; want.rows = 2; want.placeholder = 'Bạn mong người ấy thế nào?'; want.value = pr.want || '';
     b.append(el('h3', '', 'Giới thiệu bản thân'), about, el('h3', '', 'Mong muốn ở nửa kia'), want);
     // ảnh
-    b.append(el('h3', '', 'Ảnh (tối đa 3 · ảnh của chính bạn)'));
+    b.append(el('h3', '', 'Ảnh (tối đa 3 · ảnh chân dung rõ mặt của chính bạn)'), el('p', 'note', '🔍 Ảnh được tự động kiểm tra: chỉ nhận ảnh có khuôn mặt người nhìn rõ.'));
     const pbox = el('div', 'dphotos edit'); b.append(pbox);
     const drawP = () => { pbox.innerHTML = ''; photos.forEach((id, i) => { const w = el('div', 'dph'); const im = new Image(); im.src = photoUrl(id); w.append(im, btn('✕', 'ghost', () => { photos.splice(i, 1); drawP(); })); pbox.append(w); });
       if (photos.length < 3) { const lab = el('label', 'dadd', '＋ Thêm ảnh'); const fi = el('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true; lab.append(fi); fi.onchange = () => { const file = fi.files[0]; if (file) upload(file).then(id => { if (id) { photos.push(id); drawP(); } }); }; pbox.append(lab); } };
@@ -181,10 +181,25 @@ export function initDuyen(X) {
     if (pr.nick) r.append(btn('Hủy', 'ghost', () => { V._edit = false; view(); }));
     b.append(r);
   }
+  // nhận diện khuôn mặt ngay trên máy (face-api, mô hình Tiny Face Detector) — máy chủ còn kiểm tra lại lần nữa
+  let FA = null;
+  async function faceApi() {
+    if (FA) return FA;
+    const m = await import('../../vendor/face-api/face-api.esm.js');
+    await m.nets.tinyFaceDetector.loadFromUri('vendor/face-api/model'); FA = m; return m;
+  }
+  async function hasFace(cv) {
+    try {
+      const fa = await faceApi(), det = await fa.detectAllFaces(cv, new fa.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 }));
+      return det.some(d => d.score >= 0.6 && Math.max(d.box.width, d.box.height) >= 0.08 * Math.min(cv.width, cv.height));
+    } catch (e) { console.warn('face-api', e); return null; }   // không chạy được trên máy này → để máy chủ kiểm tra
+  }
   // thu nhỏ ảnh trên máy (≤ 720 px, JPEG) rồi gửi lên máy chủ
   async function upload(file) {
     try {
       const bmp = await createImageBitmap(file); const k = Math.min(1, 720 / Math.max(bmp.width, bmp.height)); const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      toast('🔍 Đang kiểm tra khuôn mặt trong ảnh…');
+      const ok = await hasFace(c); if (ok === false) { toast('⚠️ Không thấy rõ khuôn mặt người. Hãy chọn ảnh chân dung của chính bạn, nhìn rõ mặt.'); return null; }
       let q = 0.85, blob; do { blob = await new Promise(r => c.toBlob(r, 'image/jpeg', q)); q -= 0.12; } while (blob && blob.size > 380 * 1024 && q > 0.3);
       toast('⏳ Đang tải ảnh…');
       const res = await fetch(`${NET.httpBase()}/duyen/anh`, { method: 'POST', headers: { 'content-type': 'image/jpeg', 'x-uid': P.uid }, body: blob });

@@ -201,6 +201,28 @@ const DU = SOC.DU;
 /* ---------------- CẦU DUYÊN (chùa Hà): hồ sơ, ảnh, tự se duyên, đồng ý đôi bên, trò chuyện riêng ----------------
    An toàn: chỉ người từ 18 tuổi; không lưu số nhà / số điện thoại trong hồ sơ công khai (tự che dãy số dài & đường link);
    ảnh chỉ nhận JPEG ≤ 400 KB; bị 3 người khác nhau báo cáo thì hồ sơ tự ẩn; chặn thì không bao giờ ghép lại. */
+/* kiểm tra ảnh có KHUÔN MẶT NGƯỜI (luồng phụ khuon-mat.mjs). Tắt bằng biến môi trường KIEM_TRA_MAT=0 */
+const FACE = (() => {
+  if (process.env.KIEM_TRA_MAT === '0') { console.log('[cầu duyên] tắt kiểm tra khuôn mặt (KIEM_TRA_MAT=0)'); return null; }
+  let w = null, ready = false, broken = '', seq = 0; const wait = new Map();
+  function start() {
+    try {
+      const { Worker } = require('worker_threads'); w = new Worker(path.join(__dirname, 'khuon-mat.mjs'));
+      w.on('message', (m) => { if (m.ready) { ready = true; console.log('[cầu duyên] sẵn sàng kiểm tra khuôn mặt trong ảnh'); return; } const f = wait.get(m.id); if (f) { wait.delete(m.id); f(m); } });
+      w.on('error', (e) => { broken = String(e && e.message || e); console.log('[cầu duyên] không chạy được kiểm tra khuôn mặt:', broken); });
+      w.on('exit', () => { ready = false; w = null; wait.forEach(f => f({ err: 'luồng nhận diện dừng' })); wait.clear(); if (!broken) setTimeout(start, 5000); });
+    } catch (e) { broken = String(e.message || e); }
+  }
+  start();
+  return {
+    check(buf) { return new Promise((res) => {
+      if (!w || !ready) return res({ err: broken || 'đang khởi động bộ nhận diện, thử lại sau vài giây' });
+      const id = ++seq; wait.set(id, res); w.postMessage({ id, buf }); setTimeout(() => { if (wait.has(id)) { wait.delete(id); res({ err: 'nhận diện quá lâu' }); } }, 20000);
+    }); }
+  };
+})();
+// đạt khi có ≥ 1 khuôn mặt rõ (độ tin cậy ≥ 0,6) chiếm đủ lớn trong ảnh (cạnh ≥ 8% cạnh ngắn của ảnh)
+const faceOk = (r) => (r.faces || []).some(f => f.s >= 0.6 && Math.max(f.w, f.h) >= 0.08 * Math.min(r.W, r.H));
 function makeDuyen({ D, mark, online, reply, U }) {
   const Y = D.duyen = Object.assign({ prof: {}, pairs: {}, matches: {}, no: {}, likes: {}, reports: {}, up: {} }, D.duyen || {});
   const key = (a, b) => a < b ? a + '|' + b : b + '|' + a;
@@ -322,7 +344,13 @@ function makeDuyen({ D, mark, online, reply, U }) {
     req.on('end', () => {
       if (bad) return J(413, { err: 'Ảnh quá lớn (tối đa 400 KB)' });
       const buf = Buffer.concat(chunks); if (buf.length < 200 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return J(415, { err: 'Chỉ nhận ảnh JPEG' });
-      const id = rid(); fs.mkdir(PHOTO_DIR, { recursive: true }, () => fs.writeFile(path.join(PHOTO_DIR, id + '.jpg'), buf, (e) => { if (e) return J(500, { err: 'Không lưu được ảnh' }); up.push(id); mark(); J(200, { id }); }));
+      const save = () => { const id = rid(); fs.mkdir(PHOTO_DIR, { recursive: true }, () => fs.writeFile(path.join(PHOTO_DIR, id + '.jpg'), buf, (e) => { if (e) return J(500, { err: 'Không lưu được ảnh' }); up.push(id); mark(); J(200, { id }); })); };
+      if (!FACE) return save();
+      FACE.check(buf).then(r => {
+        if (r.err) { console.log('[cầu duyên] lỗi kiểm tra khuôn mặt:', r.err); return J(503, { err: 'Chưa kiểm tra được ảnh, vui lòng thử lại sau ít phút' }); }
+        if (!faceOk(r)) return J(422, { err: 'Không thấy rõ khuôn mặt người trong ảnh. Hãy chọn ảnh chân dung của chính bạn, nhìn rõ mặt.' });
+        save();
+      });
     });
   }
   function photo(req, res, id) {
