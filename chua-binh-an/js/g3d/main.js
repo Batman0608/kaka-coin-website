@@ -6,6 +6,7 @@
  * ========================================================================= */
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
+Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
 import { bootAccount, initAccount } from './account.js';
@@ -210,6 +211,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyB') doBow();
   if (e.code === 'KeyT') malaOn ? closeMala() : openMala();
   if (e.code === 'KeyM') openTemplePicker();
+  if (/^Digit[1-6]$/.test(e.code) && !malaOn && !chanting) { const b = $('acts').children[+e.code.slice(5) - 1]; if (b) b.click(); }   // phím 1–6: hành động
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 // cần điều khiển ảo
@@ -1577,7 +1579,7 @@ SHOP.onChange(hud);
 $('bAdmin').onclick = () => SHOP.openAdmin();
 setTimeout(() => { if (P.name && SHOP.dailyReady()) toast('🎁 Có quà hằng ngày: vào "Dâng lễ" để nhận hoa sen'); }, 6000);
 [['🙏', 'Lạy Phật', doBow], ['📿', 'Tràng hạt', openMala], ['🪵', 'Tụng kinh', openChant], ['🧘', 'Thiền', openMeditate], ['🪔', 'Dâng lễ', openOffer], ['🔔', 'Thỉnh chuông', ringBell]]
-  .forEach(([i, t, fn]) => { const b = el('button', 'act'); b.append(el('span', 'ic', i), el('span', 'lb', t)); b.onclick = () => { A.ensure(); fn(); }; $('acts').append(b); });
+  .forEach(([i, t, fn], k) => { const b = el('button', 'act'); b.title = t + ' (phím ' + (k + 1) + ')'; b.append(el('i', 'kbd', String(k + 1)), el('span', 'ic', i), el('span', 'lb', t)); b.onclick = () => { A.ensure(); fn(); }; $('acts').append(b); });
 $('miniBtn').onclick = () => openTemplePicker(); $('setBtn').onclick = openSettings; $('pChip').onclick = openProfile;
 $('tName').onclick = () => openTemplePicker(); $('bPass').onclick = openProfile; $('bProf').onclick = openProfile; $('bStory').onclick = openStories; $('bWish').onclick = openWish;
 /* menu chức năng gọn trên điện thoại: nút ☰ mở/đóng bảng icon bên phải */

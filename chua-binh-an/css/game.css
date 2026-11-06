@@ -395,3 +395,86 @@ body.touch .chatinput { bottom: calc(160px + env(safe-area-inset-bottom, 0px)); 
 .kinhbar.festbar { top: calc(100px + env(safe-area-inset-top, 0px)); background: linear-gradient(90deg, #8e1a0e, #c98a1c); }
 body.touch .kinhbar.festbar { top: calc(134px + env(safe-area-inset-top, 0px)); }
 body:has(.veil:not([hidden])) .festbar { display: none; }
+
+/* =====================================================================
+ *  GIAO DIỆN MÁY TÍNH (thiết kế lại 06/11) — chỉ áp dụng chuột + màn rộng,
+ *  điện thoại (body.touch) giữ nguyên. Bố cục: thẻ thông tin trái · dock
+ *  chức năng phải · thanh hành động giữa đáy có phím tắt 1–6.
+ * ===================================================================== */
+/* số phím tắt trên nút hành động: chỉ hiện ở máy tính */
+.act .kbd { display: none; }
+@media (min-width: 1000px) {
+  body:not(.touch) {
+    --glass: linear-gradient(180deg, rgba(52, 20, 9, .88), rgba(26, 10, 4, .9));
+    --gline: rgba(240, 192, 80, .4);
+    --gshadow: 0 12px 32px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 230, 160, .14);
+  }
+  /* ---- thẻ thông tin bên trái ---- */
+  body:not(.touch) .tl { top: 46px; left: 16px; width: 292px; max-width: none; gap: 8px; padding: 12px;
+    border-radius: 20px; background: var(--glass); border: 1px solid var(--gline); box-shadow: var(--gshadow);
+    backdrop-filter: blur(10px); justify-items: stretch; }
+  body:not(.touch) .tl .chip-p { width: 100%; max-width: none; border-radius: 16px; padding: 8px 12px 8px 8px; gap: 10px;
+    background: rgba(0, 0, 0, .28); border: 1px solid rgba(240, 192, 80, .22); transition: border-color .2s, background .2s; }
+  body:not(.touch) .tl .chip-p:hover { border-color: var(--gold); background: rgba(240, 192, 80, .08); }
+  body:not(.touch) .chip-p .av { width: 46px; height: 46px; font-size: 20px; box-shadow: 0 0 0 2px rgba(240, 192, 80, .55); }
+  body:not(.touch) .chip-p .pt { flex: 1; }
+  body:not(.touch) .chip-p b { font-size: 15px; }
+  body:not(.touch) .chip-p .bar { height: 6px; margin: 4px 0 3px; }
+  body:not(.touch) .chip-p .bar i { background: linear-gradient(90deg, #c98a1c, #ffe08a); }
+  body:not(.touch) .tname { font-size: 23px; text-decoration: none; padding: 4px 2px 0; text-align: left; display: flex; align-items: center; gap: 8px; }
+  body:not(.touch) .tname::after { content: '⇄ đổi chùa'; font: 700 10.5px var(--sans); color: var(--mut); border: 1px solid rgba(240, 192, 80, .3); border-radius: 10px; padding: 2px 7px; text-shadow: none; }
+  body:not(.touch) .tname:hover::after { color: #2a1406; background: var(--gold); }
+  body:not(.touch) .tplace { margin: -6px 2px 0; font-size: 12px; color: var(--mut); text-shadow: none; }
+  body:not(.touch) .tl .obj { font-size: 12.5px; padding: 7px 10px; border-radius: 10px; background: rgba(240, 192, 80, .1); border-left: 3px solid var(--gold); display: block; }
+  body:not(.touch) .tl .obj:empty { display: none; }
+  body:not(.touch) #goBtn { width: 100%; padding: 9px 14px; border-radius: 12px; font-size: 13.5px; background: linear-gradient(#6a2612, #451709); transition: filter .2s, transform .15s; }
+  body:not(.touch) #goBtn:hover { filter: brightness(1.18); transform: translateY(-1px); }
+  body:not(.touch) .online { padding: 0 2px; text-shadow: none; }
+  body:not(.touch) .tl .rank { width: 100%; max-width: none; margin-top: 2px; background: rgba(0, 0, 0, .22); border-color: rgba(240, 192, 80, .25); box-shadow: none; }
+  body:not(.touch) .rank-h { padding: 8px 10px; font-size: 13px; }
+  body:not(.touch) .rank li { font-size: 12.5px; padding: 4px 6px; }
+
+  /* ---- dock chức năng bên phải ---- */
+  body:not(.touch) .side { top: 46px; right: 16px; gap: 4px; padding: 8px; border-radius: 22px;
+    background: var(--glass); border: 1px solid var(--gline); box-shadow: var(--gshadow); backdrop-filter: blur(10px); }
+  body:not(.touch) .side button { width: 74px; height: 64px; border-radius: 14px; border: 1px solid transparent; background: transparent; gap: 4px; transition: background .2s, border-color .2s, transform .15s; }
+  body:not(.touch) .side button:hover { background: rgba(240, 192, 80, .13); border-color: rgba(240, 192, 80, .45); transform: translateX(-2px); }
+  body:not(.touch) .side button .si { font-size: 24px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+  body:not(.touch) .side button small { font-size: 11px; white-space: normal; line-height: 1.1; color: #ffe6a8; }
+  body:not(.touch) .side #miniBtn { height: 84px; padding: 4px; }
+  body:not(.touch) .side #miniBtn canvas { height: 54px; width: 64px; border-radius: 10px; border: 1px solid rgba(240, 192, 80, .35); }
+  body:not(.touch) .side #setBtn { margin-top: 4px; border-top: 1px solid rgba(240, 192, 80, .18); border-radius: 0 0 14px 14px; }
+
+  /* ---- thanh hành động giữa đáy (phím 1–6) ---- */
+  body:not(.touch) .acts { left: 50%; right: auto; transform: translateX(-50%); bottom: 30px; display: flex; gap: 6px; padding: 8px;
+    border-radius: 24px; background: var(--glass); border: 1px solid var(--gline); box-shadow: var(--gshadow); backdrop-filter: blur(10px); }
+  body:not(.touch) .act { position: relative; width: 88px; height: 74px; border-radius: 16px; gap: 4px; backdrop-filter: none;
+    background: linear-gradient(180deg, #6a2612, #3a1208); border: 1px solid rgba(240, 192, 80, .35); transition: transform .15s, box-shadow .2s, border-color .2s; }
+  body:not(.touch) .act:hover { transform: translateY(-4px); border-color: #ffe08a; box-shadow: 0 8px 18px rgba(0, 0, 0, .45), 0 0 14px rgba(255, 210, 110, .35); }
+  body:not(.touch) .act:active { transform: translateY(-1px) scale(.97); }
+  body:not(.touch) .act .ic { font-size: 26px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+  body:not(.touch) .act .lb { font-size: 12px; }
+  body:not(.touch) .act .kbd { display: block; position: absolute; top: 5px; left: 6px; min-width: 16px; padding: 0 4px; border-radius: 5px;
+    font: 800 10px/15px var(--sans); color: #ffe6a8; background: rgba(0, 0, 0, .35); border: 1px solid rgba(240, 192, 80, .35); }
+  body:not(.touch) .keyhint { bottom: 8px; font-size: 11.5px; color: rgba(255, 236, 200, .7); max-width: 900px; }
+  body:not(.touch) .ctx { right: auto; left: 50%; bottom: 128px; transform: translateX(-50%); animation: ctxInPc .3s; }
+  @keyframes ctxInPc { from { transform: translateX(-50%) scale(.8); opacity: 0; } }
+  body:not(.touch) .toasts { bottom: 186px; }
+
+  /* ---- góc dưới: trò chuyện trái, phóng to/thu nhỏ phải ---- */
+  body:not(.touch) .chatbtn { top: auto; bottom: 30px; left: 16px; transform: none; width: 56px; height: 56px; font-size: 24px;
+    background: var(--glass); border: 1px solid var(--gline); box-shadow: var(--gshadow); }
+  body:not(.touch) .chatbtn:hover { border-color: var(--gold); }
+  body:not(.touch) .chatinput { left: 82px; bottom: 30px; transform: none; width: 420px; }
+  body:not(.touch) .zoom { left: auto; right: 16px; bottom: 30px; gap: 0; border-radius: 22px; overflow: hidden;
+    background: var(--glass); border: 1px solid var(--gline); box-shadow: var(--gshadow); }
+  body:not(.touch) .zoom button { width: 46px; height: 44px; border-radius: 0; border: 0; background: transparent; }
+  body:not(.touch) .zoom button:hover { background: rgba(240, 192, 80, .15); }
+  body:not(.touch) .zoom button + button { border-top: 1px solid rgba(240, 192, 80, .25); }
+}
+/* màn máy tính thấp (laptop 768px): thu gọn dock & bảng xếp hạng cho khỏi chồng nhau */
+@media (min-width: 1000px) and (max-height: 820px) {
+  body:not(.touch) .side button { height: 54px; } body:not(.touch) .side button .si { font-size: 20px; }
+  body:not(.touch) .side #miniBtn { height: 70px; } body:not(.touch) .side #miniBtn canvas { height: 42px; }
+  body:not(.touch) .rank li:nth-child(n+4) { display: none; }
+}
