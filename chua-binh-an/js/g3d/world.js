@@ -145,8 +145,11 @@ export function buildWorld(scene, temple) {
     (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
   });
   // khuôn viên chùa: nền gạch đỏ sẫm, tường rào bao quanh, cổng ở phía trước (bên ngoài vẫn là cỏ xanh)
+  let Lx = L;
+  if (L.yard && !L.decor) Lx = expandYards(root, L);   // các chùa khác: nới sân ~3 lần diện tích trên phần đất bằng
   if (L.decor) yardDecor(root, L);
-  if (L.yard) buildYards(root, L.yard, temple);
+  if (Lx.yard) buildYards(root, Lx.yard, temple);
+  if (Lx.grown) yardGreen(root, Lx);
   // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
   let meritAt = null;
   if (halls[0]) {
@@ -164,7 +167,7 @@ export function buildWorld(scene, temple) {
   const col = new Collision(); col.build(root);
   // mái cổng & phần cao của cổng: ẩn tạm khi che giữa camera và người chơi
   const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
-  return { root, conf, layout: L, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
+  return { root, conf, layout: Lx, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
 /* khói hương ở lư hương */
@@ -411,3 +414,78 @@ function yardDecor(root, L) {
   for (let x = -17; x <= 17; x += 6.8) T(x, -21, 6.5);
   [[-19.5, 3], [19.5, 3], [-8, -11], [8, -11]].forEach(([x, z]) => T(x, z, 5));
 }
+
+/* ---------------- nới rộng sân các chùa (không sửa LAYOUT gốc) ----------------
+   Mỗi cạnh lùi ra từng mét tới khi diện tích ~3 lần; dừng lại khi gặp núi, nước,
+   mép nền cao hoặc sân khác. Nhà cửa trong phần nới thì vẫn giữ (nằm trong sân). */
+function expandYards(root, L) {
+  root.updateMatrixWorld(true);
+  const probe = new Collision(); probe.build(root);
+  const coneH = (x, z) => { let g = 0; for (const c of probe.cones) { const d = Math.hypot(x - c.x, z - c.z); if (d >= c.r) continue; const h = c.top ? c.base + c.h * Math.min(1, (c.r - d) / (c.r - c.top)) : c.base + c.h * (1 - d / c.r) * 0.98; if (h > g) g = h; } return g; };
+  const flatOk = (x, z, y) => {
+    for (const w of probe.waters) if (x > w.min.x - 0.6 && x < w.max.x + 0.6 && z > w.min.z - 0.6 && z < w.max.z + 0.6) return false;
+    const ch = coneH(x, z);
+    if (y <= 0.2) return ch < 0.3;                                   // sân dưới đất: không leo lên sườn núi
+    return Math.abs(ch - y) < 0.35 || (ch < y - 0.3 && platform(x, z, y));   // sân trên nền cao: phải còn nền bên dưới
+  };
+  const platform = (x, z, y) => probe.boxes.some(b => x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1 && Math.abs(b.top - y) < 0.35 && b.x1 - b.x0 > 3 && b.z1 - b.z0 > 3);
+  const yards = L.yard.map(Y => Object.assign({}, Y, { r: Y.r.slice() }));
+  const overlap = (a, b) => a[0] < b[2] + 3 && a[2] > b[0] - 3 && a[1] < b[3] + 3 && a[3] > b[1] - 3;
+  yards.forEach((Y, yi) => {
+    const r = Y.r, y = Y.y || 0, a0 = (r[2] - r[0]) * (r[3] - r[1]), live = [true, true, true, true];   // -x, -z, +x, +z
+    const raised = y > 0.2, gk = Y.gate ? { '-x': 0, '-z': 1, '+x': 2, '+z': 3 }[Y.gate[0]] : -1;
+    // sân trên nền cao: nới 3 cạnh (giữ cạnh cổng vì có bậc lên), phần mới đắp thêm nền đá; dưới phải là đất trống, không núi, không nước
+    const fillOk = (x, z) => { for (const w of probe.waters) if (x > w.min.x - 0.6 && x < w.max.x + 0.6 && z > w.min.z - 0.6 && z < w.max.z + 0.6) return false; return coneH(x, z) < y + 0.3; };
+    const lineOk = (k, v) => { if (raised && k === gk) return false; const pts = []; if (k % 2 === 0) for (let z = r[1]; z <= r[3]; z += 1.2) pts.push([v, z]); else for (let x = r[0]; x <= r[2]; x += 1.2) pts.push([x, v]); return pts.every(([x, z]) => raised ? fillOk(x, z) : flatOk(x, z, y)); };
+    let guard = 0;
+    while ((r[2] - r[0]) * (r[3] - r[1]) < a0 * 3 && live.some(Boolean) && guard++ < 200) {
+      for (let k = 0; k < 4; k++) {
+        if (!live[k] || (r[2] - r[0]) * (r[3] - r[1]) >= a0 * 3) continue;
+        const idx = [0, 1, 2, 3][k], dir = k < 2 ? -1 : 1, nv = r[idx] + dir;
+        const nr = r.slice(); nr[idx] = nv;
+        if (!lineOk(k, nv + dir * 0.6) || yards.some((o, j) => j !== yi && overlap(nr, o.r))) { live[k] = false; continue; }
+        r[idx] = nv;
+      }
+    }
+    Y.grown = (r[2] - r[0]) * (r[3] - r[1]) / a0;
+    if (raised && Y.grown > 1.05) {   // đắp nền: khối đá có mặt trên đúng cao độ sân, bờ kè đá quanh mép
+      const fill = box(r[2] - r[0] + 0.6, y, r[3] - r[1] + 0.6, mat('terrace', 0x8f8676), (r[0] + r[2]) / 2, y / 2, (r[1] + r[3]) / 2); fill.receiveShadow = true; root.add(fill);
+    }
+  });
+  // chỗ xuất hiện: nếu giờ đã lọt vào trong sân thì dời ra ngoài cổng
+  let spawn = L.spawn.slice();
+  const Y0 = yards[0], O = L.yard[0].r, inside = (p, r) => p[0] > r[0] && p[0] < r[2] && p[1] > r[1] && p[1] < r[3];
+  if (Y0 && Y0.gate && !inside(spawn, O) && inside(spawn, Y0.r)) {
+    const [gs, gat] = Y0.gate, R = Y0.r, out = { '+z': [gat, R[3] + 5], '-z': [gat, R[1] - 5], '+x': [R[2] + 5, gat], '-x': [R[0] - 5, gat] }[gs];
+    if (out && flatOk(out[0], out[1], 0)) spawn = out;
+  }
+  // cổng phải nằm trên cạnh đã dời: toạ độ dọc cạnh giữ nguyên, kẹp vào trong cạnh
+  yards.forEach(Y => { if (!Y.gate) return; const [gs, gat, gw] = Y.gate, along = gs === '+z' || gs === '-z', lo = along ? Y.r[0] : Y.r[1], hi = along ? Y.r[2] : Y.r[3]; Y.gate = [gs, Math.max(lo + gw, Math.min(hi - gw, gat)), gw]; });
+  return Object.assign({}, L, { yard: yards, spawn, grown: yards.some(Y => Y.grown > 1.3), __orig: L.yard.map(Y => Y.r) });
+}
+/* cây xanh, đèn đá trong phần sân mới nới — chỉ đặt ở chỗ trống bằng phẳng */
+function yardGreen(root, L) {
+  root.updateMatrixWorld(true);
+  const probe = new Collision(); probe.build(root);
+  const g = new THREE.Group(); root.add(g);
+  const free = (x, z, y, rad) => { for (const [dx, dz] of [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]]) { const h = probe.heightAt(x + dx, z + dz, y + 0.5, 0.3); if (h == null || Math.abs(h - y) > 0.25) return false; } return !HALLS.some(H => { const p = H.getWorldPosition(new THREE.Vector3()), m = H.userData.mainHall; return Math.hypot(x - p.x, z - p.z) < Math.max(m.w, m.d) / 2 + 7; }); };
+  const stone = STONE(), lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
+  const lantern = (x, z, y) => { const l = new THREE.Group(); l.position.set(x, y, z);
+    l.add(box(0.6, 0.2, 0.6, stone, 0, 0.1, 0)); l.add(cyl(0.1, 0.13, 0.85, 8, stone, 0, 0.62, 0)); l.add(box(0.5, 0.42, 0.5, lampM, 0, 1.25, 0)); l.add(box(0.36, 0.44, 0.62, stone, 0, 1.25, 0));
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); g.add(l); };
+  L.yard.forEach((Y, yi) => {
+    const [x0, z0, x1, z1] = Y.r, y = Y.y || 0, O = (LAYOUT_OF(L, yi) || Y.r);
+    const isNew = (x, z) => !(x > O[0] - 1 && x < O[2] + 1 && z > O[1] - 1 && z < O[3] + 1);
+    // hàng cây sát tường rào, chừa khoảng trước cổng
+    const [gs, gat, gw] = Y.gate || ['+z', 0, 5], inset = 2.6;
+    const nearGate = (x, z) => { const along = gs === '+z' || gs === '-z'; const edge = { '+z': z1, '-z': z0, '+x': x1, '-x': x0 }[gs]; return Math.abs((along ? x : z) - gat) < gw + 3 && Math.abs((along ? z : x) - edge) < 8; };
+    let n = 0;
+    const tryTree = (x, z, h) => { if (!isNew(x, z) || nearGate(x, z) || !free(x, z, y, 1.4)) return; const t = tree(h, n++ % 2 ? LEAF() : LEAF2(), x, z); t.position.y = y; g.add(t); };
+    for (let x = x0 + inset; x <= x1 - inset; x += 7) { tryTree(x, z0 + inset, 6 + (n % 3)); tryTree(x, z1 - inset, 5.5 + (n % 2)); }
+    for (let z = z0 + inset + 7; z <= z1 - inset - 7; z += 7) { tryTree(x0 + inset, z, 6); tryTree(x1 - inset, z, 6.5); }
+    // đèn đá hai bên lối vào cổng
+    if (Y.gate) { const along = gs === '+z' || gs === '-z', sgn = gs[0] === '+' ? -1 : 1, edge = { '+z': z1, '-z': z0, '+x': x1, '-x': x0 }[gs];
+      [4, 9].forEach(d => [-3.2, 3.2].forEach(o => { const x = along ? gat + o : edge + sgn * d, z = along ? edge + sgn * d : gat + o; if (free(x, z, y, 0.6)) lantern(x, z, y); })); }
+  });
+}
+const LAYOUT_OF = (L, yi) => L.__orig && L.__orig[yi];
