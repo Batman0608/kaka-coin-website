@@ -95,7 +95,7 @@ Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, n
 
 let W = null, temple = null, smokes = [];
 const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, busy: null, label: null };
-const cam = { yaw: 0, pitch: 0.38, dist: 8 };   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
+const cam = { yaw: 0, pitch: 0.34, dist: 11.5 };   // lùi xa sau lưng để nhìn bao quát sân chùa   // yaw 0: camera ở phía +z sau lưng, nhìn về -z (phía chùa)
 const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
 
 let meritLbl = null;
@@ -231,14 +231,14 @@ const view = renderer.domElement; let drag = null, pinch = null;
 view.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') return; drag = { x: e.clientX, y: e.clientY }; view.setPointerCapture(e.pointerId); });
 view.addEventListener('pointermove', (e) => { if (!drag) return; cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (e.clientY - drag.y) * 0.004)); drag = { x: e.clientX, y: e.clientY }; });
 view.addEventListener('pointerup', () => { drag = null; });
-view.addEventListener('wheel', (e) => { cam.dist = Math.max(2.5, Math.min(16, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
+view.addEventListener('wheel', (e) => { cam.dist = Math.max(2.5, Math.min(26, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
 view.addEventListener('touchstart', (e) => {
   const ts = [...e.changedTouches].filter(t => t.identifier !== joy.id);
   if (e.touches.length >= 2) { const [a, b] = e.touches; pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), dist: cam.dist }; drag = null; }
   else if (ts.length) drag = { x: ts[0].clientX, y: ts[0].clientY, id: ts[0].identifier };
 }, { passive: true });
 view.addEventListener('touchmove', (e) => {
-  if (pinch && e.touches.length >= 2) { const [a, b] = e.touches; cam.dist = Math.max(2.5, Math.min(16, pinch.dist * pinch.d / Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))); return; }
+  if (pinch && e.touches.length >= 2) { const [a, b] = e.touches; cam.dist = Math.max(2.5, Math.min(26, pinch.dist * pinch.d / Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))); return; }
   if (!drag) return; const t = [...e.touches].find(x => x.identifier === drag.id); if (!t) return;
   cam.yaw -= (t.clientX - drag.x) * 0.008; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (t.clientY - drag.y) * 0.005)); drag.x = t.clientX; drag.y = t.clientY;
 }, { passive: true });
@@ -995,7 +995,50 @@ function festWindow() {
   const sec = (vn - start) / 1000, dur = (F.dur || 20) * 60;
   return { temple: t, day: dayNum, sec, dur, active: sec >= 0 && sec < dur, soon: sec < 0 && sec > -600, at: `${F.h}:${String(F.m || 0).padStart(2, '0')}` };
 }
-function festRoute() {   // vòng rước: vào theo một làn, vòng quay đầu trước chánh điện, ra theo làn kia, vòng quay đầu phía cổng
+function festRoute() { return festLoop() || festLane(); }
+/* vòng rước rộng: từ cổng theo lối chính vào, đi vòng quanh chánh điện (đường kinh hành), rồi ra lại cổng */
+function festLoop() {
+  const L = W.layout, h = W.halls[0], col = W.col; if (!h || !h.group || !h.d) return null;
+  const toW = (x, z) => h.group.localToWorld(new THREE.Vector3(x, 0, z)).setY(0), id = (x, z) => new THREE.Vector3(x, 0, z);
+  const okPt = (x, z, yRef, y0) => { const hh = col.heightAt(x, z, yRef + 0.3); if (hh == null || Math.abs(hh - yRef) > 0.45 || Math.abs(hh - y0) > 0.7) return null; if (W.burners.some(b => Math.hypot(b.x - x, b.z - z) < 1.9)) return null; return hh; };
+  // chữ nhật bo góc, bắt đầu ở giữa cạnh trước (z lớn), đi theo chiều kim đồng hồ nhìn từ trên
+  const rrect = (x0, z0, x1, z1, map) => {
+    const r = Math.min(3, (x1 - x0) / 4, (z1 - z0) / 4), pts = [], seg = (ax, az, bx, bz) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.45)); for (let i = 0; i < n; i++) pts.push(map(ax + (bx - ax) * i / n, az + (bz - az) * i / n)); };
+    const arc = (cx, cz, a0) => { for (let i = 0; i < 8; i++) { const a = a0 - i / 8 * Math.PI / 2; pts.push(map(cx + Math.cos(a) * r, cz + Math.sin(a) * r)); } };
+    const cxm = (x0 + x1) / 2;
+    seg(cxm, z1, x1 - r, z1); arc(x1 - r, z1 - r, Math.PI / 2);
+    seg(x1, z1 - r, x1, z0 + r); arc(x1 - r, z0 + r, 0);
+    seg(x1 - r, z0, x0 + r, z0); arc(x0 + r, z0 + r, -Math.PI / 2);
+    seg(x0, z0 + r, x0, z1 - r); arc(x0 + r, z1 - r, Math.PI);
+    seg(x0 + r, z1, cxm, z1);
+    return pts;
+  };
+  const cands = [];
+  if (L.walk) { const [x0, z0, x1, z1] = L.walk; cands.push(rrect(x0, z0, x1, z1, id)); }
+  [6.5, 8.5, 5, 11, 4].forEach(m => cands.push(rrect(-h.w / 2 - m, -h.d / 2 - m, h.w / 2 + m, h.d / 2 + m + 1.5, toW)));
+  const Y = L.yard && L.yard[0], gate = Y && Y.gate && { '+z': id(Y.gate[1], Y.r[3] - 2.5), '-z': id(Y.gate[1], Y.r[1] + 2.5), '+x': id(Y.r[2] - 2.5, Y.gate[1]), '-x': id(Y.r[0] + 2.5, Y.gate[1]) }[Y.gate[0]];
+  for (const raw of cands) {
+    const y0 = col.heightAt(raw[0].x, raw[0].z, 2.2) ?? 0; let y = y0, bad = false;
+    const loop = raw.map(p => { if (bad) return p; const hh = okPt(p.x, p.z, y, y0); if (hh == null) { bad = true; return p; } y = hh; return new THREE.Vector3(p.x, hh, p.z); });
+    if (bad) continue;
+    // đoạn đuôi: từ cổng theo lối chính vào tới vòng, đi hai làn (vào bên phải, ra bên trái)
+    let pts = loop;
+    if (gate) {
+      const F = loop[0], ax = new THREE.Vector3(F.x - gate.x, 0, F.z - gate.z), len = ax.length();
+      if (len > 4 && len < 45) {
+        ax.normalize(); const nv = new THREE.Vector3(ax.z, 0, -ax.x), o = 1.3;
+        const lane = (sgn, rev) => { const out = []; let yy = y0; for (let d = 0; d <= len; d += 0.45) { const x = gate.x + ax.x * d + nv.x * o * sgn, z = gate.z + ax.z * d + nv.z * o * sgn, hh = okPt(x, z, yy, y0); if (hh == null) return null; yy = hh; out.push(new THREE.Vector3(x, hh, z)); } return rev ? out.reverse() : out; };
+        const inL = lane(-1, false), outL = lane(1, true);
+        if (inL && outL) { const turn = []; for (let i = 1; i < 8; i++) { const a = Math.PI * i / 8, x = gate.x + nv.x * o * Math.cos(a) - ax.x * o * Math.sin(a), z = gate.z + nv.z * o * Math.cos(a) - ax.z * o * Math.sin(a); turn.push(new THREE.Vector3(x, col.heightAt(x, z, y0 + 0.3) ?? y0, z)); }   // quay đầu tại cổng
+          pts = [...inL, ...loop, ...outL, ...turn]; }
+      }
+    }
+    const cum = [0]; for (let i = 1; i <= pts.length; i++) cum.push(cum[i - 1] + pts[i % pts.length].distanceTo(pts[i - 1]));
+    return { pts, cum, len: cum[cum.length - 1], score: 1e9 };
+  }
+  return null;
+}
+function festLane() {   // (dự phòng) vòng rước: vào theo một làn, vòng quay đầu trước chánh điện, ra theo làn kia, vòng quay đầu phía cổng
   const L = W.layout, h = W.halls[0], V = (x, z) => new THREE.Vector3(x, 0, z), col = W.col;
   const outs = [V(L.spawn[0], L.spawn[1])], Y = L.yard && L.yard[0];
   if (Y && Y.gate) { const [x0, z0, x1, z1] = Y.r, [gs, gat] = Y.gate; const g = { '+z': V(gat, z1 - 2), '-z': V(gat, z0 + 2), '+x': V(x1 - 2, gat), '-x': V(x0 + 2, gat) }[gs]; if (g) outs.push(g); }
@@ -1046,7 +1089,7 @@ function kieuMesh() {
   const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.5 }, o));
   const red = M(0x9a1a10), gold = M(0xe2b048, { metalness: 0.65, roughness: 0.3 }), wood = M(0x5a2a12);
   const B = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
-  [-0.62, 0.62].forEach(x => B(0.08, 0.08, 3.0, wood, x, 0, 0));                 // hai đòn khiêng
+  [-0.62, 0.62].forEach(x => B(0.08, 0.08, 4.6, wood, x, 0, 0));                 // hai đòn khiêng dài (8 người khiêng)
   B(1.0, 0.12, 1.2, red, 0, 0.08, 0); B(1.08, 0.04, 1.28, gold, 0, 0.15, 0);       // bệ kiệu
   [[-0.42, -0.5], [0.42, -0.5], [-0.42, 0.5], [0.42, 0.5]].forEach(([x, z]) => B(0.06, 0.95, 0.06, gold, x, 0.62, z));   // 4 cột
   const roofG = new THREE.CylinderGeometry(0.12, 0.85, 0.45, 4, 1); roofG.rotateY(Math.PI / 4);
@@ -1061,25 +1104,47 @@ function kieuMesh() {
   const pl = new THREE.PointLight(0xffd9a0, 0.8, 4, 1.6); pl.position.set(0, 0.7, 0.3); g.add(pl);
   g.traverse(o => { o.userData.noCollide = true; }); return g;
 }
+function longMesh() {   // lọng vàng che kiệu
+  const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.55 }, o));
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 2.9, 6), M(0x8a5a2a)); pole.position.y = 1.45; g.add(pole);
+  const can = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.42, 16, 1, true), M(0xf2b632, { side: THREE.DoubleSide })); can.position.y = 2.75; g.add(can);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.86, 0.2, 16, 1, true), M(0xc0301e, { side: THREE.DoubleSide })); rim.position.y = 2.47; g.add(rim);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), M(0xe2b048, { metalness: 0.6 })); top.position.y = 3.0; g.add(top);
+  g.traverse(o => { o.userData.noCollide = true; }); return g;
+}
 function festBuild(win) {
   const R = festRoute(); if (!R) return null;
   const grp = new THREE.Group(); grp.userData.tmp = true; scene.add(grp);
   const kieu = kieuMesh(); grp.add(kieu);
-  const mk = (seed, look, pose) => { const a = new Avatar({ look, seed }); a.setPose(pose); a.root.userData.tmp = true; grp.add(a.root); return a; };
-  const looks = ['lam', 'nau', 'xam', 'trang'];
-  const bearers = [[-0.62, 1.25], [0.62, 1.25], [-0.62, -1.25], [0.62, -1.25]].map(([lx, lz], i) => ({ lx, lz, av: mk(200 + i, { g: 'nam', hair: 'troc', robe: 'vang' }, 'carry') }));
-  // đoàn cờ hội: 2 cặp đi trước, 2 cặp theo sau kiệu
-  const flags = [[2.0, -0.75], [2.0, 0.75], [3.6, -0.75], [3.6, 0.75], [-2.9, -0.75], [-2.9, 0.75], [-4.5, -0.75], [-4.5, 0.75]].map(([back, lx], i) => {
-    const av = mk(300 + i, { g: i % 2 ? 'nu' : 'nam', hair: ['bui', 'ngan', 'dai', 'troc'][i % 4], robe: looks[i % 4] }, 'idle');
+  const light = document.body.classList.contains('touch');   // điện thoại: đoàn gọn hơn cho máy nhẹ
+  const mk = (seed, opt, pose) => { const a = new Avatar(Object.assign({ seed, outline: false }, opt)); a.setPose(pose); a.keepArms = pose !== 'carry'; a.root.userData.tmp = true; a.root.traverse(o => { o.castShadow = false; }); grp.add(a.root); return a; };
+  const looks = ['lam', 'nau', 'xam', 'trang', 'lam', 'vang'], hairs = ['bui', 'ngan', 'dai', 'bui'];
+  const lay = (i) => ({ look: { g: i % 2 ? 'nu' : 'nam', hair: hairs[i % 4], robe: looks[i % 6] } });
+  // 8 người khiêng: 2 đòn × 4 người, áo vàng
+  const bearers = [[-0.62, 1.9], [0.62, 1.9], [-0.62, 1.0], [0.62, 1.0], [-0.62, -1.0], [0.62, -1.0], [-0.62, -1.9], [0.62, -1.9]].map(([lx, lz], i) => ({ lx, lz, av: mk(200 + i, { look: { g: 'nam', hair: 'troc', robe: 'vang' } }, 'carry') }));
+  const walkers = [];   // { back, lx, av, fl?, ph }
+  const flagOn = (av, i) => {
     const pole = new THREE.Group(); pole.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.5, 6), new THREE.MeshStandardMaterial({ color: 0x8a5a2a })));
     pole.children[0].position.y = 1.25;
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.8), new THREE.MeshStandardMaterial({ map: flagTex(), side: THREE.DoubleSide })); fl.position.set(0.3, 2.05, 0); pole.add(fl);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshStandardMaterial({ color: 0xe2b048, metalness: 0.6 })); knob.position.y = 2.52; pole.add(knob);
-    pole.position.set(0.26, 0.35, 0.12); av.root.add(pole);
-    return { back, lx, av, fl, ph: i * 0.7 };
-  });
+    pole.position.set(0.26, 0.35, 0.12); av.root.add(pole); return fl;
+  };
+  // đầu đoàn: thầy cầm hương dẫn đường
+  walkers.push({ back: 10.2, lx: 0, av: mk(400, { kasaya: true, look: { g: 'nam', hair: 'troc' } }, 'incense') });
+  // cờ Phật giáo: 4 cặp đi trước
+  [8.8, 7.6, 6.4, 5.2].forEach((b, k) => [-0.8, 0.8].forEach((lx, j) => { const i = k * 2 + j, av = mk(300 + i, lay(i), 'idle'); walkers.push({ back: b, lx, av, fl: flagOn(av, i), ph: i * 0.7 }); }));
+  // hai thầy áo cà sa cầm hương ngay trước kiệu
+  [-0.75, 0.75].forEach((lx, j) => walkers.push({ back: 3.4, lx, av: mk(410 + j, { kasaya: true, look: { g: 'nam', hair: 'troc' } }, 'incense') }));
+  // lọng vàng che kiệu, người cầm lọng đi ngay sau
+  { const av = mk(420, { look: { g: 'nam', hair: 'troc', robe: 'vang' } }, 'carry'), lo = longMesh(); lo.position.set(0, 0.55, 0.35); av.root.add(lo); walkers.push({ back: -2.9, lx: 0, av }); }
+  // Phật tử chắp tay theo sau (6 hàng × 2), cuối đoàn 2 cặp cờ
+  const rows = light ? 3 : 6;
+  for (let r = 0; r < rows; r++) [-0.8, 0.8].forEach((lx, j) => { const i = r * 2 + j; walkers.push({ back: -4.2 - r * 1.15, lx, av: mk(500 + i, lay(i + 1), 'idle') }); });
+  const tail = -4.2 - rows * 1.15 - 0.3;
+  [tail, tail - 1.2].forEach((b, k) => [-0.8, 0.8].forEach((lx, j) => { const i = 8 + k * 2 + j, av = mk(300 + i, lay(i), 'idle'); walkers.push({ back: b, lx, av, fl: flagOn(av, i), ph: i * 0.7 }); }));
   const lbl = label('🏮 Lễ rước kiệu · ' + win.temple.name, 'abbot');
-  return { R, grp, kieu, bearers, flags, lbl, temple: win.temple.id, day: win.day, beat: 0, bellT: 0 };
+  return { R, grp, kieu, bearers, flags: walkers, lbl, temple: win.temple.id, day: win.day, beat: 0, bellT: 0 };
 }
 function festDispose() {
   if (!fest) return; if (me.bearing) festLeave(true);
@@ -1095,14 +1160,14 @@ function festStep(dt) {
   const c = festPose(0, 0), bob = Math.abs(Math.sin(fest.win.sec * 3.2)) * 0.04;
   fest.kieu.position.set(c.x, c.y + 0.95 + bob, c.z); fest.kieu.rotation.y = c.yaw;
   fest.bearers.forEach((b, i) => { const p = festPose(b.lz, b.lx); b.av.root.position.set(p.x, p.y, p.z); b.av.root.rotation.y = p.yaw; b.av.root.visible = !(me.bearing && me.bearing.slot === i); b.av.update(dt, true); });
-  fest.flags.forEach(f => { const p = festPose(f.back, f.lx); f.av.root.position.set(p.x, p.y, p.z); f.av.root.rotation.y = p.yaw; f.av.update(dt, true); f.fl.rotation.y = 0.25 * Math.sin(fest.win.sec * 2.2 + f.ph); });
+  fest.flags.forEach(f => { const p = festPose(f.back, f.lx); f.av.root.position.set(p.x, p.y, p.z); f.av.root.rotation.y = p.yaw; f.av.update(dt, true); if (f.fl) f.fl.rotation.y = 0.25 * Math.sin(fest.win.sec * 2.2 + f.ph); });
   placeLabel(fest.lbl, fest.kieu.position, 1.9);
   // trống mõ nhịp đều khi ở gần
   const d = me.av ? Math.hypot(me.pos.x - c.x, me.pos.z - c.z) : 99;
   fest.beat -= dt; if (fest.beat <= 0) { fest.beat = 0.9; if (d < 28) A.mo(Math.max(0.15, 0.7 - d / 40)); }
   fest.bellT -= dt; if (fest.bellT <= 0) { fest.bellT = 12; if (d < 28) A.khanh(); }
 }
-function festFreeSlot() { if (!fest) return -1; const order = [0, 1, 2, 3]; return order.find(i => !(me.bearing && me.bearing.slot === i)) ?? -1; }
+function festFreeSlot() { if (!fest) return -1; const order = [2, 3, 4, 5, 0, 1, 6, 7]; return order.find(i => !(me.bearing && me.bearing.slot === i)) ?? -1; }
 function festJoin() {
   if (!fest || me.bearing) return; if (me.seated) standUp(); if (malaOn) closeMala();
   me.bearing = { slot: festFreeSlot(), t: 0 }; me.av.setPose('carry');
@@ -1282,7 +1347,7 @@ const mini = $('mini'), mctx = mini.getContext('2d'); let miniBase = null;
 function drawMiniBase() {
   const c = document.createElement('canvas'); c.width = c.height = 220; const g = c.getContext('2d');
   g.fillStyle = '#4a6a3a'; g.fillRect(0, 0, 220, 220);
-  const k = 220 / 90, o = 110, toM = (x, z) => [o + (x - me.pos.x * 0) * k, o + z * k];
+  const k = 220 / 120, o = 110, toM = (x, z) => [o + (x - me.pos.x * 0) * k, o + z * k];
   g.fillStyle = '#7a8a6a'; W.col.cones.forEach(cn => { const [x, y] = toM(cn.x, cn.z); g.beginPath(); g.arc(x, y, cn.r * k, 0, 7); g.fill(); });
   g.fillStyle = '#3c7f9a'; W.col.waters.forEach(w => { const [x, y] = toM(w.min.x, w.min.z); g.fillRect(x, y, (w.max.x - w.min.x) * k, (w.max.z - w.min.z) * k); });
   g.fillStyle = '#c9b48a'; W.col.boxes.forEach(b => { if (b.top < 0.4) return; const [x, y] = toM(b.x0, b.z0); g.fillRect(x, y, (b.x1 - b.x0) * k, (b.z1 - b.z0) * k); });
@@ -1592,7 +1657,7 @@ $('tName').onclick = () => openTemplePicker(); $('bPass').onclick = openProfile;
   side.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (document.body.classList.contains('touch')) close(); }));
   document.addEventListener('pointerdown', (e) => { if (document.body.classList.contains('touch') && side.classList.contains('open') && !side.contains(e.target) && e.target !== mb) close(); });
 })();
-$('zIn').onclick = () => { cam.dist = Math.max(2.5, cam.dist * 0.8); }; $('zOut').onclick = () => { cam.dist = Math.min(16, cam.dist * 1.25); };
+$('zIn').onclick = () => { cam.dist = Math.max(2.5, cam.dist * 0.8); }; $('zOut').onclick = () => { cam.dist = Math.min(26, cam.dist * 1.25); };
 $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
   const h = W.halls[0]; if (!h) return;
   const inHall = Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7;
@@ -1659,6 +1724,7 @@ if (S.rankMin ?? innerWidth < 640) $('rank').classList.add('min');
 
 /* camera không xuyên tường: tia từ người chơi tới camera cắt hộp va chạm nào gần nhất (0..1) */
 let camInHall = false;
+const camRay = new THREE.Raycaster();
 function rayBoxes(a, b) {
   let best = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   for (const bx of W.col.boxes) {
@@ -1892,14 +1958,14 @@ function loop() {
     me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving || autoMoving || !!me.bearing);
     showerStep(dt); dragonStep(dt);
     // camera
-    const tgt = new THREE.Vector3(me.pos.x, me.y + 1.05, me.pos.z);
+    const tgt = new THREE.Vector3(me.pos.x, me.y + 1.25, me.pos.z);
     // trong chánh điện: camera thấp & gần để không bị mái che
     const hallIn = W.halls.find(h => inHallBox(h, me.pos, me.y));
     W.halls.forEach(h => { h.front.forEach(r => { r.visible = h !== hallIn; }); });   // giữ mái; chỉ ẩn cột hiên & bảng tên khi ở trong điện
     camInHall = !!hallIn;
     const inHall = !!hallIn;
     // trong điện: camera ở tầm mắt, dưới trần gỗ, nhìn thấy Tam Thế Phật, trần, đèn treo và người chơi
-    const dist = malaOn ? 3.2 : inHall ? Math.max(5, Math.min(cam.dist + 1.5, 10)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
+    const dist = malaOn ? 3.2 : inHall ? Math.max(8, Math.min(cam.dist + 1, 13)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
     const camAt = (yw) => new THREE.Vector3(tgt.x + Math.sin(yw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yw) * Math.cos(pitch) * dist);
     let cp = camAt(cam.yaw), hit = rayBoxes(tgt, cp);
     if (hit < 0.55 && !drag && !pinch && !malaOn) {   // bị tường/cột chắn sát lưng → tự xoay dần sang hướng thoáng gần nhất
@@ -1910,10 +1976,14 @@ function loop() {
     if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
     if (inHall && hallIn.group && hallIn.w) {   // giữ camera trong lòng chánh điện (không lọt ra ngoài nhìn xuyên tường)
       const lc = hallIn.group.worldToLocal(cp.clone()), hw = hallIn.w / 2 - 0.55, hd = hallIn.d / 2;
-      lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 0.6, lc.z)); cp = hallIn.group.localToWorld(lc);
+      lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 7, lc.z));   // được lùi ra ngoài cửa trước (cột hiên đã ẩn) → không bị phóng to cp = hallIn.group.localToWorld(lc);
     }
     if (inHall && hallIn.ceilY) cp.y = Math.min(cp.y, hallIn.ceilY - 0.75);
     camera.position.lerp(cp, Math.min(1, dt * 8)); camera.lookAt(tgt);
+    if (W.camHide && W.camHide.length) {   // mái cổng che tầm nhìn → ẩn tạm
+      camRay.set(camera.position, tgt.clone().sub(camera.position).normalize()); camRay.far = camera.position.distanceTo(tgt);
+      const hit = new Set(camRay.intersectObjects(W.camHide, false).map(h => h.object)); W.camHide.forEach(m => { m.visible = !hit.has(m); });
+    }
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });

@@ -2,14 +2,18 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, STONE, roof } from '../temple3d.js';
+import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED } from '../temple3d.js';
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
-  'binh-an': { yard: [{ r: [-15, -12, 15, 17], gate: ['+z', 0, 5] }],  spawn: [0, 22], abbot: [3.5, 7], pois: [
+  // Bình An: sân rộng ~3 lần (54 × 56 m) — lối đá vào, đường kinh hành vòng quanh chánh điện, hồ sen, gác chuông, vườn Quan Âm
+  'binh-an': { yard: [{ r: [-27, -24, 27, 32], gate: ['+z', 0, 5] }],  spawn: [0, 37], abbot: [3.5, 9], decor: 'binh-an', walk: [-14.5, -15, 14.5, 17], pois: [
     ['Chánh điện', 0, 1, 6, 'Nơi thờ Tam Thế Phật. Vào trong, chọn một đệm để ngồi và lễ Phật.'],
     ['Lư hương trước sân', 0, 12, 3, 'Thắp nén hương, nguyện cho người thân bình an.'],
-    ['Hàng cây trong vườn chùa', -8, 4, 4, 'Bóng cây che mát sân chùa — nơi Phật tử nghỉ chân.']] },
+    ['Gác chuông', -20, -9, 4.5, 'Đại hồng chung của chùa. Đứng gần và bấm "Thỉnh chuông".', 'bell'],
+    ['Vườn Quan Âm', 20, -9, 5, 'Tượng Bồ Tát Quán Thế Âm đứng giữa vườn — lắng lòng niệm "Nam mô Quán Thế Âm Bồ Tát".'],
+    ['Hồ sen', -19, 21, 4.5, 'Hồ sen trước sân chùa — "gần bùn mà chẳng hôi tanh mùi bùn".'],
+    ['Đường kinh hành', 14.5, 3, 3.5, 'Lối đá vòng quanh chánh điện — đi chậm, niệm Phật theo từng bước chân. Lễ rước kiệu cũng đi theo đường này.']] },
   'bai-dinh': { yard: [{ r: [-23, -17, 23, 19], gate: ['+z', 0, 6] }],  spawn: [0, 26], abbot: [4, 14], pois: [
     ['Điện Pháp Chủ trên nền cao', 0, 6, 7, 'Leo bậc đá lên nền cao để vào điện. Khu chùa mới Bái Đính khánh thành năm 2010.'],
     ['Gác chuông', -14, 6, 5, 'Chuông lớn của chùa. Đứng gần và bấm "Thỉnh chuông".', 'bell'],
@@ -141,6 +145,7 @@ export function buildWorld(scene, temple) {
     (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
   });
   // khuôn viên chùa: nền gạch đỏ sẫm, tường rào bao quanh, cổng ở phía trước (bên ngoài vẫn là cỏ xanh)
+  if (L.decor) yardDecor(root, L);
   if (L.yard) buildYards(root, L.yard, temple);
   // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
   let meritAt = null;
@@ -157,7 +162,9 @@ export function buildWorld(scene, temple) {
   });
   const burners = []; root.traverse(o => { if (o.userData.burner) burners.push(o.getWorldPosition(new THREE.Vector3())); });
   const col = new Collision(); col.build(root);
-  return { root, conf, layout: L, halls: hallInfo, burners, col, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
+  // mái cổng & phần cao của cổng: ẩn tạm khi che giữa camera và người chơi
+  const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
+  return { root, conf, layout: L, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
 /* khói hương ở lư hương */
@@ -247,7 +254,7 @@ function buildYards(root, yards, temple) {
           post(...P(a)); post(...P(b));
         });
       }
-      if (side === gs) { const gx = along ? gat : ax, gz = along ? az : gat; gateG.position.set(gx, y, gz); if (!along) gateG.rotation.y = Math.PI / 2; root.add(gateG); }
+      if (side === gs) { gateG.userData.gate = true; const gx = along ? gat : ax, gz = along ? az : gat; gateG.position.set(gx, y, gz); if (!along) gateG.rotation.y = Math.PI / 2; root.add(gateG); }
     });
   });
 }
@@ -363,4 +370,44 @@ function gateBuild(style, gw, temple, M) {
   }
   G.userData.halfW = halfW;
   return G;
+}
+
+/* ---------------- trang trí sân rộng (chùa Bình An) ---------------- */
+function yardDecor(root, L) {
+  const g = new THREE.Group(); root.add(g);
+  const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
+  const pave = mat('pave', 0xcfc2a6, { roughness: 0.95 }), paveE = mat('paveEdge', 0x8f8270);
+  // lối đá lớn từ cổng vào thẳng chánh điện, viền đá sẫm hai bên
+  flat(4.2, 24, pave, 0, 20); [-1, 1].forEach(s => flat(0.25, 24, paveE, s * 2.2, 20, 0.024));
+  // đường kinh hành vòng quanh chánh điện (đoàn rước kiệu đi theo lối này)
+  const [wx0, wz0, wx1, wz1] = L.walk, ww = 3.2;
+  flat(wx1 - wx0 + ww, ww, pave, (wx0 + wx1) / 2, wz0); flat(wx1 - wx0 + ww, ww, pave, (wx0 + wx1) / 2, wz1);
+  flat(ww, wz1 - wz0, pave, wx0, (wz0 + wz1) / 2); flat(ww, wz1 - wz0, pave, wx1, (wz0 + wz1) / 2);
+  // đèn đá dọc lối vào và bốn góc đường kinh hành
+  const stone = STONE(), lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
+  const lantern = (x, z) => { const l = new THREE.Group(); l.position.set(x, 0, z);
+    l.add(box(0.6, 0.2, 0.6, stone, 0, 0.1, 0)); l.add(cyl(0.1, 0.13, 0.85, 8, stone, 0, 0.62, 0)); l.add(box(0.5, 0.42, 0.5, lampM, 0, 1.25, 0)); l.add(box(0.36, 0.44, 0.62, stone, 0, 1.25, 0));
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); g.add(l); };
+  [21.5, 25.5, 29.5].forEach(z => [-3.3, 3.3].forEach(x => lantern(x, z)));
+  [[wx0 - 2.4, wz0 - 2.4], [wx1 + 2.4, wz0 - 2.4], [wx0 - 2.4, wz1 + 2.4], [wx1 + 2.4, wz1 + 2.4]].forEach(([x, z]) => lantern(x, z));
+  // hai hồ sen trước sân: bờ đá thấp, nước, lá & hoa sen
+  [-19, 19].forEach(cx => { const cz = 21, w = 9, d = 7;
+    [[0, -d / 2, w + 0.6, 0.5], [0, d / 2, w + 0.6, 0.5], [-w / 2, 0, 0.5, d], [w / 2, 0, 0.5, d]].forEach(([x, z, bw, bd]) => g.add(box(bw, 0.42, bd, stone, cx + x, 0.21, cz + z)));
+    const pw = water(w - 0.4, d - 0.4, cx, cz); pw.position.y = 0.26; g.add(pw);
+    const pads = new THREE.Group(); lotusPads(pads, 22, w - 1.2, d - 1.2, cx, cz); pads.children.forEach(o => { o.position.y += 0.22; o.userData.noCollide = true; }); g.add(pads); });
+  // gác chuông (trái sau) và vườn Quan Âm (phải sau)
+  const bt = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bt.position.set(-20, 0, -9); bt.rotation.y = Math.PI / 2; g.add(bt);
+  { const bell = new THREE.Group(); bell.position.set(-17.2, 0, -9);
+    bell.add(box(0.25, 3.4, 0.25, RED(), 0, 1.7, -1.1)); bell.add(box(0.25, 3.4, 0.25, RED(), 0, 1.7, 1.1)); bell.add(box(0.3, 0.3, 2.6, RED(), 0, 3.3, 0));
+    const b = cyl(0.55, 0.7, 1.3, 16, BRONZE(), 0, 2.4, 0); b.userData.noCollide = true; bell.add(b); g.add(bell); }
+  { const gy = new THREE.Group(); gy.position.set(20, 0, -9); g.add(gy);
+    gy.add(cyl(2.4, 2.6, 0.5, 24, stone, 0, 0.25, 0));
+    const gu = standingGuanyin(4.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })); gu.position.y = 0.5; gu.rotation.y = -Math.PI / 2; gy.add(gu);
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), LEAF2()); bush.position.set(Math.cos(a) * 3.6, 0.4, Math.sin(a) * 3.6); bush.userData.noCollide = true; gy.add(bush); } }
+  // hàng cây: dọc lối vào, quanh tường rào, sau chánh điện
+  const T = (x, z, h = 6) => g.add(tree(h, (Math.abs(x * 7 + z) | 0) % 2 ? LEAF() : LEAF2(), x, z));
+  [23, 28.5].forEach(z => [-8, 8].forEach(x => T(x, z, 5.5)));
+  for (let z = -20; z <= 27; z += 7) [-24, 24].forEach(x => { if (Math.abs(z - 21) < 5) return; T(x, z, 6 + (z & 1)); });
+  for (let x = -17; x <= 17; x += 6.8) T(x, -21, 6.5);
+  [[-19.5, 3], [19.5, 3], [-8, -11], [8, -11]].forEach(([x, z]) => T(x, z, 5));
 }
