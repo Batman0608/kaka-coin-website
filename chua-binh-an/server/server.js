@@ -28,7 +28,7 @@ const localHost = (h) => /^(localhost|127\.0\.0\.1|\[::1\]|(?:\d+\.){3}\d+)(:\d+
 const allowedHost = (h) => { h = (h || '').toLowerCase(); const bare = h.replace(/:\d+$/, ''); return !h || localHost(h) || ALLOW_HOSTS.includes(h) || ALLOW_HOSTS.includes(bare); };
 const TEMPLES = new Set(['binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi']);
 const POSES = new Set(['idle', 'kneel', 'bow', 'lotus', 'incense', 'carry']);
-const ACTS = new Set(['bow', 'bell', 'incense', 'offer', 'lantern', 'mala', 'chant', 'cert']);
+const ACTS = new Set(['bow', 'bell', 'incense', 'offer', 'lantern', 'mala', 'chant', 'cert', 'release', 'bath', 'greet']);
 
 /* ---------------- phục vụ file game ---------------- */
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.xml': 'application/xml', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
@@ -98,7 +98,96 @@ function joinRoom(p, temple, want, create) {
 /* ---------------- kiểm tra dữ liệu người chơi gửi lên ---------------- */
 const clean = (s, n) => String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
 const num = (v, lim = 1e4) => { v = +v; return Number.isFinite(v) ? Math.max(-lim, Math.min(lim, Math.round(v * 100) / 100)) : 0; };
-function cleanLook(l) { l = l || {}; return { g: l.g === 'nam' ? 'nam' : 'nu', hair: ['bui', 'dai', 'ngan', 'troc'].includes(l.hair) ? l.hair : 'bui', robe: ['lam', 'nau', 'xam', 'trang'].includes(l.robe) ? l.robe : 'lam' }; }
+const ROBES = ['lam', 'nau', 'xam', 'trang', 'hong', 'ngoc', 'tim', 'reu', 'dat', 'kim'], MALAS = ['go', 'bode', 'tram', 'ngoc', 'mana'];
+function cleanLook(l) { l = l || {}; return { g: l.g === 'nam' ? 'nam' : 'nu', hair: ['bui', 'dai', 'ngan', 'troc'].includes(l.hair) ? l.hair : 'bui', robe: ROBES.includes(l.robe) ? l.robe : 'lam', mala: MALAS.includes(l.mala) ? l.mala : 'go', rose: ['', 'do', 'trang'].includes(l.rose) ? l.rose : '' }; }
+
+/* ---------------- dữ liệu cộng đồng: bạn đồng tu, đạo tràng, bảng hồi hướng, vườn chùa ----------------
+   Lưu ở thư mục NGOÀI thư mục game (mặc định ../ChuaBinhAn-du-lieu/xa-hoi.json) để Tự cập nhật không xóa mất.
+   Người chơi nhận diện bằng mã ngẫu nhiên (uid) tạo trên máy họ — không cần mật khẩu. */
+const DATA_DIR = process.env.DATA_DIR || path.resolve(ROOT, '..', 'ChuaBinhAn-du-lieu');
+const DATA_FILE = path.join(DATA_DIR, 'xa-hoi.json');
+const cleanUid = (u) => /^[a-z0-9]{12,24}$/.test(String(u || '')) ? String(u) : '';
+const codeOf = (uid) => uid.slice(0, 6).toUpperCase();
+const vnDay = () => { const d = new Date(Date.now() + 7 * 3600000); return d.toISOString().slice(0, 10); };
+const weekKey = () => { const d = new Date(Date.now() + 7 * 3600000); const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return t.getUTCFullYear() + '-W' + (1 + Math.round(((t - y) / 86400000 - 3 + ((y.getUTCDay() + 6) % 7)) / 7)); };
+const SOC = (() => {
+  let D = { users: {}, groups: {}, mem: {}, greets: {}, helps: {} };
+  try { D = Object.assign(D, JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))); console.log(`[cộng đồng] nạp ${Object.keys(D.users).length} người, ${Object.keys(D.groups).length} đạo tràng`); } catch (e) {}
+  let dirty = false; const mark = () => { dirty = true; };
+  setInterval(() => { if (!dirty) return; dirty = false; fs.mkdir(DATA_DIR, { recursive: true }, () => fs.writeFile(DATA_FILE + '.tmp', JSON.stringify(D), (e) => { if (!e) fs.rename(DATA_FILE + '.tmp', DATA_FILE, () => {}); })); }, 5000);
+  const online = new Map();   // uid → player
+  const U = (uid) => (D.users[uid] = D.users[uid] || { name: 'Phật tử', fr: [], dt: '', garden: null, temple: '', last: 0 });
+  const pubU = (uid) => { const u = D.users[uid]; if (!u) return null; const o = online.get(uid); return { uid, code: codeOf(uid), name: u.name, online: !!o, temple: o && o.room ? o.room.temple : u.temple, last: u.last, garden: u.garden }; };
+  const reply = (p, o) => send(p.ws, Object.assign({ t: 'soc' }, o));
+  function seen(p) { const u = U(p.uid); u.name = p.name; u.last = Date.now(); online.set(p.uid, p); mark(); }
+  function gone(p) { if (online.get(p.uid) === p) online.delete(p.uid); const u = D.users[p.uid]; if (u) { u.last = Date.now(); if (p.room) u.temple = p.room.temple; mark(); } }
+  function groupInfo(id) {
+    const g = D.groups[id]; if (!g) return null; const wk = weekKey(), w = (g.wk && g.wk[wk]) || {};
+    return { id, code: id, name: g.name, owner: g.owner, goal: g.goal, total: Object.values(w).reduce((a, b) => a + b, 0), week: wk,
+      members: g.members.map(uid => { const x = pubU(uid) || { uid, name: '?' }; return { uid, name: x.name, online: x.online, temple: x.temple, wk: w[uid] || 0 }; }).sort((a, b) => b.wk - a.wk) };
+  }
+  function handle(p, m) {
+    if (!p.uid) return; const u = U(p.uid), op = String(m.op || '');
+    const now = Date.now(); if (now - (p.socWin || 0) > 5000) { p.socWin = now; p.socN = 0; } if (++p.socN > 25) return;   // chống spam: tối đa 25 yêu cầu / 5 giây
+    if (op === 'fr.list') return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid) });
+    if (op === 'fr.add') {
+      const code = clean(m.code, 8).toUpperCase(), uid = Object.keys(D.users).find(k => codeOf(k) === code);
+      if (!uid || uid === p.uid) return reply(p, { op: 'err', msg: 'Không tìm thấy mã bạn đồng tu này' });
+      if (!u.fr.includes(uid) && u.fr.length < 100) u.fr.push(uid); const o = U(uid); if (!o.fr.includes(p.uid) && o.fr.length < 100) o.fr.push(p.uid); mark();
+      const oo = online.get(uid); if (oo) send(oo.ws, { t: 'soc', op: 'note', msg: `🤝 ${p.name} đã kết bạn đồng tu với bạn` });
+      return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid), added: pubU(uid) });
+    }
+    if (op === 'fr.del') { const uid = cleanUid(m.uid); u.fr = u.fr.filter(x => x !== uid); mark(); return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid) }); }
+    if (op === 'fr.greet') {
+      const uid = cleanUid(m.uid); if (!u.fr.includes(uid)) return; const day = vnDay(), k = p.uid + '>' + uid;
+      D.greets[day] = D.greets[day] || {}; if (D.greets[day][k]) return reply(p, { op: 'err', msg: 'Hôm nay đã gửi lời chúc cho bạn này rồi' });
+      D.greets[day][k] = 1; Object.keys(D.greets).forEach(d => { if (d !== day) delete D.greets[d]; }); mark();
+      const oo = online.get(uid); if (oo) send(oo.ws, { t: 'soc', op: 'greet', from: p.name, msg: clean(m.msg, 60) });
+      else { const o = U(uid); o.inbox = (o.inbox || []).slice(-19); o.inbox.push({ from: p.name, msg: clean(m.msg, 60), t: now }); }
+      return reply(p, { op: 'greeted', uid });
+    }
+    if (op === 'inbox') { const box = u.inbox || []; u.inbox = []; mark(); return reply(p, { op: 'inbox', list: box }); }
+    if (op === 'gd.set') { const g = m.garden; if (Array.isArray(g) && g.length <= 9) { u.garden = g.map(x => [clean(x && x[0], 8), Math.max(0, Math.min(9, x && x[1] | 0)), x && x[2] ? 1 : 0]); mark(); } return; }
+    if (op === 'gd.get') { const uid = cleanUid(m.uid), x = pubU(uid); return reply(p, { op: 'gd', uid, name: x ? x.name : '?', garden: x ? x.garden : null, helped: !!(D.helps[uid] && D.helps[uid][p.uid] === vnDay()) }); }
+    if (op === 'gd.water') {
+      const uid = cleanUid(m.uid); if (!uid || uid === p.uid || !u.fr.includes(uid)) return; D.helps[uid] = D.helps[uid] || {};
+      if (D.helps[uid][p.uid] === vnDay()) return reply(p, { op: 'err', msg: 'Hôm nay bạn đã tưới vườn này rồi' });
+      D.helps[uid][p.uid] = vnDay(); mark(); const oo = online.get(uid); if (oo) send(oo.ws, { t: 'soc', op: 'note', msg: `💧 ${p.name} vừa tưới giúp vườn chùa của bạn` });
+      return reply(p, { op: 'watered', uid });
+    }
+    if (op === 'gd.helps') { const h = D.helps[p.uid] || {}, day = vnDay(); const n = Object.values(h).filter(d => d === day).length; return reply(p, { op: 'helps', n, day }); }
+    if (op === 'mem.list') { const t = TEMPLES.has(m.temple) ? m.temple : ''; return reply(p, { op: 'mem', temple: t, list: (D.mem[t] || []).slice(-80) }); }
+    if (op === 'mem.add') {
+      const t = TEMPLES.has(m.temple) ? m.temple : ''; const n = clean(m.n, 30), kind = m.kind === 'an' ? 'an' : 'sieu'; if (!t || n.length < 2) return;
+      const L = (D.mem[t] = D.mem[t] || []); if (L.filter(x => x.uid === p.uid).length >= 6) return reply(p, { op: 'err', msg: 'Mỗi người ghi tối đa 6 tên ở mỗi chùa' });
+      L.push({ uid: p.uid, n, kind, by: p.name, t: now }); if (L.length > 400) L.splice(0, L.length - 400); mark();
+      if (p.room) broadcast(p.room, { t: 'soc', op: 'mem.new', temple: t, n, kind, by: p.name });
+      return reply(p, { op: 'mem', temple: t, list: L.slice(-80) });
+    }
+    if (op === 'mem.del') { const t = TEMPLES.has(m.temple) ? m.temple : ''; const L = D.mem[t] || []; const i = L.findIndex(x => x.uid === p.uid && x.n === clean(m.n, 30)); if (i >= 0) { L.splice(i, 1); mark(); } return reply(p, { op: 'mem', temple: t, list: L.slice(-80) }); }
+    if (op === 'dt.create') {
+      const name = clean(m.name, 30); if (name.length < 3) return reply(p, { op: 'err', msg: 'Tên đạo tràng ít nhất 3 ký tự' });
+      let id; do { id = Math.random().toString(36).slice(2, 8).toUpperCase(); } while (D.groups[id]);
+      if (u.dt && D.groups[u.dt]) leaveGroup(p.uid);
+      D.groups[id] = { name, owner: p.uid, members: [p.uid], goal: 3000, wk: {} }; u.dt = id; mark(); return reply(p, { op: 'dt', info: groupInfo(id) });
+    }
+    if (op === 'dt.join') {
+      const id = clean(m.code, 8).toUpperCase(), g = D.groups[id]; if (!g) return reply(p, { op: 'err', msg: 'Không có đạo tràng mã này' });
+      if (g.members.length >= 50) return reply(p, { op: 'err', msg: 'Đạo tràng đã đủ 50 người' });
+      if (u.dt && u.dt !== id) leaveGroup(p.uid); if (!g.members.includes(p.uid)) g.members.push(p.uid); u.dt = id; mark();
+      g.members.forEach(uid => { const oo = online.get(uid); if (oo && oo !== p) send(oo.ws, { t: 'soc', op: 'note', msg: `🪷 ${p.name} vừa gia nhập đạo tràng ${g.name}` }); });
+      return reply(p, { op: 'dt', info: groupInfo(id) });
+    }
+    if (op === 'dt.leave') { leaveGroup(p.uid); mark(); return reply(p, { op: 'dt', info: null }); }
+    if (op === 'dt.info') return reply(p, { op: 'dt', info: u.dt ? groupInfo(u.dt) : null });
+    if (op === 'dt.merit') {
+      const n = Math.max(0, Math.min(200, m.n | 0)), g = D.groups[u.dt]; if (!g || !n) return;
+      const wk = weekKey(); g.wk = { [wk]: (g.wk && g.wk[wk]) || {} }; g.wk[wk][p.uid] = (g.wk[wk][p.uid] || 0) + n; mark(); return;
+    }
+  }
+  function leaveGroup(uid) { const u = U(uid), g = D.groups[u.dt]; if (g) { g.members = g.members.filter(x => x !== uid); if (!g.members.length) delete D.groups[u.dt]; else if (g.owner === uid) g.owner = g.members[0]; } u.dt = ''; }
+  return { handle, seen, gone };
+})();
 
 /* ---------------- WebSocket ---------------- */
 const server = http.createServer((req, res) => {
@@ -125,7 +214,7 @@ wss.on('connection', (ws, req) => {
     let m; try { m = JSON.parse(data); } catch (e) { return; }
     if (!m || typeof m !== 'object') return;
     if (m.t === 'hello') {
-      p.name = clean(m.name, 24) || 'Phật tử'; p.look = cleanLook(m.look); p.beads = num(m.b, 1e9) | 0; p.merit = num(m.m, 1e9) | 0; p.badge = clean(m.bd, 4);
+      p.name = clean(m.name, 24) || 'Phật tử'; p.look = cleanLook(m.look); p.uid = cleanUid(m.uid); if (p.uid) SOC.seen(p); p.beads = num(m.b, 1e9) | 0; p.merit = num(m.m, 1e9) | 0; p.badge = clean(m.bd, 4);
       if (!TEMPLES.has(m.temple)) return;
       return joinRoom(p, m.temple, num(m.ch, 999) | 0);
     }
@@ -148,8 +237,10 @@ wss.on('connection', (ws, req) => {
       if (target && target !== r && target.players.size >= ROOM_CAP) return send(ws, { t: 'chfull', ch: want });
       joinRoom(p, r.temple, want || 0, true);
     } else if (m.t === 'chs') send(ws, { t: 'chs', chs: channelsOf(r.temple), cap: ROOM_CAP });
+    else if (m.t === 'look') { p.look = cleanLook(m.look); broadcast(r, { t: 'look', id: p.id, look: p.look }, p); }
+    else if (m.t === 'soc') SOC.handle(p, m);
   });
-  ws.on('close', () => { total--; leaveRoom(p); });
+  ws.on('close', () => { total--; if (p.uid) SOC.gone(p); leaveRoom(p); });
   ws.on('error', () => {});
 });
 // gửi gộp vị trí + hành động của cả kênh, TICK_HZ lần mỗi giây (ít gói tin, nhẹ mạng)

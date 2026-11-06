@@ -20,7 +20,7 @@ export function initNet(ctx) {
   const url = serverUrl();
   let ws = null, temple = null, ch = 0, chs = [], cap = 30, myId = 0, online = false, tries = 0, sendT = 0, lastS = '', lastSentAt = 0, profT = 0, wantCh = 0;
   const peers = new Map();   // id → { av, label, name, b, m, bd, tgt, yaw, mv }
-  const listeners = new Set(), changed = () => listeners.forEach(f => f());
+  const listeners = new Set(), changed = () => listeners.forEach(f => f()), socL = new Set();
 
   function clearPeers() { peers.forEach(p => { scene.remove(p.av.root); p.label.remove(); }); peers.clear(); onPeers(0); }
   function addPeer(d) {
@@ -45,7 +45,7 @@ export function initNet(ctx) {
     ws.onerror = () => {};
   }
   const sendJ = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
-  function hello() { sendJ({ t: 'hello', temple, ch: wantCh || ch, name: P.name, look: P.look, b: P.beads | 0, m: P.merit | 0, bd: badgeOf(P) }); lastS = ''; }
+  function hello() { sendJ({ t: 'hello', temple, ch: wantCh || ch, uid: P.uid, name: P.name, look: P.look, b: P.beads | 0, m: P.merit | 0, bd: badgeOf(P) }); lastS = ''; }
   function handle(m) {
     if (m.t === 'welcome') {
       clearPeers(); myId = m.id; ch = m.ch; cap = m.cap; chs = m.chs || []; online = true; wantCh = 0;
@@ -65,6 +65,8 @@ export function initNet(ctx) {
       (m.a || []).forEach(([id, k, d]) => act(id, k, d));
     } else if (m.t === 'chat') { const p = peers.get(m.id); if (p && chatBubble) chatBubble(p.av.root, m.text, p.name, p.av.height); }
     else if (m.t === 'chs') { chs = m.chs; cap = m.cap; changed(); }
+    else if (m.t === 'look') { const p = peers.get(m.id); if (p) p.av.setLook(m.look); }
+    else if (m.t === 'soc') socL.forEach(f => f(m));
     else if (m.t === 'chfull') toast(`Kênh ${m.ch} vừa đầy · chọn kênh khác`);
     else if (m.t === 'full') { toast(`📡 Máy chủ đang đầy (${m.max} người) · bạn chơi chế độ một mình, thử lại sau`); tries = 99; }
   }
@@ -77,7 +79,10 @@ export function initNet(ctx) {
     else if (k === 'offer') ticker(`🪔 ${nm} vừa dâng ${d || 'lễ vật'} lên Tam Thế Phật`);
     else if (k === 'lantern') { remoteLantern(p.av.root.position); ticker(`🏮 ${nm} vừa thả đèn nguyện`); }
     else if (k === 'mala') ticker(`📿 ${nm} vừa tròn một chuỗi 108 hạt`);
-    else if (k === 'chant') ticker(`🪵 ${nm} đang tụng ${d || 'kinh'}`);
+    else if (k === 'chant') { if (Date.now() - (p.chantAt || 0) > 300000) ticker(`🪵 ${nm} đang tụng ${d || 'kinh'}`); p.chantAt = Date.now(); }
+    else if (k === 'release') ticker(`🐟 ${nm} vừa phóng sinh`);
+    else if (k === 'bath') ticker(`🛁 ${nm} vừa tắm Phật`);
+    else if (k === 'greet') { p.av.bow(); }
     else if (k === 'cert') ticker(`${d || '🪷'} ${nm} vừa nhận chứng nhận công đức`);
   }
 
@@ -112,6 +117,11 @@ export function initNet(ctx) {
     newChannel() { if (online) { let c = 1; while (chs.some(x => x.ch === c)) c++; wantCh = c; sendJ({ t: 'ch', ch: c }); } },
     decorate(fn) { peers.forEach(p => fn(p.label, p.name, p.m || 0)); },
     auraByMerit() { peers.forEach(p => p.av && p.av.setAura((p.m || 0) >= 1000, 0xffe08a, (p.m || 0) >= 2000)); },
-    step, onChange: (f) => listeners.add(f)
+    step, onChange: (f) => listeners.add(f),
+    soc(op, d) { if (online) { sendJ(Object.assign({ t: 'soc', op }, d || {})); return true; } return false; },
+    onSoc: (f) => socL.add(f),
+    sendLook() { if (online) sendJ({ t: 'look', look: P.look }); },
+    chanters() { const t = Date.now(); return [...peers.values()].filter(p => t - (p.chantAt || 0) < 90000).length; },
+    peerList: () => [...peers.values()].map(p => ({ name: p.name, pos: p.av.root.position }))
   };
 }

@@ -96,7 +96,8 @@ function faceTex(nu, bald, seed = 1) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; _faces.set(key, t); return t;
 }
 
-const ROBES = { lam: 0x4f6fc4, nau: 0x8c5530, xam: 0x767c8c, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
+const MALAS = { go: [0x8a5328, 0xa86a38], bode: [0xc9a46a, 0xe6c98e], tram: [0x3a2416, 0x5a3a22], ngoc: [0x3f8f6a, 0x7fd0a8], mana: [0xa8322a, 0xe0705a] };
+const ROBES = { hong: 0xd77a96, ngoc: 0x3f9a88, tim: 0x7a4f9e, reu: 0x5f7a3a, dat: 0xa8643a, kim: 0xd8a93a, lam: 0x4f6fc4, nau: 0x8c5530, xam: 0x767c8c, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
 const SKINS = [0xf6d2b0, 0xeec09a, 0xf9dcc0, 0xdcaa80];
 const HAIRC = [0x241915, 0x33221a, 0x43291b];
 const grad = (() => { const d = new Uint8Array([84, 168, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
@@ -168,7 +169,7 @@ const POSES = {
 
 export class Avatar {
   constructor({ look = {}, seed = 1, monk = false, kasaya = false, outline = Avatar.outline } = {}) {
-    this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam' }, look);
+    this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam', mala: 'go', rose: '' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
     this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk || kasaya; this.kasaya = kasaya;
     this.seed = seed; this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >>> 2) % 3]; this.outline = outline;
@@ -180,7 +181,7 @@ export class Avatar {
     const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.kasaya ? 'hau' : this.monk ? 'tang' : L.robe] || ROBES.lam;
     const robe = T(robeC, { map: fabricTex() }), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC, { map: hairTex() });
     const lightRobe = new THREE.Color(robeC).getHSL({}).l > 0.6;   // áo sáng màu → quần sẫm, áo sẫm → quần kem cho tách bạch
-    const pants = T(this.kasaya || this.monk ? dim(robeC, 0.78) : lightRobe ? 0x3b3742 : 0xe9dfcb), sash = T(0xf2c14e), sashD = T(0xd49a2a), wood = T(0x8a5328), woodL = T(0xa86a38), sole = T(0x5a3418), strap = T(0x7a4a26);
+    const pants = T(this.kasaya || this.monk ? dim(robeC, 0.78) : lightRobe ? 0x3b3742 : 0xe9dfcb), sash = T(0xf2c14e), sashD = T(0xd49a2a), wood = T((MALAS[L.mala] || MALAS.go)[0]), woodL = T((MALAS[L.mala] || MALAS.go)[1]), sole = T(0x5a3418), strap = T(0x7a4a26);
     const white = WHITE, inner = T(0xf7f1e6), skD = T(dim(this.skin, 0.9));
     this.hips = pivot(0, 0.5, 0); r.add(this.hips);
 
@@ -237,6 +238,12 @@ export class Avatar {
     { const y = 0.285, z = torsoR(y) + 0.03;
       neck.add(part(new THREE.SphereGeometry(0.032, 12, 10), woodL, 0, y, z));
       put(neck, part(new THREE.ConeGeometry(0.018, 0.045, 8), sash, 0, y - 0.04, z + 0.004)).rotation.x = Math.PI; }
+    if (L.rose === 'do' || L.rose === 'trang') {   // bông hồng cài áo mùa Vu Lan: đỏ (còn mẹ) · trắng (mẹ đã khuất)
+      const rc = L.rose === 'do' ? 0xd0283a : 0xf6f2ec, y = 0.3, z = torsoR(y) + 0.03, rose = pivot(-0.12, y, z - 0.02); this.torso.add(rose);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, pe = part(new THREE.SphereGeometry(0.022, 8, 6), T(rc), Math.cos(a) * 0.018, Math.sin(a) * 0.018, 0); pe.scale.set(1, 1, 0.5); rose.add(pe); }
+      rose.add(part(new THREE.SphereGeometry(0.02, 8, 6), T(dim(rc, 0.8)), 0, 0, 0.008));
+      [-1, 1].forEach(sx => { const lf = part(new THREE.SphereGeometry(0.02, 6, 5), T(0x3f7a3a), sx * 0.03, -0.03, -0.004); lf.scale.set(1.4, 0.6, 0.4); rose.add(lf); });
+    }
 
     // ---- tay: tay áo loe có lớp lót đậm, bàn tay dạng găng có ngón cái ----
     const sleeve = T(lite(robeC, 0.12), { map: fabricTex() });
@@ -378,4 +385,4 @@ export class Avatar {
   }
 }
 Avatar.outline = false;   // bật viền nét cho mọi nhân vật (main.js bật trên máy tính)
-export { POSES, ROBES };
+export { POSES, ROBES, MALAS };

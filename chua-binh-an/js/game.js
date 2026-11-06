@@ -837,6 +837,7 @@
       u._cd = now();
       addBeads(u, mantra ? C.scoring.beadsPerMantraComment : C.scoring.beadsPerComment);
     }
+    if (poll && /^[1-3]$/.test(n.trim()) && votePoll(u, +n.trim())) { say(p, '🗳 ' + n.trim()); return; }
     if (quiz && !quiz.revealed && answerQuiz(u, n)) { say(p, '❓ ' + text.slice(0, 20)); return; }
     if (n.startsWith('!') && charCommand(u, p, n)) return;
     if (has(n, K.checkBook)) {
@@ -902,6 +903,7 @@
       toast('⭐', [{ b: u.name }, ' đã đăng ký hội viên của chùa'], false, u.avatar); A.khanh();
       card({ kicker: 'Hội viên', title: u.name, text: 'Cảm ơn bạn đã đồng hành cùng chùa. Nguyện bạn luôn an lạc.', ms: 5000 });
     } else giftEffect(tierFor(coins, ev.giftName), u, ev.giftName || 'Quà', count, coins);
+    if (!ev.subscribe && coins >= (C.kieuCoins || 30)) kieuParade(u);   // quà từ 30 xu: được rước kiệu qua sân
     addBeads(u, coins * C.scoring.beadsPerCoin, false);
     layoutSeats(); updateHud(); save();
   }
@@ -1546,6 +1548,52 @@
   requestAnimationFrame(tickCounter);
   if (params.get('autoconnect') === '1' || C.tikfinity.autoConnect) T.connect(params.get('ws') || C.tikfinity.url);
 
+  /* ============ BÌNH CHỌN TRÊN LIVE: người xem bình luận 1 / 2 / 3 ============ */
+  const BC = Object.assign({ everyMin: 20, durSec: 75, firstMin: 6 }, C.binhChon || {});
+  let poll = null;
+  function startPoll(kind) {
+    if (poll) return; kind = kind || (startPoll.n = (startPoll.n || 0) + 1) % 2 ? 'chua' : 'nghi';
+    let opts;
+    if (kind === 'chua') { const cur = curTemple().id, list = CBA.temples.filter(t => t.id !== cur && !t.home).sort(() => Math.random() - 0.5).slice(0, 3); opts = list.map(t => ({ t: '🛕 ' + t.name, run: () => setTemple(t.id) })); }
+    else opts = [{ t: '🙏 Cả chùa cùng lạy Phật', run: () => { bowAll(); A.bigBell(); FX.petals(50, false); } }, { t: '📖 Nghe sư kể truyện Phật', run: () => startStory() }, { t: '🏮 Thả đèn hoa đăng cầu an', run: () => { FX.lanterns(40); A.khanh(); } }];
+    poll = { kind, opts, votes: opts.map(() => 0), who: new Map(), end: now() + BC.durSec * 1000 };
+    const box = el('div', 'pollbox'); box.id = 'pollBox';
+    box.innerHTML = `<b>${kind === 'chua' ? '🗳 Bình chọn chùa hành hương tiếp theo' : '🗳 Bình chọn nghi thức tiếp theo'}</b><small>Bình luận số <em>1</em>, <em>2</em> hoặc <em>3</em> để chọn · <span id="pollT"></span></small>` + opts.map((o, i) => `<div class="po"><i>${i + 1}</i><span>${o.t}</span><div class="pb"><s id="pb${i}"></s></div><em id="pv${i}">0</em></div>`).join('');
+    stage.append(box); A.smallBell();
+    poll.iv = setInterval(drawPoll, 500); drawPoll();
+  }
+  function drawPoll() {
+    if (!poll) return; const left = Math.max(0, Math.ceil((poll.end - now()) / 1000)), tot = poll.votes.reduce((a, b) => a + b, 0) || 1;
+    const t = $('pollT'); if (t) t.textContent = `còn ${left} giây`;
+    poll.votes.forEach((v, i) => { const b = $('pb' + i), e = $('pv' + i); if (b) b.style.width = (v / tot * 100) + '%'; if (e) e.textContent = v; });
+    if (left <= 0) endPoll();
+  }
+  function votePoll(u, k) { if (!poll || k < 1 || k > poll.opts.length) return false; const prev = poll.who.get(u.id); if (prev === k) return true; if (prev) poll.votes[prev - 1]--; poll.who.set(u.id, k); poll.votes[k - 1]++; drawPoll(); return true; }
+  function endPoll() {
+    const P0 = poll; poll = null; clearInterval(P0.iv); const box = $('pollBox');
+    let w = 0; P0.votes.forEach((v, i) => { if (v > P0.votes[w]) w = i; }); const n = P0.votes.reduce((a, b) => a + b, 0);
+    if (box) { box.classList.add('done'); box.querySelector('small').textContent = n ? `Kết quả: ${P0.opts[w].t} (${P0.votes[w]}/${n} phiếu)` : 'Chưa có phiếu nào · lần sau nhé'; setTimeout(() => box.remove(), 6000); }
+    if (n) { toast('🗳', ['Đại chúng đã chọn: ', { b: P0.opts[w].t }], false); setTimeout(() => P0.opts[w].run(), 1800); }
+  }
+  setTimeout(function loopPoll() { if (present.size >= 2 && !storyRun) startPoll(); setTimeout(loopPoll, BC.everyMin * 60000); }, BC.firstMin * 60000);
+
+  /* ============ ĐOÀN KIỆU: người tặng quà lớn được rước kiệu qua sân chùa ============ */
+  const kieuQ = []; let kieuBusy = false;
+  function kieuParade(u) { kieuQ.push(u); if (!kieuBusy) nextKieu(); }
+  function nextKieu() {
+    const u = kieuQ.shift(); if (!u) { kieuBusy = false; return; } kieuBusy = true;
+    const mates = [u, ...[...present.values()].map(p => p.u).filter(x => x.id !== u.id).sort(() => Math.random() - 0.5).slice(0, 5)];
+    while (mates.length < 6) mates.push({ id: 'kieu' + mates.length, name: 'Phật tử' });
+    const g = el('div', 'kieupar'), fig = (x, i) => `<svg class="kb kb${i}" viewBox="0 0 80 140">${figSvg(x, i < 2 ? 'vang' : lookOf(x).robe)}</svg>`;
+    g.innerHTML = `<div class="kname">🏮 ${u.name.replace(/[<>&]/g, '')} rước kiệu</div>
+      <svg class="kieu" viewBox="0 0 240 200"><rect x="0" y="150" width="240" height="8" rx="3" fill="#5a2a12"/><rect x="70" y="92" width="100" height="62" rx="6" fill="#9a1a10" stroke="#e2b048" stroke-width="4"/>
+      <path d="M58 92 L120 40 L182 92 Z" fill="#b3261e" stroke="#e2b048" stroke-width="4"/><circle cx="120" cy="36" r="8" fill="#e2b048"/><circle cx="120" cy="122" r="18" fill="#ffd36b" opacity=".85"/><circle cx="120" cy="116" r="8" fill="#e8b84a"/>
+      <path d="M58 92 q-12 6 -14 -6 M182 92 q12 6 14 -6" stroke="#e2b048" stroke-width="4" fill="none"/></svg>` + mates.map(fig).join('');
+    stage.append(g); A.khanh(); A.bigBell(1.2); FX.petals(30, false);
+    void g.offsetWidth; setTimeout(() => g.classList.add('go'), 60);   // ép trình duyệt vẽ vị trí đầu rồi mới cho đoàn đi
+    setTimeout(() => { g.remove(); nextKieu(); }, 16500);
+  }
+
   /* API công khai (đúng tên hàm trong kịch bản) */
   CBA.game = {
     event: handle,
@@ -1566,6 +1614,7 @@
       relayout: () => { dirtySeats = true; layoutSeats(); }, setBot, A, FX, S: () => S, lunar: () => lunar, mult
     },
     MantraCounter: () => S.beads,
-    simulate: sim, setBot, reset: resetSession, state: () => S
+    simulate: sim, setBot, reset: resetSession, state: () => S,
+    poll: (k) => startPoll(k), kieu: (name) => kieuParade(user({ id: 'manual_' + norm(name || 'Phật tử'), name: name || 'Phật tử' }))
   };
 })();

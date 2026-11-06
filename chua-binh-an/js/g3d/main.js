@@ -6,6 +6,8 @@
  * ========================================================================= */
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
+import { initTuHanh } from './tuhanh.js';
+let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
@@ -40,17 +42,17 @@ const tp = (id) => (P.temples[id] = P.temples[id] || { pois: [], lay: 0, legend:
 const lunarMult = () => { try { return (CBA.Lunar && CBA.Lunar.today().mult) || 1; } catch (e) { return 1; } };
 let feastShown = '';
 function addBeads(n, why) {
-  const mult = lunarMult(); if (mult > 1) n = Math.round(n * mult);   // ngày Rằm, Mùng Một, vía Phật: nhân hạt
+  const mult = lunarMult() * (TH ? TH.beadMult() : 1); if (mult > 1) n = Math.round(n * mult);   // ngày Rằm, Mùng Một, vía Phật: nhân hạt
   const lv0 = levelOf(P.beads); P.beads += n; save(); hud();
   if (levelOf(P.beads) > lv0) { const L = C.levels[levelOf(P.beads)]; banner('🪷 Thăng cấp', `Cấp ${levelOf(P.beads) + 1} · ${L.name}`); A.smallBell(); }
 }
 /* công đức từ tu tập miễn phí (hương, mõ, lễ vật thường, đèn nguyện) có giới hạn mỗi ngày → bảng công đức & hào quang công bằng;
    lễ vật mua bằng hoa sen và hòm công đức không giới hạn */
 function addMerit(n, free) {
-  if (!free) { P.merit += n; return n; }
+  if (!free) { P.merit += n; if (TH) TH.merit(n); return n; }
   const d = kinhVN(), key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`, cap = (C.meritDailyCap ?? 300);
   if (P.mfDay !== key) { P.mfDay = key; P.mfToday = 0; }
-  const g = Math.max(0, Math.min(n, cap - P.mfToday)); P.mfToday += g; P.merit += g;
+  const g = Math.max(0, Math.min(n, cap - P.mfToday)); P.mfToday += g; P.merit += g; if (TH && g) TH.merit(g);
   if (g < n && addMerit.warned !== key) { addMerit.warned = key; toast(`🪷 Hôm nay đã đủ ${cap} công đức tu tập · vẫn được cộng hạt, mai tiếp tục nhé`); }
   return g;
 }
@@ -58,9 +60,11 @@ const meritTxt = (g) => g ? `+${g} công đức` : 'đã đủ công đức hôm
 function checkIn() {
   const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 420) * 60000), key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   if (P.lastDay === key) return;
+  if (TH) TH.preCheckIn();
   const y = new Date(d.getTime() - 86400000), yk = `${y.getFullYear()}-${y.getMonth() + 1}-${y.getDate()}`;
   P.streak = P.lastDay === yk ? P.streak + 1 : 1; P.days++; P.lastDay = key; save();
   if (P.days > 1) setTimeout(() => toast(`🔥 Lên chùa ngày thứ ${P.streak} liên tiếp · +${Math.min(21, P.streak * 3)} hạt`), 2500), addBeads(Math.min(21, P.streak * 3));
+  if (TH) TH.postCheckIn();
 }
 
 /* ---------------- giao diện chung ---------------- */
@@ -101,7 +105,7 @@ const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 v
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  festDispose(); hideMonks(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
+  festDispose(); hideMonks(); if (TH) TH.dispose(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -140,6 +144,7 @@ function loadTemple(id) {
   $('tName').textContent = temple.name; $('tPlace').textContent = temple.place;
   banner('🏯 ' + (CBA.regions[temple.region] || 'Hành hương'), temple.name, temple.intro);
   objective(); drawMiniBase(); hud();
+  if (TH) TH.onTemple();
   try { const f = CBA.Lunar && CBA.Lunar.today(); if (f && f.feast && f.mult > 1 && feastShown !== f.feast.name) { feastShown = f.feast.name; setTimeout(() => banner('🪷 ' + f.feast.name, 'Hôm nay lên chùa được nhân phúc', `Công đức và hạt ×${f.mult}`), 2000); } } catch (e) {}
 }
 
@@ -250,6 +255,7 @@ const near = (p, r) => Math.hypot(me.pos.x - p.x, me.pos.z - p.z) < r && Math.ab
 function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
   if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
+  { const c = TH && TH.context(); if (c) return c; }
   if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
   if (W.merit && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
@@ -338,7 +344,8 @@ function goSit(then) {
   const h = W.halls[0]; if (!h) return then && then();
   if (me.seated) { faceAltar(h); return then && then(); }
   const pref = h.cushions[P.seat ?? -1];
-  const pick = () => (pref && !pref.taken ? pref : h.cushions.filter(x => !x.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]);
+  const front = TH && TH.frontSeat();   // bậc Cư sĩ hộ trì: ưu tiên đệm hàng đầu
+  const pick = () => (pref && !pref.taken && !front ? pref : h.cushions.filter(x => !x.taken).sort((a, b) => front ? a.distanceTo(h.altar) - b.distanceTo(h.altar) : a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]);
   const sit = (c) => { P.seat = h.cushions.indexOf(c); sitOn(c, h, true); setTimeout(() => then && then(), 450); };
   if (insideHall(h)) {
     const c = pick(); if (!c) { faceAltar(h); return then && then(); }
@@ -360,7 +367,7 @@ function doBow() {
   if (!me.seated && W.halls[0]) { lastBow = Date.now(); return goSit(() => { lastBow = 0; doBow(); }); }   // về đệm trước rồi mới lạy
   lastBow = Date.now();
   if (me.seated) faceAltar();
-  me.av.bow(); A.mo(0.8); P.lay++; addBeads(3); NET.act('bow');
+  me.av.bow(); A.mo(0.8); P.lay++; addBeads(3); NET.act('bow'); if (TH) TH.practiced();
   if (S.voiceBow !== false) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
   setTimeout(() => A.mo(0.6), 1100);
   if (nearAltar() || W.halls.some(h => insideHall(h))) { const t = tp(temple.id); t.lay++; if (t.lay <= 3) toast(`🙏 Lễ Phật tại chánh điện ${t.lay}/3`); objective(); }   // ngồi đệm nào trong điện cũng được tính
@@ -372,7 +379,7 @@ let lastIncense = 0;
 function offerIncense(bur) {
   if (Date.now() - lastIncense < 60000) { toast(`Nén hương vẫn đang cháy · đợi ${Math.ceil((60000 - (Date.now() - lastIncense)) / 1000)} giây`); return; }
   lastIncense = Date.now();
-  me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1);
+  me.yaw = Math.atan2(bur.x - me.pos.x, bur.z - me.pos.z); cam.yaw = me.yaw + Math.PI; me.av.setPose('incense'); A.mo(1); if (TH) TH.practiced();
   if (S.voiceBow !== false) setTimeout(() => A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 }), 900);
   setTimeout(() => { me.av.bow(); }, 600); NET.act('incense');
   setTimeout(() => { me.av.setPose('idle'); smokeBoost = 4; const gm = addMerit(10, true); addBeads(10); toast('🕯️ Đã thắp nén hương · ' + meritTxt(gm)); }, 2800);
@@ -415,7 +422,7 @@ let lastBead = 0;
 function tickBead() {
   if (Date.now() - lastBead < 170) return; lastBead = Date.now();
   P.mala++; A.mo(0.75); addBeads(1); malaAnim = 1;
-  if (P.mala % 108 === 0) { P.rounds++; addBeads(54); A.smallBell(); banner('📿 Tràng hạt', `Viên mãn chuỗi thứ ${P.rounds}`, '+54 hạt'); ticker(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`); NET.act('mala'); }
+  if (P.mala % 108 === 0) { if (TH) TH.malaRound(); P.rounds++; addBeads(54); A.smallBell(); banner('📿 Tràng hạt', `Viên mãn chuỗi thứ ${P.rounds}`, '+54 hạt'); ticker(`📿 ${P.name} vừa tròn một chuỗi 108 hạt`); NET.act('mala'); }
   if (P.mala % 108 === 1) A.say('Nam mô A Di Đà Phật', { force: true, rate: 0.82, pitch: 0.85 });
 }
 {
@@ -512,7 +519,7 @@ async function runVoice(run) {
 function chantBeat(manual) {
   if (!ch) return;
   A.mo(manual ? 1 : 0.7); paintMo(1);
-  if (manual) { ch.taps++; ch.got = (ch.got || 0) + addMerit(1, true); addBeads(1); $('cMerit').textContent = `+${ch.got} công đức`; }
+  if (manual) { ch.taps++; ch.got = (ch.got || 0) + addMerit(1, true); const gm = TH ? TH.chantBeat() : 1; addBeads(gm); const grp = $('cMerit').dataset.group; $('cMerit').textContent = `+${ch.got} công đức` + (grp ? ' · ' + grp : ''); }
   if (!$('optVoice').checked && ++ch.beats >= 4) nextChantLine();
 }
 function restartMo() { clearInterval(moTimer); if ($('optAuto').checked) moTimer = setInterval(() => chantBeat(false), 60000 / (+$('optTempo').value || 60)); }
@@ -557,19 +564,21 @@ function openMeditate() {
   modal('Thiền định', (b) => {
     b.append(el('p', 'note', 'Ngồi thẳng lưng, thả lỏng vai, theo dõi hơi thở. Mỗi phút ngồi +9 hạt.'));
     const row = el('div', 'row'); [[5, '5 phút'], [10, '10 phút'], [20, '20 phút'], [0, 'Tự do']].forEach(([m, t]) => { const x = el('button', 'btn', t); x.onclick = () => { closeModal(); meditate(m); }; row.append(x); }); b.append(row);
+    b.append(el('p', 'note', '🎧 Thiền có hướng dẫn: giọng đọc dẫn từng bước, đếm hơi thở'));
+    const r2 = el('div', 'row'); [[5, '🎧 5 phút'], [10, '🎧 10 phút']].forEach(([m, t]) => { const x = el('button', 'btn gold', t); x.onclick = () => { closeModal(); meditate(m, true); }; r2.append(x); }); b.append(r2);
   });
 }
-function meditate(min) {
+function meditate(min, guided) {
   me.av.setPose('lotus'); A.ambience.duck(true); A.smallBell();
   const ov = $('med'); ov.hidden = false; const t0 = Date.now(); let paid = 0;
   const iv = setInterval(() => {
     const s = Math.floor((Date.now() - t0) / 1000), ph = s % 10;
-    $('medLabel').textContent = ph < 4 ? 'Hít vào…' : 'Thở ra…'; $('breath').classList.toggle('in', ph < 4);
+    $('medLabel').textContent = guided && TH ? TH.guide(s, ph < 4) : (ph < 4 ? 'Hít vào…' : 'Thở ra…'); $('breath').classList.toggle('in', ph < 4);
     $('medTime').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` + (min ? ` / ${String(min).padStart(2, '0')}:00` : '');
-    const full = Math.floor(s / 60); if (full > paid) { paid = full; P.medMin++; addBeads(9); }
+    const full = Math.floor(s / 60); if (full > paid) { paid = full; P.medMin++; addBeads(9); if (TH) TH.medMinute(); }
     if (min && s >= min * 60) end(true);
   }, 500);
-  const end = (done) => { clearInterval(iv); ov.hidden = true; A.smallBell(); A.ambience.duck(false); me.av.setPose(me.seated ? 'kneel' : 'idle'); if (paid) banner('🧘 Thiền định', done ? `Viên mãn ${min} phút` : `Đã ngồi ${paid} phút`, `+${paid * 9} hạt`); };
+  const end = (done) => { clearInterval(iv); ov.hidden = true; if (guided) A.speak('', 'cancel'); A.smallBell(); A.ambience.duck(false); me.av.setPose(me.seated ? 'kneel' : 'idle'); if (paid) banner('🧘 Thiền định', done ? `Viên mãn ${min} phút` : `Đã ngồi ${paid} phút`, `+${paid * 9} hạt`); };
   $('medStop').onclick = () => end(false);
 }
 
@@ -781,6 +790,7 @@ function tell(st, isLegend = false) {
       const ok = k === q.answer;
       if (!P.stories.includes(st.id)) { P.stories.push(st.id); addBeads(9); }
       if (ok) { P.quiz++; addBeads(27); A.smallBell(); }
+      if (TH) TH.quiz(st, ok, isLegend);
       if (isLegend && !tp(temple.id).legend) { tp(temple.id).legend = true; objective(); }
       $('sText').textContent = ok ? '🎉 Chính xác! +27 hạt' : `Đáp án đúng: ${'ABC'[q.answer]}. ${q.options[q.answer]}`;
       save(); hud();
@@ -1547,6 +1557,10 @@ window.__acc = ACC;
 const NET = initNet({ P, me, scene, Avatar, label, placeLabel, toast, ticker, A, hash, badgeOf, chatBubble,
   onPeers: (k) => { while (npcs.length > Math.max(0, 8 - k)) { const n = npcs.pop(); scene.remove(n.av.root); n.label.remove(); if (n.sit) n.sit.taken = false; if (n.goSit) n.goSit.taken = false; } },   // người thật vào thì bớt Phật tử mô phỏng
   remoteLantern: (pos) => { const g = lanternMesh(); g.userData.tmp = true; g.position.set(pos.x, pos.y + 1.1, pos.z); scene.add(g); const h = W && W.halls.find(x => inHallBox(x, pos, pos.y)); lanterns.push({ g, t: 0, lbl: null, tgt: null, seed: Math.random() * 6, ceil: h ? h.ceilY : 0 }); } });
+TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, fmt, addBeads, addMerit, NET, scene, me, C, kinhVN, TEMPLES, hash, label, placeLabel, levelOf,
+  getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
+  meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
+if (W && temple) TH.onTemple();
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
 function chatBubble(root, text, name, h, dur = 3) {
@@ -1987,7 +2001,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt);
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t);
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);

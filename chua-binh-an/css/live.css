@@ -502,3 +502,23 @@ body.play #stage { top: calc(50% - 46px); }
 .tierfx.t4.on .tf-box, .tierfx.t5.on .tf-box { animation: tfpulse 1.6s ease-in-out infinite; }
 @keyframes tfspin { to { filter: hue-rotate(360deg); } }
 @keyframes tfpulse { 50% { box-shadow: 0 0 90px var(--c); } }
+
+/* ===== bình chọn trên live ===== */
+.pollbox { position: absolute; z-index: 40; left: 50%; top: 340px; transform: translateX(-50%); width: 760px; padding: 22px 26px; border-radius: 26px;
+  background: linear-gradient(180deg, rgba(60, 20, 8, .94), rgba(30, 10, 4, .94)); border: 3px solid #f0c050; box-shadow: 0 16px 40px rgba(0, 0, 0, .55); color: #fff1d6; display: grid; gap: 12px; animation: pollIn .5s; }
+@keyframes pollIn { from { transform: translateX(-50%) scale(.85); opacity: 0; } }
+.pollbox b { font: 900 40px 'Noto Serif', Georgia, serif; color: #ffd36b; }
+.pollbox small { font: 600 26px 'Be Vietnam Pro', sans-serif; color: #f5d9a8; } .pollbox small em { font-style: normal; color: #ffd36b; font-weight: 900; }
+.pollbox .po { display: grid; grid-template-columns: 54px 1fr 220px 70px; align-items: center; gap: 12px; font: 700 30px 'Be Vietnam Pro', sans-serif; }
+.pollbox .po i { font-style: normal; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: #f0c050; color: #3a1206; font-weight: 900; }
+.pollbox .pb { height: 22px; border-radius: 11px; background: rgba(0, 0, 0, .45); overflow: hidden; } .pollbox .pb s { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c98a1c, #ffe08a); transition: width .4s; text-decoration: none; }
+.pollbox .po em { font-style: normal; text-align: right; color: #ffd36b; }
+.pollbox.done { border-color: #5fe08a; }
+/* ===== đoàn kiệu người tặng quà ===== */
+.kieupar { position: absolute; z-index: 30; top: 1330px; left: -760px; width: 720px; height: 300px; transition: left 15s linear; pointer-events: none; }
+.kieupar.go { left: 1160px; }
+.kieupar .kieu { position: absolute; left: 240px; top: 0; width: 240px; height: 200px; animation: kieuBob .6s ease-in-out infinite alternate; }
+@keyframes kieuBob { to { transform: translateY(-6px); } }
+.kieupar .kb { position: absolute; width: 80px; height: 140px; top: 120px; animation: kieuBob .6s ease-in-out infinite alternate; }
+.kieupar .kb0 { left: 250px; } .kieupar .kb1 { left: 390px; } .kieupar .kb2 { left: 520px; top: 130px; } .kieupar .kb3 { left: 600px; top: 130px; } .kieupar .kb4 { left: 120px; top: 130px; } .kieupar .kb5 { left: 40px; top: 130px; }
+.kieupar .kname { position: absolute; left: 180px; top: -58px; padding: 8px 18px; border-radius: 22px; background: linear-gradient(90deg, #a3231a, #c98a1c); color: #fff1c2; font: 800 30px 'Be Vietnam Pro', sans-serif; white-space: nowrap; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); }
