@@ -27,6 +27,75 @@ function kasayaTex() {   // cà sa: các ô ruộng (điền y) nâu đỏ, đư
   _kasayaTex = new THREE.CanvasTexture(c); _kasayaTex.colorSpace = THREE.SRGBColorSpace; _kasayaTex.wrapS = _kasayaTex.wrapT = THREE.RepeatWrapping; _kasayaTex.repeat.set(3, 1); return _kasayaTex;
 }
 
+// ---- vân vải dệt (xám, nhân với màu áo) ----
+let _fab = null;
+function fabricTex() {
+  if (_fab) return _fab;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y += 2) { g.fillStyle = `rgba(0,0,0,${0.035 + (y % 4 ? 0.02 : 0)})`; g.fillRect(0, y, 128, 1); }
+  for (let x = 0; x < 128; x += 2) { g.fillStyle = 'rgba(0,0,0,0.03)'; g.fillRect(x, 0, 1, 128); }
+  for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 1); }
+  _fab = new THREE.CanvasTexture(c); _fab.colorSpace = THREE.SRGBColorSpace; _fab.wrapS = _fab.wrapT = THREE.RepeatWrapping; _fab.repeat.set(6, 3); return _fab;
+}
+// ---- vân sợi tóc: các sợi chạy từ đỉnh đầu xuống, có dải bóng ----
+let _hairT = null;
+function hairTex() {
+  if (_hairT) return _hairT;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, 256, 128);
+  for (let i = 0; i < 90; i++) { const x = Math.random() * 256, w = 1 + Math.random() * 2.5; g.fillStyle = `rgba(0,0,0,${0.12 + Math.random() * 0.2})`; g.fillRect(x, 0, w, 128); }
+  for (let i = 0; i < 40; i++) { const x = Math.random() * 256; g.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.25})`; g.fillRect(x, 24 + Math.random() * 10, 1.5, 22 + Math.random() * 16); }
+  _hairT = new THREE.CanvasTexture(c); _hairT.colorSpace = THREE.SRGBColorSpace; _hairT.wrapS = THREE.RepeatWrapping; _hairT.repeat.set(3, 1); return _hairT;
+}
+// ---- mặt anime vẽ tay: mắt nhiều lớp, mi cong, mày, mũi, miệng, má hồng ----
+const _faces = new Map();
+const IRIS = [['#3a1a0c', '#b0703a'], ['#2a1a10', '#8a5a34'], ['#2b1408', '#c2803c'], ['#1c1210', '#5e3a22']];
+function faceTex(nu, bald, seed = 1) {
+  const key = (nu ? 'n' : 'm') + (bald ? 'b' : '') + (seed % 4);
+  if (_faces.has(key)) return _faces.get(key);
+  const W = 1024, H = 711, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const P = (yaw, pitch) => [(yaw + 0.9) / 1.8 * W, (Math.PI / 2 + pitch - 1.0) / 1.25 * H];
+  const [ic0, ic1] = IRIS[seed % 4];
+  // má hồng + nét gạch chéo
+  [-1, 1].forEach(sx => { const [x, y] = P(sx * 0.6, 0.3); const gr = g.createRadialGradient(x, y, 4, x, y, 78); gr.addColorStop(0, 'rgba(255,120,120,.55)'); gr.addColorStop(1, 'rgba(255,120,120,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, 82, 50, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(230,90,90,.55)'; g.lineWidth = 4; g.lineCap = 'round'; for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(x + k * 22 - 8, y + 10); g.lineTo(x + k * 22 + 8, y - 10); g.stroke(); } });
+  [-1, 1].forEach(sx => {
+    const [x, y] = P(sx * 0.37, 0.09), rx = 104, ry = 134;
+    // lòng trắng
+    g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(x, y + 4, rx * 1.02, ry * 0.98, 0, 0, 7); g.fill();
+    // mống mắt: chuyển màu đậm trên → sáng dưới, viền sẫm
+    g.save(); g.beginPath(); g.ellipse(x, y + 4, rx * 1.02, ry * 0.98, 0, 0, 7); g.clip();
+    const gi = g.createLinearGradient(0, y - ry, 0, y + ry); gi.addColorStop(0, ic0); gi.addColorStop(0.55, ic0); gi.addColorStop(1, ic1);
+    g.fillStyle = gi; g.beginPath(); g.ellipse(x, y + 14, rx * 0.86, ry * 0.92, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(20,8,4,.85)'; g.lineWidth = 7; g.stroke();
+    g.fillStyle = '#120806'; g.beginPath(); g.ellipse(x, y + 8, rx * 0.4, ry * 0.5, 0, 0, 7); g.fill();          // con ngươi
+    g.fillStyle = 'rgba(255,220,170,.45)'; g.beginPath(); g.ellipse(x, y + ry * 0.62, rx * 0.55, ry * 0.18, 0, 0, 7); g.fill();   // ánh phản chiếu dưới
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x - rx * 1.1, y - ry, rx * 2.2, ry * 0.32);                        // bóng mí trên
+    g.restore();
+    // đốm sáng
+    g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x - sx * rx * 0.32, y - ry * 0.32, 26, 32, -0.3, 0, 7); g.fill();
+    g.beginPath(); g.arc(x + sx * rx * 0.34, y + ry * 0.4, 12, 0, 7); g.fill();
+    g.beginPath(); g.arc(x - sx * rx * 0.05, y + ry * 0.12, 6, 0, 7); g.fill();
+    // mi trên dày, cong ra đuôi mắt; nữ có thêm 2 sợi mi vểnh
+    g.strokeStyle = '#1a0c06'; g.lineCap = 'round'; g.lineWidth = nu ? 20 : 15;
+    g.beginPath(); g.moveTo(x - sx * rx * 1.08, y - ry * 0.32); g.quadraticCurveTo(x, y - ry * 1.22, x + sx * rx * 1.12, y - ry * 0.5); g.stroke();
+    if (nu) { g.lineWidth = 9; [[1.12, -0.5, 1.42, -0.78], [1.0, -0.72, 1.24, -1.02]].forEach(([a, b, c2, d]) => { g.beginPath(); g.moveTo(x + sx * rx * a, y + ry * b); g.lineTo(x + sx * rx * c2, y + ry * d); g.stroke(); }); }
+    g.lineWidth = 5; g.strokeStyle = 'rgba(80,40,25,.7)'; g.beginPath(); g.moveTo(x - sx * rx * 0.7, y - ry * 1.18); g.quadraticCurveTo(x, y - ry * 1.42, x + sx * rx * 0.9, y - ry * 1.02); g.stroke();   // nếp mí
+    g.lineWidth = 5; g.strokeStyle = 'rgba(60,25,15,.75)'; g.beginPath(); g.moveTo(x - sx * rx * 0.5, y + ry * 1.02); g.quadraticCurveTo(x, y + ry * 1.1, x + sx * rx * 0.6, y + ry * 0.96); g.stroke();   // mi dưới
+    // lông mày
+    const [bx, by] = P(sx * 0.36, -0.3); g.strokeStyle = bald ? 'rgba(110,70,48,.85)' : 'rgba(40,22,14,.9)'; g.lineWidth = nu ? 9 : 13;
+    g.beginPath(); g.moveTo(bx - sx * 60, by + 10); g.quadraticCurveTo(bx, by - 14, bx + sx * 66, by + 4); g.stroke();
+  });
+  // mũi: chấm bóng nhỏ
+  { const [x, y] = P(0, 0.27); g.fillStyle = 'rgba(190,110,80,.55)'; g.beginPath(); g.ellipse(x + 4, y + 6, 9, 6, 0, 0, 7); g.fill(); }
+  // miệng: cười hé, lưỡi hồng
+  { const [x, y] = P(0, 0.42); g.fillStyle = '#8e2a20'; g.beginPath(); g.moveTo(x - 52, y - 10); g.quadraticCurveTo(x, y + 62, x + 52, y - 10); g.quadraticCurveTo(x, y + 8, x - 52, y - 10); g.fill();
+    g.fillStyle = '#f07a74'; g.beginPath(); g.ellipse(x, y + 26, 24, 12, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(90,30,20,.8)'; g.lineWidth = 5; g.lineCap = 'round'; [-1, 1].forEach(s2 => { g.beginPath(); g.moveTo(x + s2 * 50, y - 10); g.lineTo(x + s2 * 60, y - 18); g.stroke(); }); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; _faces.set(key, t); return t;
+}
+
 const ROBES = { lam: 0x4f6fc4, nau: 0x8c5530, xam: 0x767c8c, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
 const SKINS = [0xf6d2b0, 0xeec09a, 0xf9dcc0, 0xdcaa80];
 const HAIRC = [0x241915, 0x33221a, 0x43291b];
@@ -102,14 +171,14 @@ export class Avatar {
     this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
     this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk || kasaya; this.kasaya = kasaya;
-    this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >>> 2) % 3]; this.outline = outline;
+    this.seed = seed; this.skin = SKINS[seed % 4]; this.hairC = HAIRC[(seed >>> 2) % 3]; this.outline = outline;
     this.build();
   }
   build() {
     const r = this.root; while (r.children.length) r.remove(r.children[0]);
     this.aura = null;
     const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.kasaya ? 'hau' : this.monk ? 'tang' : L.robe] || ROBES.lam;
-    const robe = T(robeC), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC);
+    const robe = T(robeC, { map: fabricTex() }), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC, { map: hairTex() });
     const lightRobe = new THREE.Color(robeC).getHSL({}).l > 0.6;   // áo sáng màu → quần sẫm, áo sẫm → quần kem cho tách bạch
     const pants = T(this.kasaya || this.monk ? dim(robeC, 0.78) : lightRobe ? 0x3b3742 : 0xe9dfcb), sash = T(0xf2c14e), sashD = T(0xd49a2a), wood = T(0x8a5328), woodL = T(0xa86a38), sole = T(0x5a3418), strap = T(0x7a4a26);
     const white = WHITE, inner = T(0xf7f1e6), skD = T(dim(this.skin, 0.9));
@@ -170,7 +239,7 @@ export class Avatar {
       put(neck, part(new THREE.ConeGeometry(0.018, 0.045, 8), sash, 0, y - 0.04, z + 0.004)).rotation.x = Math.PI; }
 
     // ---- tay: tay áo loe có lớp lót đậm, bàn tay dạng găng có ngón cái ----
-    const sleeve = T(lite(robeC, 0.12));
+    const sleeve = T(lite(robeC, 0.12), { map: fabricTex() });
     const arm = (sx) => {
       const shoulder = pivot(sx * 0.2, 0.33, 0); this.torso.add(shoulder);
       shoulder.add(part(new THREE.SphereGeometry(0.075, 12, 10), sleeve, 0, -0.01, 0));
@@ -183,6 +252,7 @@ export class Avatar {
       const hand = pivot(0, -0.245, 0); elbow.add(hand);
       put(hand, part(new THREE.SphereGeometry(0.056, 12, 10), sk, 0, 0, 0)).scale.set(0.6, 1.2, 1);   // lòng bàn tay
       put(hand, part(new THREE.SphereGeometry(0.019, 8, 6), skD, sx * -0.01, 0.012, 0.045)).scale.set(1, 1.6, 1);   // ngón cái
+      for (let f = 0; f < 4; f++) { const fg = part(new THREE.CapsuleGeometry(0.0115, 0.034, 3, 6), sk, 0, -0.07, (f - 1.5) * 0.021); fg.rotation.x = (f - 1.5) * 0.08; hand.add(fg); }   // bốn ngón tay
       return { shoulder, elbow, hand };
     };
     this.lArm = arm(-1); this.rArm = arm(1);
@@ -195,29 +265,17 @@ export class Avatar {
     const hr = nu ? 0.295 : 0.305, hy = hr * 0.9;
     put(head, part(new THREE.SphereGeometry(hr, 36, 28), sk, 0, hy, 0)).scale.set(1.05, 0.97, 1);
     const onFace = (yaw, pitch, items) => { const g = pivot(0, hy, 0); g.rotation.set(pitch, yaw, 0, 'YXZ'); items.forEach(o => g.add(noLine(o))); head.add(g); return g; };
-    const bald = this.monk || L.hair === 'troc', browM = bald ? T(0x6e4630) : hairM, lash = T(0x1e120c);
+    const bald = this.monk || L.hair === 'troc';
+    // mặt vẽ tay kiểu anime: một lớp "da mặt" phủ phía trước đầu, vẽ trên canvas 1024 px
+    { const PH = 1.8, TH0 = 1.0, TL = 1.25;
+      const face = part(new THREE.SphereGeometry(hr * 1.004, 40, 30, Math.PI / 2 - PH / 2, PH, TH0, TL),
+        T(0xffffff, { map: faceTex(nu, bald, this.seed), transparent: true, polygonOffset: true, polygonOffsetFactor: -2 }), 0, hy, 0);
+      face.scale.set(1.05, 0.97, 1); face.castShadow = false; face.userData.keep = true; noLine(face); head.add(face); }
     [-1, 1].forEach(sx => {
-      // mắt to: lòng trắng, mống 2 lớp (đậm ngoài, sáng dưới), con ngươi, 2 đốm sáng, mi trên
-      const ew = part(new THREE.SphereGeometry(0.088, 20, 16), white, 0, 0, hr * 0.9); ew.scale.set(0.8, 1.08, 0.34);
-      const ir = part(new THREE.SphereGeometry(0.07, 20, 16), T(0x4a2412), 0, -0.006, hr * 0.952); ir.scale.set(0.8, 1, 0.3);
-      const ir2 = part(new THREE.SphereGeometry(0.044, 16, 12), T(0x9a5a2c), 0, -0.03, hr * 0.972); ir2.scale.set(0.95, 0.6, 0.3);
-      const pu = part(new THREE.SphereGeometry(0.033, 14, 10), T(0x0e0606), 0, -0.004, hr * 0.99); pu.scale.set(0.85, 1, 0.3);
-      const h1 = part(new THREE.SphereGeometry(0.021, 10, 8), white, 0.022 * -sx, 0.026, hr * 1.02), h2 = part(new THREE.SphereGeometry(0.01, 8, 6), white, -0.018 * -sx, -0.032, hr * 1.015);
-      const lid = part(new THREE.TorusGeometry(0.08, nu ? 0.012 : 0.009, 5, 16, Math.PI * 0.74), lash, 0, -0.004, hr * 0.978); lid.rotation.z = Math.PI * 0.13; lid.scale.set(0.84, 1.12, 0.4);
-      const items = [ew, ir, ir2, pu, h1, h2, lid];
-      if (nu) { const fl = part(new THREE.ConeGeometry(0.009, 0.03, 5), lash, sx * 0.066, 0.05, hr * 0.95); fl.rotation.z = -sx * 1.0; items.push(fl); }   // mi cong đuôi mắt
-      onFace(sx * 0.36, 0.08, items);
-      const br = part(new THREE.CapsuleGeometry(nu ? 0.008 : 0.012, 0.05, 4, 6), browM, 0, 0, hr * 0.99); br.rotation.z = Math.PI / 2 + sx * 0.14;
-      onFace(sx * 0.36, -0.28, [br]);
-      const ck = part(new THREE.SphereGeometry(0.04, 12, 8), T(0xf59a98, { transparent: true, opacity: 0.45 }), 0, 0, hr * 0.955); ck.scale.set(1.2, 0.62, 0.3);
-      onFace(sx * 0.6, 0.3, [ck]);   // má hồng
       const ear = put(head, part(new THREE.SphereGeometry(0.058, 12, 9), sk, sx * hr * 1.02, hy - 0.015, 0)); ear.scale.set(0.42, 0.88, 0.68);
       put(head, noLine(part(new THREE.SphereGeometry(0.03, 8, 6), skD, sx * hr * 1.035, hy - 0.015, 0.008))).scale.set(0.3, 0.7, 0.55);   // vành tai trong
     });
-    onFace(0, 0.27, [part(new THREE.SphereGeometry(0.016, 8, 6), skD, 0, 0, hr * 1.0)]);   // mũi
-    { const mo = part(new THREE.TorusGeometry(0.03, 0.008, 5, 14, Math.PI), T(0x8e3426), 0, 0, hr * 0.985); mo.rotation.z = Math.PI;
-      const tg = part(new THREE.SphereGeometry(0.016, 8, 6), T(0xe0706a), 0, -0.012, hr * 0.975); tg.scale.set(1.2, 0.6, 0.3);   // môi dưới hồng
-      onFace(0, 0.41, [mo, tg]); }
+    onFace(0, 0.25, [part(new THREE.SphereGeometry(0.014, 8, 6), sk, 0, 0, hr * 1.0)]);   // sống mũi nhỏ nổi khối
 
     // ---- tóc ----
     const hair = this.monk ? 'troc' : L.hair, hairL = new THREE.MeshBasicMaterial({ color: lite(this.hairC, 0.42), transparent: true, opacity: 0.4 });
