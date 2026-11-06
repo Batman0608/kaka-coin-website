@@ -6,6 +6,12 @@ import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tre
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
+  // Chùa Hà (Cầu Giấy): chùa CẦU DUYÊN — Cây tình duyên giữa sân, Điện Mẫu bên trái, biển "CẦU DUYÊN" trên lối vào
+  'chua-ha': { yard: [{ r: [-25, -18, 25, 36], gate: ['+z', 0, 5] }], spawn: [0, 41], abbot: [3.5, 9], decor: 'chua-ha', walk: [-13, -13, 13, 15], pois: [
+    ['Chánh điện', 0, 1, 6, 'Lễ Phật trước, rồi sang Điện Mẫu và Cây tình duyên để cầu duyên.'],
+    ['Cây tình duyên', 0, 23, 5.5, 'CẦU DUYÊN: điền thông tin, đính ảnh và treo hồ sơ lên cây. Hệ thống tự se duyên cho người cùng tỉnh, hợp tuổi, chung sở thích.', 'duyen'],
+    ['Điện Mẫu · nơi cầu duyên', -18, 3, 4.5, 'Người đi lễ chùa Hà thường khấn cầu nhân duyên ở ban thờ Mẫu.'],
+    ['Lư hương trước sân', 0, 12, 3, 'Thắp nén hương, nguyện gặp được người tri kỷ.']] },
   // Bình An: sân rộng ~3 lần (54 × 56 m) — lối đá vào, đường kinh hành vòng quanh chánh điện, hồ sen, gác chuông, vườn Quan Âm
   'binh-an': { yard: [{ r: [-27, -24, 27, 32], gate: ['+z', 0, 5] }],  spawn: [0, 37], abbot: [3.5, 9], decor: 'binh-an', walk: [-14.5, -15, 14.5, 17], pois: [
     ['Chánh điện', 0, 1, 6, 'Nơi thờ Tam Thế Phật. Vào trong, chọn một đệm để ngồi và lễ Phật.'],
@@ -147,7 +153,7 @@ export function buildWorld(scene, temple) {
   // khuôn viên chùa: nền gạch đỏ sẫm, tường rào bao quanh, cổng ở phía trước (bên ngoài vẫn là cỏ xanh)
   let Lx = L;
   if (L.yard && !L.decor) Lx = expandYards(root, L);   // các chùa khác: nới sân ~3 lần diện tích trên phần đất bằng
-  if (L.decor) yardDecor(root, L);
+  if (L.decor === 'chua-ha') haDecor(root, L); else if (L.decor) yardDecor(root, L);
   if (Lx.yard) buildYards(root, Lx.yard, temple);
   if (Lx.grown) yardGreen(root, Lx);
   // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
@@ -167,7 +173,7 @@ export function buildWorld(scene, temple) {
   const col = new Collision(); col.build(root);
   // mái cổng & phần cao của cổng: ẩn tạm khi che giữa camera và người chơi
   const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
-  return { root, conf, layout: Lx, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
+  return { root, conf, layout: Lx, duyenTree: root.userData.duyenTree || null, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
 /* khói hương ở lư hương */
@@ -214,7 +220,7 @@ function brickTex() {
   return _brick;
 }
 /* kiểu cổng theo vùng miền & kiến trúc từng chùa */
-const GATE_STYLE = { 'binh-an': 'bac', 'bai-dinh': 'baidinh', 'tam-chuc': 'hue', 'mot-cot': 'bac1', 'huong': 'son', 'yen-tu': 'son', 'thien-mu': 'hue', 'linh-ung': 'hien', 'long-son': 'nam', 'vinh-nghiem': 'bac', 'giac-lam': 'nam', 'doi': 'khmer' };
+const GATE_STYLE = { 'chua-ha': 'bac1', 'binh-an': 'bac', 'bai-dinh': 'baidinh', 'tam-chuc': 'hue', 'mot-cot': 'bac1', 'huong': 'son', 'yen-tu': 'son', 'thien-mu': 'hue', 'linh-ung': 'hien', 'long-son': 'nam', 'vinh-nghiem': 'bac', 'giac-lam': 'nam', 'doi': 'khmer' };
 function buildYards(root, yards, temple) {
   root.updateMatrixWorld(true);
   const probe = new Collision(); probe.build(root);           // địa hình hiện có: bỏ đoạn tường đâm vào núi, nhà, nước
@@ -489,3 +495,62 @@ function yardGreen(root, L) {
   });
 }
 const LAYOUT_OF = (L, yi) => L.__orig && L.__orig[yi];
+
+/* ---------------- CHÙA HÀ: Cây tình duyên, Điện Mẫu, biển CẦU DUYÊN ---------------- */
+function haDecor(root, L) {
+  const g = new THREE.Group(); root.add(g);
+  const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
+  const pave = mat('pave', 0xcfc2a6, { roughness: 0.95 }), paveE = mat('paveEdge', 0x8f8270), stone = STONE();
+  flat(4.2, 18, pave, 0, 27); [-1, 1].forEach(s => flat(0.25, 18, paveE, s * 2.2, 27, 0.024));
+  const [wx0, wz0, wx1, wz1] = L.walk, ww = 3.2;   // đường kinh hành quanh chánh điện
+  flat(wx1 - wx0 + ww, ww, pave, 0, wz0); flat(wx1 - wx0 + ww, ww, pave, 0, wz1); flat(ww, wz1 - wz0, pave, wx0, (wz0 + wz1) / 2); flat(ww, wz1 - wz0, pave, wx1, (wz0 + wz1) / 2);
+  // ===== CÂY TÌNH DUYÊN giữa sân =====
+  const T = new THREE.Group(); T.position.set(0, 0, 23); g.add(T);
+  T.add(cyl(3.6, 3.8, 0.45, 32, stone, 0, 0.225, 0));                                   // bệ đá tròn (bước lên được)
+  T.add(cyl(3.62, 3.62, 0.08, 32, mat('haRed', 0xa3233a), 0, 0.47, 0));
+  const bark = mat('bark', 0x5a3a24, { roughness: 1 });
+  T.add(cyl(0.75, 1.05, 4.2, 12, bark, 0, 2.55, 0));                                      // thân cây
+  const anchors = [];
+  for (let i = 0; i < 7; i++) {   // cành lớn tỏa ra
+    const a = i / 7 * Math.PI * 2 + 0.3, len = 3.2 + (i % 3) * 0.5, br = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.32, len, 7), bark);
+    br.position.set(Math.cos(a) * len * 0.42, 4.6 + (i % 2) * 0.5, Math.sin(a) * len * 0.42); br.rotation.set(Math.sin(a) * 1.05, 0, -Math.cos(a) * 1.05); br.castShadow = true; br.userData.noCollide = true; T.add(br);
+    for (let k = 0; k < 6; k++) { const r = 1.6 + k * 0.5, h = 4.25 + k * 0.05 + (i % 2) * 0.4, ang = a + (k - 2.5) * 0.12; anchors.push(new THREE.Vector3(Math.cos(ang) * r, h, Math.sin(ang) * r)); }
+  }
+  const leafA = mat('duyenLeaf', 0x4f8a3a, { flatShading: true }), leafB = mat('duyenLeaf2', 0x3f7a35, { flatShading: true }), bloom = mat('duyenBloom', 0xf5a3c0, { flatShading: true, emissive: 0x7a2040, emissiveIntensity: 0.15 });
+  [[0, 7.4, 0, 3.0, leafA], [2.6, 6.6, 1.2, 2.3, leafB], [-2.5, 6.7, -1.0, 2.4, leafA], [1.0, 6.5, -2.6, 2.2, leafB], [-1.2, 6.4, 2.6, 2.2, leafA], [3.4, 5.9, -1.4, 1.6, bloom], [-3.4, 6.0, 1.5, 1.6, bloom], [0.2, 8.6, 0.6, 1.6, bloom], [-0.6, 6.2, -3.4, 1.4, bloom]].forEach(([x, y, z, r, m]) => {
+    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m); c.position.set(x, y, z); c.castShadow = true; c.userData.noCollide = true; T.add(c); });
+  // dây đỏ se duyên rủ xuống từ các cành (sợi chỉ hồng)
+  const thread = mat('thread', 0xd7263d, { emissive: 0x5a0a14, emissiveIntensity: 0.3 });
+  anchors.forEach((p, i) => { if (i % 2) return; const len = 0.9 + (i % 5) * 0.25, t = new THREE.Mesh(new THREE.BoxGeometry(0.03, len, 0.03), thread); t.position.set(p.x, p.y - len / 2, p.z); t.userData.noCollide = true; T.add(t); });
+  // vài trái tim trang trí cố định (trái tim hồ sơ người chơi do duyen.js gắn thêm)
+  const heartM = mat('heartDeco', 0xe2264a, { emissive: 0x8a0a20, emissiveIntensity: 0.4 });
+  for (let i = 0; i < 18; i++) { const p = anchors[(i * 5) % anchors.length], h = heartMesh(0.16, heartM); h.position.set(p.x * 0.85, p.y - 1.3 - (i % 3) * 0.2, p.z * 0.85); h.rotation.y = Math.atan2(p.x, p.z); T.add(h); }
+  const lamp = new THREE.PointLight(0xff8aa8, 1.1, 12, 1.6); lamp.position.set(0, 3.2, 0); T.add(lamp);
+  // biển CẦU DUYÊN đặt trên bệ cây, quay về phía cổng
+  const sign = plaque('CẦU DUYÊN', 'Cây tình duyên · vào lẻ bóng, ra có đôi', 3.4, 0.95); sign.position.set(0, 1.55, 3.8); T.add(sign); [-1.55, 1.55].forEach(x => T.add(cyl(0.07, 0.07, 1.6, 8, RED(), x, 0.8, 3.72)));
+  T.traverse(o => { if (o !== T && o.isMesh && o.geometry.type !== 'CylinderGeometry') o.userData.noCollide = true; });
+  root.userData.duyenTree = { group: T, anchors, center: T.position.clone() };
+  // ===== cổng chào CẦU DUYÊN trên lối vào =====
+  [-3.4, 3.4].forEach(x => g.add(cyl(0.18, 0.2, 4.6, 10, RED(), x, 2.3, 31.5)));
+  const ban = plaque('CHÙA HÀ · CẦU DUYÊN', 'Vào lẻ bóng · ra có đôi', 7.2, 1.2); ban.position.set(0, 4.3, 31.6); g.add(ban);
+  const ban2 = plaque('CẦU DUYÊN', 'Nam mô Quán Thế Âm Bồ Tát', 7.2, 1.2); ban2.position.set(0, 4.3, 31.4); ban2.rotation.y = Math.PI; g.add(ban2);
+  // ===== Điện Mẫu (bên trái), quay vào giữa sân =====
+  const dm = hall({ w: 5, d: 4.6, h: 2.8, tiers: 2 }); dm.position.set(-19.5, 0, 3); dm.rotation.y = Math.PI / 2; g.add(dm);
+  const dmp = plaque('ĐIỆN MẪU', 'cầu duyên · cầu an', 2.6, 0.7); dmp.position.set(-16.8, 2.9, 3); dmp.rotation.y = Math.PI / 2; g.add(dmp);
+  // ===== đèn lồng đỏ & bụi hoa hồng dọc lối vào =====
+  const red = mat('lanternRed', 0xd7261e, { emissive: 0xff4020, emissiveIntensity: 0.55 }), rose = mat('rose', 0xd0283a), leaf = LEAF2();
+  [27, 31.5, 35].forEach(z => [-3.4, 3.4].forEach(x => { if (z === 31.5) return; const pst = cyl(0.06, 0.07, 2.6, 6, RED(), x, 1.3, z); g.add(pst); const l = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), red); l.scale.y = 1.25; l.position.set(x, 2.4, z); l.userData.noCollide = true; g.add(l); }));
+  for (let z = 26; z <= 34; z += 2.2) [-5.2, 5.2].forEach(x => { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), leaf); b.position.set(x, 0.42, z); b.userData.noCollide = true; g.add(b);
+    for (let k = 0; k < 5; k++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), rose); f.position.set(x + Math.cos(k * 1.3) * 0.42, 0.62 + (k % 2) * 0.15, z + Math.sin(k * 1.3) * 0.42); f.userData.noCollide = true; g.add(f); } });
+  // hàng cây quanh tường
+  const TR = (x, z, h = 6) => g.add(tree(h, (Math.abs(x * 7 + z) | 0) % 2 ? LEAF() : LEAF2(), x, z));
+  for (let z = -14; z <= 30; z += 7.5) [-22.5, 22.5].forEach(x => { if (Math.abs(z - 3) < 4 && x < 0) return; TR(x, z, 6); });
+  for (let x = -17; x <= 17; x += 6.8) TR(x, -15.5, 6.5);
+  [[-11.5, 8], [11.5, 8]].forEach(([x, z]) => TR(x, z, 5.5));
+}
+function heartMesh(s, m) {   // trái tim phẳng có độ dày
+  const sh = new THREE.Shape(); sh.moveTo(0, -0.9); sh.bezierCurveTo(-1.6, 0.2, -0.7, 1.4, 0, 0.6); sh.bezierCurveTo(0.7, 1.4, 1.6, 0.2, 0, -0.9);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.25, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2, curveSegments: 10 }); geo.center();
+  const h = new THREE.Mesh(geo, m); h.scale.setScalar(s); h.castShadow = true; h.userData.noCollide = true; return h;
+}
+export { heartMesh };

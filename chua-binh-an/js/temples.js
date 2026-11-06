@@ -94,6 +94,12 @@ CBA.temples = [
     facts: ['Tên chữ: Diên Hựu tự — "phúc lành dài lâu"', 'Đài sen vuông đặt trên một cột đá giữa hồ', 'Năm 1954 bị phá hủy, năm 1955 được dựng lại theo kiến trúc cũ', 'Biểu tượng văn hóa của Hà Nội'],
     legendStory: 'vn03' },
 
+  { id: 'chua-ha', name: 'Chùa Hà', place: 'Cầu Giấy · Hà Nội', region: 'bac', lat: 21.036, lon: 105.795,
+    couplet: ['姻緣', '福地'], theme: { pillar: '#a3233a', glow: '#ffc8d8', floor: '#8a4a3a' },
+    buddhaSet: 'hoanh', chant: 'niemQuanAm', tone: { root: 87.31, scale: [349.23, 415.3, 523.25, 587.33, 698.46] }, model: 'hall', duyen: true,
+    intro: 'Ngôi chùa nép trong phố Chùa Hà, Cầu Giấy — nổi tiếng CẦU DUYÊN với câu "vào lẻ bóng, ra có đôi". Giữa sân có Cây tình duyên để treo lời nguyện tìm nửa kia.',
+    facts: ['Số 86 phố Chùa Hà, Cầu Giấy, Hà Nội', 'Cùng Đình Bối Hà tạo thành quần thể di tích Đình – Chùa Hà', 'Người đi lễ thường cầu duyên ở ban thờ Mẫu', 'Trong game: treo hồ sơ lên Cây tình duyên, hệ thống tự se duyên cho người hợp ý'] },
+
   { id: 'huong', name: 'Chùa Hương', place: 'Hương Sơn · Mỹ Đức · Hà Nội', region: 'bac', lat: 20.617, lon: 105.747,
     couplet: ['香跡洞', '南天第一'], theme: { pillar: '#7a2f3a', glow: '#ffd0e0', floor: '#7a5a3a' },
     buddhaSet: 'hoanh', chant: 'niemQuanAm', tone: { root: 87.31, scale: [349.23, 392, 523.25, 587.33, 698.46] }, model: 'huong',

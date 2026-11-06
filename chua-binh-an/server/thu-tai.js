@@ -4,7 +4,7 @@
    Đọc kết quả ở cửa sổ máy chủ hoặc http://localhost:8080/server */
 const WebSocket = require('ws');
 const N = +process.argv[2] || 100, ONLY = process.argv[3], URL = process.env.URL || 'ws://127.0.0.1:' + (process.env.PORT || 8080) + '/ws';
-const T = ONLY ? [ONLY] : ['binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi'];
+const T = ONLY ? [ONLY] : ['chua-ha', 'binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi'];
 let open = 0, recv = 0, bytes = 0, full = 0; const lat = [];
 for (let i = 0; i < N; i++) setTimeout(() => {
   const ws = new WebSocket(URL); let x = Math.random() * 20 - 10, z = Math.random() * 20, a = Math.random() * 6;

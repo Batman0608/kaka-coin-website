@@ -121,6 +121,7 @@ export function initNet(ctx) {
     soc(op, d) { if (online) { sendJ(Object.assign({ t: 'soc', op }, d || {})); return true; } return false; },
     onSoc: (f) => socL.add(f),
     sendLook() { if (online) sendJ({ t: 'look', look: P.look }); },
+    httpBase() { if (!url) return ''; try { const u = new URL(url.replace(/^ws/, 'http')); return u.origin; } catch (e) { return ''; } },
     chanters() { const t = Date.now(); return [...peers.values()].filter(p => t - (p.chantAt || 0) < 90000).length; },
     peerList: () => [...peers.values()].map(p => ({ name: p.name, pos: p.av.root.position }))
   };

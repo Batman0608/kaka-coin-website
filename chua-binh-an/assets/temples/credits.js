@@ -1,5 +1,8 @@
 /* Nguồn ảnh các chùa (Wikimedia Commons) — sinh tự động */
 window.TEMPLE_PHOTO_CREDITS = {
+ "chua-ha": {
+  "artist": "Ảnh dựng từ mô hình 3D trong game (không phải ảnh chụp thật)"
+ },
  "mot-cot": {
   "artist": "thalling55",
   "lic": "CC BY 2.0",

@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs'; import path from 'node:path';
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const DST = path.resolve(process.argv[2] || path.join(SRC, '..', 'ChuaBinhAn-phat-hanh'));
-const MODULES = new Set(['js/temple3d.js', 'js/g3d/main.js', 'js/g3d/world.js', 'js/g3d/avatar.js', 'js/g3d/shop.js', 'js/g3d/account.js', 'js/g3d/fb.js', 'js/g3d/net.js', 'js/g3d/tuhanh.js']);
+const MODULES = new Set(['js/temple3d.js', 'js/g3d/main.js', 'js/g3d/world.js', 'js/g3d/avatar.js', 'js/g3d/shop.js', 'js/g3d/account.js', 'js/g3d/fb.js', 'js/g3d/net.js', 'js/g3d/tuhanh.js', 'js/g3d/duyen.js']);
 const SKIP = new Set(['js/shop-config.js', 'js/cau-hinh-rieng.js']);   // file cấu hình: để nguyên cho dễ sửa
 const SKIP_DIR = ['server/node_modules', '.git'];
 function copyDir(a, b) {

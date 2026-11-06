@@ -7,7 +7,9 @@
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { initTuHanh } from './tuhanh.js';
+import { initDuyen } from './duyen.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
+let DY = null;   // cầu duyên (chùa Hà)
 Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
@@ -105,7 +107,7 @@ const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 v
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  festDispose(); hideMonks(); if (TH) TH.dispose(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
+  festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -145,6 +147,7 @@ function loadTemple(id) {
   banner('🏯 ' + (CBA.regions[temple.region] || 'Hành hương'), temple.name, temple.intro);
   objective(); drawMiniBase(); hud();
   if (TH) TH.onTemple();
+  if (DY) DY.onTemple();
   try { const f = CBA.Lunar && CBA.Lunar.today(); if (f && f.feast && f.mult > 1 && feastShown !== f.feast.name) { feastShown = f.feast.name; setTimeout(() => banner('🪷 ' + f.feast.name, 'Hôm nay lên chùa được nhân phúc', `Công đức và hạt ×${f.mult}`), 2000); } } catch (e) {}
 }
 
@@ -255,7 +258,7 @@ const near = (p, r) => Math.hypot(me.pos.x - p.x, me.pos.z - p.z) < r && Math.ab
 function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
   if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
-  { const c = TH && TH.context(); if (c) return c; }
+  { const c = (DY && DY.context()) || (TH && TH.context()); if (c) return c; }
   if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
   if (W.merit && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
@@ -955,6 +958,7 @@ const SANGHA = {
   'binh-an':     { tru: 'Tâm An',     res: 'Minh Tâm',   tung: ['Trí Thiện', 'Tâm Hòa', 'Nhuận Pháp'] },
   'bai-dinh':    { tru: 'Đức Viên',   res: 'Quảng Tịnh', tung: ['Minh Giác', 'Pháp Hải', 'Tịnh Huệ'] },
   'tam-chuc':    { tru: 'Thanh Phong', res: 'Viên Minh', tung: ['Hải Đăng', 'Tuệ Quang', 'Thiện Chí'] },
+  'chua-ha':     { tru: 'Diệu Duyên', res: 'Thanh Hà',   tung: ['Hòa Hợp', 'Từ Tâm', 'Minh Nguyệt'] },
   'mot-cot':     { tru: 'Liên Hoa',   res: 'Thanh Liên', tung: ['Phổ Tế', 'Từ Nhẫn', 'Quang Huy'] },
   'huong':       { tru: 'Đạo Nguyên', res: 'Huyền Không', tung: ['Thanh Tịnh', 'Diệu Âm', 'Bảo Châu'] },
   'yen-tu':      { tru: 'Thiền Tâm',  res: 'Trúc Minh',  tung: ['Vân Sơn', 'Tùng Lâm', 'Hạnh Thông'] },
@@ -1561,6 +1565,8 @@ TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, f
   getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
   meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
 if (W && temple) TH.onTemple();
+DY = initDuyen({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
+if (W && temple) DY.onTemple();
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
 function chatBubble(root, text, name, h, dur = 3) {
@@ -2001,7 +2007,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t);
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t);
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);

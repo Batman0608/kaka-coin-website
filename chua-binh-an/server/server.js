@@ -26,7 +26,7 @@ const ALLOW_HOSTS = (process.env.ALLOW_HOSTS || 'dichua.id.vn,www.dichua.id.vn')
 const hostOf = (u) => { try { return new URL(u).host.toLowerCase(); } catch (e) { return ''; } };
 const localHost = (h) => /^(localhost|127\.0\.0\.1|\[::1\]|(?:\d+\.){3}\d+)(:\d+)?$/.test(h) || /\.local(:\d+)?$/.test(h);
 const allowedHost = (h) => { h = (h || '').toLowerCase(); const bare = h.replace(/:\d+$/, ''); return !h || localHost(h) || ALLOW_HOSTS.includes(h) || ALLOW_HOSTS.includes(bare); };
-const TEMPLES = new Set(['binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi']);
+const TEMPLES = new Set(['chua-ha', 'binh-an', 'bai-dinh', 'mot-cot', 'huong', 'yen-tu', 'thien-mu', 'linh-ung', 'long-son', 'vinh-nghiem', 'giac-lam', 'doi']);
 const POSES = new Set(['idle', 'kneel', 'bow', 'lotus', 'incense', 'carry']);
 const ACTS = new Set(['bow', 'bell', 'incense', 'offer', 'lantern', 'mala', 'chant', 'cert', 'release', 'bath', 'greet']);
 
@@ -110,6 +110,11 @@ const cleanUid = (u) => /^[a-z0-9]{12,24}$/.test(String(u || '')) ? String(u) : 
 const codeOf = (uid) => uid.slice(0, 6).toUpperCase();
 const vnDay = () => { const d = new Date(Date.now() + 7 * 3600000); return d.toISOString().slice(0, 10); };
 const weekKey = () => { const d = new Date(Date.now() + 7 * 3600000); const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return t.getUTCFullYear() + '-W' + (1 + Math.round(((t - y) / 86400000 - 3 + ((y.getUTCDay() + 6) % 7)) / 7)); };
+const PROVS = ['Hà Nội', 'Huế', 'Lai Châu', 'Điện Biên', 'Sơn La', 'Lạng Sơn', 'Quảng Ninh', 'Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Cao Bằng', 'Tuyên Quang', 'Lào Cai', 'Thái Nguyên', 'Phú Thọ', 'Bắc Ninh', 'Hưng Yên', 'Hải Phòng', 'Ninh Bình', 'Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Gia Lai', 'Khánh Hòa', 'Lâm Đồng', 'Đắk Lắk', 'TP. Hồ Chí Minh', 'Đồng Nai', 'Tây Ninh', 'Cần Thơ', 'Vĩnh Long', 'Đồng Tháp', 'Cà Mau', 'An Giang'];
+const INTS = ['Du lịch', 'Nấu ăn', 'Đọc sách', 'Âm nhạc', 'Thiền · Yoga', 'Thể thao', 'Phim ảnh', 'Cà phê', 'Làm vườn', 'Chụp ảnh', 'Hành hương', 'Thú cưng', 'Công nghệ', 'Kinh doanh', 'Ăn chay', 'Tình nguyện'];
+const PHOTO_DIR = path.join(DATA_DIR, 'duyen-anh');
+const maskContact = (s) => s.replace(/(\+?\d[\d .-]{7,}\d)/g, '•••').replace(/(https?:\/\/|www\.)\S+/gi, '•••').replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '•••');
+const vnYear = () => new Date(Date.now() + 7 * 3600000).getUTCFullYear();
 const SOC = (() => {
   let D = { users: {}, groups: {}, mem: {}, greets: {}, helps: {} };
   try { D = Object.assign(D, JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))); console.log(`[cộng đồng] nạp ${Object.keys(D.users).length} người, ${Object.keys(D.groups).length} đạo tràng`); } catch (e) {}
@@ -129,6 +134,7 @@ const SOC = (() => {
   function handle(p, m) {
     if (!p.uid) return; const u = U(p.uid), op = String(m.op || '');
     const now = Date.now(); if (now - (p.socWin || 0) > 5000) { p.socWin = now; p.socN = 0; } if (++p.socN > 25) return;   // chống spam: tối đa 25 yêu cầu / 5 giây
+    if (op.startsWith('du.')) return DU.handle(p, u, op, m, now);
     if (op === 'fr.list') return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid) });
     if (op === 'fr.add') {
       const code = clean(m.code, 8).toUpperCase(), uid = Object.keys(D.users).find(k => codeOf(k) === code);
@@ -186,8 +192,147 @@ const SOC = (() => {
     }
   }
   function leaveGroup(uid) { const u = U(uid), g = D.groups[u.dt]; if (g) { g.members = g.members.filter(x => x !== uid); if (!g.members.length) delete D.groups[u.dt]; else if (g.owner === uid) g.owner = g.members[0]; } u.dt = ''; }
-  return { handle, seen, gone };
+  function onSeen(p) { DU && DU.onSeen && DU.onSeen(p); }
+  const DU = makeDuyen({ D, mark, online, reply, U });
+  return { handle, seen: (p) => { seen(p); onSeen(p); }, gone, DU };
 })();
+const DU = SOC.DU;
+
+/* ---------------- CẦU DUYÊN (chùa Hà): hồ sơ, ảnh, tự se duyên, đồng ý đôi bên, trò chuyện riêng ----------------
+   An toàn: chỉ người từ 18 tuổi; không lưu số nhà / số điện thoại trong hồ sơ công khai (tự che dãy số dài & đường link);
+   ảnh chỉ nhận JPEG ≤ 400 KB; bị 3 người khác nhau báo cáo thì hồ sơ tự ẩn; chặn thì không bao giờ ghép lại. */
+function makeDuyen({ D, mark, online, reply, U }) {
+  const Y = D.duyen = Object.assign({ prof: {}, pairs: {}, matches: {}, no: {}, likes: {}, reports: {}, up: {} }, D.duyen || {});
+  const key = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+  const age = (pr) => vnYear() - pr.by;
+  const card = (pr) => pr && { pid: pr.pid, nick: pr.nick, g: pr.g, age: age(pr), prov: pr.prov, ward: pr.ward, ints: pr.ints, about: pr.about, want: pr.want, photos: pr.photos, t: pr.t };
+  const tell = (uid, o) => { const pp = online.get(uid); if (pp) reply(pp, o); };
+  const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  function pendingOf(uid) { return Object.values(Y.pairs).filter(x => (x.a === uid || x.b === uid) && !x.done); }
+  function matchesOf(uid) { return Object.values(Y.matches).filter(x => x.a === uid || x.b === uid); }
+  function viewPair(x, uid) { const me = x.a === uid ? 'a' : 'b', o = me === 'a' ? x.b : x.a; return { id: x.id, other: card(Y.prof[o]), why: x.why, mine: x['s' + me], theirs: x['s' + (me === 'a' ? 'b' : 'a')], t: x.t }; }
+  function viewMatch(x, uid) { const o = x.a === uid ? x.b : x.a; return { id: x.id, other: card(Y.prof[o]) || { nick: (D.users[o] || {}).name || 'Người ấy' }, msgs: x.msgs.slice(-60).map(mm => ({ me: mm.f === uid, x: mm.x, t: mm.t })), online: online.has(o) }; }
+  function stateFor(uid) { return { op: 'du.me', prof: Y.prof[uid] || null, pairs: pendingOf(uid).map(x => viewPair(x, uid)), matches: matchesOf(uid).map(x => viewMatch(x, uid)) }; }
+  // ---- ghép đôi: khác giới theo mong muốn đôi bên, cùng tỉnh, chung ≥1 sở thích, tuổi chênh ≤ 6 ----
+  function score(A, B) {
+    if (A.uid === B.uid || B.hidden || A.hidden) return -1;
+    if (A.seek !== B.g || B.seek !== A.g) return -1;
+    if (A.prov !== B.prov) return -1;
+    const d = Math.abs(age(A) - age(B)); if (d > 6) return -1;
+    const shared = A.ints.filter(i => B.ints.includes(i)); if (!shared.length) return -1;
+    if (Y.no[key(A.uid, B.uid)]) return -1;
+    if (Object.values(Y.matches).some(x => key(x.a, x.b) === key(A.uid, B.uid))) return -1;
+    const ward = A.ward && B.ward && A.ward.toLowerCase() === B.ward.toLowerCase();
+    return { s: shared.length * 10 - d * 3 + (ward ? 15 : 0), shared, d, ward };
+  }
+  function makePair(A, B, why) {
+    const x = { id: rid(), a: A.uid, b: B.uid, sa: 0, sb: 0, t: Date.now(), why };
+    Y.pairs[x.id] = x; mark();
+    [A.uid, B.uid].forEach(uid => tell(uid, { op: 'du.pair', pair: viewPair(x, uid) }));
+    console.log(`[cầu duyên] se duyên ${A.nick} ♥ ${B.nick} (${why})`);
+  }
+  function runMatch() {
+    const now = Date.now();
+    Object.values(Y.pairs).forEach(x => { if (!x.done && now - x.t > 72 * 3600000) { x.done = 1; Y.no[key(x.a, x.b)] = 1; mark(); } });   // quá 3 ngày chưa trả lời → thôi
+    Object.keys(Y.pairs).forEach(k => { if (Y.pairs[k].done && now - Y.pairs[k].t > 7 * 86400000) { delete Y.pairs[k]; mark(); } });
+    const busy = new Set(); Object.values(Y.pairs).forEach(x => { if (!x.done) { busy.add(x.a); busy.add(x.b); } });
+    const L = Object.values(Y.prof).filter(pr => !pr.hidden && now - pr.up < 60 * 86400000).sort((a, b) => a.t - b.t);
+    for (const A of L) {
+      if (busy.has(A.uid)) continue;
+      let best = null; for (const B of L) { if (busy.has(B.uid)) continue; const sc = score(A, B); if (sc !== -1 && (!best || sc.s > best.sc.s)) best = { B, sc }; }
+      if (!best) continue;
+      const { B, sc } = best; busy.add(A.uid); busy.add(B.uid);
+      makePair(A, B, `Cùng ${A.prov}${sc.ward ? ' · cùng ' + A.ward : ''} · cùng thích ${sc.shared.slice(0, 3).join(', ')} · ${sc.d ? 'hơn kém ' + sc.d + ' tuổi' : 'bằng tuổi'}`);
+    }
+  }
+  setInterval(runMatch, 60000);
+  function delPhotos(list) { (list || []).forEach(id => { if (/^[a-z0-9]{8,20}$/.test(id)) fs.unlink(path.join(PHOTO_DIR, id + '.jpg'), () => {}); }); }
+  function handle(p, u, op, m, now) {
+    const uid = p.uid;
+    if (op === 'du.me') return reply(p, stateFor(uid));
+    if (op === 'du.save') {
+      const f = m.prof || {}, by = f.by | 0, yr = vnYear();
+      if (!f.adult || by < yr - 90 || yr - by < 18) return reply(p, { op: 'err', msg: 'Cầu duyên chỉ dành cho người từ 18 tuổi trở lên' });
+      const g = f.g === 'nam' ? 'nam' : f.g === 'nu' ? 'nu' : ''; if (!g) return reply(p, { op: 'err', msg: 'Chọn giới tính' });
+      const prov = PROVS.includes(f.prov) ? f.prov : ''; if (!prov) return reply(p, { op: 'err', msg: 'Chọn tỉnh / thành phố' });
+      const ints = (Array.isArray(f.ints) ? f.ints : []).filter(i => INTS.includes(i)).slice(0, 6); if (!ints.length) return reply(p, { op: 'err', msg: 'Chọn ít nhất 1 sở thích' });
+      const nick = maskContact(clean(f.nick, 24)); if (nick.length < 2) return reply(p, { op: 'err', msg: 'Nhập biệt danh' });
+      const up = Y.up[uid] || [], photos = (Array.isArray(f.photos) ? f.photos : []).filter(id => up.includes(id)).slice(0, 3);
+      const old = Y.prof[uid];
+      if (old) delPhotos(old.photos.filter(id => !photos.includes(id)));
+      delPhotos(up.filter(id => !photos.includes(id) && !(old && old.photos.includes(id)))); Y.up[uid] = photos.slice();
+      Y.prof[uid] = { pid: old ? old.pid : rid(), uid, nick, g, seek: f.seek === 'nam' ? 'nam' : f.seek === 'nu' ? 'nu' : (g === 'nam' ? 'nu' : 'nam'), by, prov, ward: maskContact(clean(f.ward, 40)),
+        ints, about: maskContact(clean(f.about, 220)), want: maskContact(clean(f.want, 140)), photos, t: old ? old.t : now, up: now, hidden: old ? old.hidden : false };
+      mark(); runMatch(); reply(p, stateFor(uid));
+      return reply(p, { op: 'note', msg: '💞 Hồ sơ đã treo lên Cây tình duyên · khi có người hợp duyên, hệ thống sẽ báo cho cả hai' });
+    }
+    if (op === 'du.del') { const pr = Y.prof[uid]; if (pr) { delPhotos(pr.photos); delete Y.prof[uid]; } Object.values(Y.pairs).forEach(x => { if (!x.done && (x.a === uid || x.b === uid)) x.done = 1; }); Y.up[uid] = []; mark(); return reply(p, stateFor(uid)); }
+    if (op === 'du.tree') { const L = Object.values(Y.prof).filter(pr => !pr.hidden && now - pr.up < 60 * 86400000).sort((a, b) => b.up - a.up).slice(0, 80); return reply(p, { op: 'du.tree', list: L.map(card), mine: Y.prof[uid] ? Y.prof[uid].pid : '' }); }
+    if (op === 'du.like') {
+      const B = Object.values(Y.prof).find(x => x.pid === clean(m.pid, 20)), A = Y.prof[uid]; if (!B || B.uid === uid) return;
+      if (!A) return reply(p, { op: 'err', msg: 'Hãy treo hồ sơ của bạn lên cây trước khi thả tim' });
+      Y.likes[uid] = Y.likes[uid] || []; if (!Y.likes[uid].includes(B.uid)) Y.likes[uid].push(B.uid); mark();
+      reply(p, { op: 'note', msg: `💗 Đã thả tim cho ${B.nick}` });
+      const k = key(uid, B.uid);
+      if ((Y.likes[B.uid] || []).includes(uid) && !Y.no[k] && !Object.values(Y.pairs).some(x => !x.done && key(x.a, x.b) === k) && !Object.values(Y.matches).some(x => key(x.a, x.b) === k)) makePair(A, B, 'Hai bạn cùng thả tim cho nhau trên Cây tình duyên');
+      return;
+    }
+    if (op === 'du.ans') {
+      const x = Y.pairs[clean(m.pair, 20)]; if (!x || x.done || (x.a !== uid && x.b !== uid)) return;
+      const me = x.a === uid ? 'a' : 'b', other = me === 'a' ? x.b : x.a; x['s' + me] = m.ok ? 1 : -1; mark();
+      if (!m.ok) { x.done = 1; Y.no[key(x.a, x.b)] = 1; tell(other, { op: 'du.closed', pair: x.id, msg: 'Lần này duyên chưa tới. Cây tình duyên sẽ tiếp tục tìm người hợp với bạn 🙏' }); reply(p, stateFor(uid)); return runMatch(); }
+      if (x.sa === 1 && x.sb === 1) {
+        x.done = 1; const mt = { id: rid(), a: x.a, b: x.b, t: Date.now(), msgs: [] }; Y.matches[mt.id] = mt; mark();
+        [x.a, x.b].forEach(id => tell(id, { op: 'du.matched', match: viewMatch(mt, id) }));
+      } else { reply(p, { op: 'note', msg: '💞 Đã đồng ý · chờ người ấy trả lời' }); tell(other, { op: 'du.pair', pair: viewPair(x, other) }); }
+      return reply(p, stateFor(uid));
+    }
+    if (op === 'du.msg') {
+      const x = Y.matches[clean(m.match, 20)]; if (!x || (x.a !== uid && x.b !== uid)) return;
+      if (now - (p.duMsgAt || 0) < 700) return; p.duMsgAt = now;
+      const text = clean(m.text, 300); if (!text) return;
+      const msg = { f: uid, x: text, t: now }; x.msgs.push(msg); if (x.msgs.length > 200) x.msgs.splice(0, x.msgs.length - 200); mark();
+      const other = x.a === uid ? x.b : x.a;
+      tell(other, { op: 'du.msg', match: x.id, msg: { me: false, x: text, t: now }, from: (Y.prof[uid] || {}).nick || p.name });
+      return reply(p, { op: 'du.msg', match: x.id, msg: { me: true, x: text, t: now } });
+    }
+    if (op === 'du.end') {
+      const x = Y.matches[clean(m.match, 20)]; if (!x || (x.a !== uid && x.b !== uid)) return; const other = x.a === uid ? x.b : x.a;
+      delete Y.matches[x.id]; Y.no[key(x.a, x.b)] = m.block ? 2 : 1; mark();
+      tell(other, { op: 'du.ended', match: x.id, msg: 'Cuộc trò chuyện đã kết thúc. Chúc bạn sớm gặp duyên lành 🙏' });
+      if (m.report) report(uid, other, clean(m.reason, 120));
+      return reply(p, stateFor(uid));
+    }
+    if (op === 'du.report') { const B = Object.values(Y.prof).find(x => x.pid === clean(m.pid, 20)); if (B) report(uid, B.uid, clean(m.reason, 120)); return reply(p, { op: 'note', msg: '🙏 Cảm ơn bạn đã báo cáo. Hồ sơ vi phạm sẽ bị ẩn.' }); }
+  }
+  function report(from, target, reason) {
+    const R = (Y.reports[target] = Y.reports[target] || []); if (R.some(r => r.from === from)) return;
+    R.push({ from, reason, t: Date.now() }); Y.no[key(from, target)] = 2; mark();
+    console.log(`[cầu duyên] BÁO CÁO hồ sơ ${(Y.prof[target] || {}).nick || target}: ${reason || '(không ghi lý do)'} · tổng ${R.length}`);
+    if (R.length >= 3 && Y.prof[target]) { Y.prof[target].hidden = true; console.log(`[cầu duyên] ẨN hồ sơ ${Y.prof[target].nick} do bị báo cáo 3 lần`); }
+  }
+  function onSeen(p) { setTimeout(() => { if (Y.prof[p.uid] || pendingOf(p.uid).length || matchesOf(p.uid).length) reply(p, stateFor(p.uid)); }, 1500); }
+  // ảnh: nhận qua HTTP POST thô (image/jpeg), trả về mã ảnh
+  function upload(req, res) {
+    const uid = cleanUid(req.headers['x-uid']), J = (c, o) => { res.writeHead(c, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(o)); };
+    if (!uid || !D.users[uid]) return J(403, { err: 'Hãy vào game và kết nối máy chủ trước' });
+    const up = (Y.up[uid] = Y.up[uid] || []); if (up.length >= 6) return J(429, { err: 'Tối đa 3 ảnh, hãy lưu hồ sơ trước khi tải thêm' });
+    const chunks = []; let n = 0, bad = false;
+    req.on('data', c => { n += c.length; if (n > 400 * 1024) { bad = true; req.destroy(); } else chunks.push(c); });
+    req.on('end', () => {
+      if (bad) return J(413, { err: 'Ảnh quá lớn (tối đa 400 KB)' });
+      const buf = Buffer.concat(chunks); if (buf.length < 200 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return J(415, { err: 'Chỉ nhận ảnh JPEG' });
+      const id = rid(); fs.mkdir(PHOTO_DIR, { recursive: true }, () => fs.writeFile(path.join(PHOTO_DIR, id + '.jpg'), buf, (e) => { if (e) return J(500, { err: 'Không lưu được ảnh' }); up.push(id); mark(); J(200, { id }); }));
+    });
+  }
+  function photo(req, res, id) {
+    if (!/^[a-z0-9]{8,20}$/.test(id)) { res.writeHead(404); return res.end(); }
+    fs.readFile(path.join(PHOTO_DIR, id + '.jpg'), (e, buf) => { if (e) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff' }); res.end(buf); });
+  }
+  function admin() { return { prof: Object.values(Y.prof).map(pr => ({ nick: pr.nick, prov: pr.prov, age: age(pr), hidden: pr.hidden, reports: (Y.reports[pr.uid] || []).length, pid: pr.pid })), pairs: Object.values(Y.pairs).filter(x => !x.done).length, matches: Object.keys(Y.matches).length }; }
+  function toggle(pid) { const pr = Object.values(Y.prof).find(x => x.pid === pid); if (pr) { pr.hidden = !pr.hidden; mark(); } }
+  return { handle, onSeen, upload, photo, admin, toggle, PROVS, INTS };
+}
 
 /* ---------------- WebSocket ---------------- */
 const server = http.createServer((req, res) => {
@@ -197,6 +342,12 @@ const server = http.createServer((req, res) => {
     const key = new URL(req.url, 'http://x').searchParams.get('key');
     if (remote && !(ADMIN_KEY && key === ADMIN_KEY)) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Trang quản trị chỉ mở trên máy chủ (hoặc thêm ?key=... theo ADMIN_KEY trong cau-hinh-may-chu.bat)'); }
   }
+  if (u === '/duyen/anh' && req.method === 'POST') return DU.upload(req, res);
+  { const mm = u.match(/^\/duyen\/anh\/([a-z0-9]+)\.jpg$/); if (mm) return DU.photo(req, res, mm[1]); }
+  if (u === '/duyen/admin') { const remote = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || !/^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || ''); const key = new URL(req.url, 'http://x').searchParams.get('key');
+    if (remote && !(ADMIN_KEY && key === ADMIN_KEY)) { res.writeHead(403); return res.end('Chỉ mở trên máy chủ'); }
+    const hide = new URL(req.url, 'http://x').searchParams.get('an'); if (hide) DU.toggle(hide);
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(DU.admin(), null, 1)); }
   if (u === '/status') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'cache-control': 'no-store' }); return res.end(JSON.stringify(status())); }
   if (u === '/server') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(DASH); }
   serveFile(req, res);
