@@ -12,6 +12,7 @@
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), os = require('os');
 const { WebSocketServer } = require('ws');
 const BOTD = require('./duyen-bot.js');
+const { makeGiaPha } = require('./giapha.js');
 
 const PORT = +process.env.PORT || 8080;
 const ROOM_CAP = +process.env.ROOM_CAP || 30;        // người / kênh (giới hạn để điện thoại vẽ mượt)
@@ -136,6 +137,7 @@ const SOC = (() => {
     if (!p.uid) return; const u = U(p.uid), op = String(m.op || '');
     const now = Date.now(); if (now - (p.socWin || 0) > 5000) { p.socWin = now; p.socN = 0; } if (++p.socN > 25) return;   // chống spam: tối đa 25 yêu cầu / 5 giây
     if (op.startsWith('du.')) return DU.handle(p, u, op, m, now);
+    if (op.startsWith('gp.')) return GP.handle(p, op, m);
     if (op === 'fr.list') return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid) });
     if (op === 'fr.add') {
       const code = clean(m.code, 8).toUpperCase(), uid = Object.keys(D.users).find(k => codeOf(k) === code);
@@ -195,6 +197,7 @@ const SOC = (() => {
   function leaveGroup(uid) { const u = U(uid), g = D.groups[u.dt]; if (g) { g.members = g.members.filter(x => x !== uid); if (!g.members.length) delete D.groups[u.dt]; else if (g.owner === uid) g.owner = g.members[0]; } u.dt = ''; }
   function onSeen(p) { DU && DU.onSeen && DU.onSeen(p); }
   const DU = makeDuyen({ D, mark, online, reply, U });
+  const GP = makeGiaPha({ D, mark, online, reply, send, clean, codeOf });
   return { handle, seen: (p) => { seen(p); onSeen(p); }, gone, DU };
 })();
 const DU = SOC.DU;
@@ -421,7 +424,8 @@ const server = http.createServer((req, res) => {
   if (u === '/server') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(DASH); }
   serveFile(req, res);
 });
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096, perMessageDeflate: false });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 65536,   // 64 KB: đủ cho nhập tệp gia phả
+  perMessageDeflate: false });
 wss.on('connection', (ws, req) => {
   if (total >= MAX_PLAYERS) { stats.rejected++; send(ws, { t: 'full', max: MAX_PLAYERS }); return ws.close(1013, 'full'); }
   total++; stats.peak = Math.max(stats.peak, total);
