@@ -1015,16 +1015,16 @@ const SCENES = {
       const L = sg.z1 - sg.z0, zc = (sg.z0 + sg.z1) / 2, yc = (sg.y0 + sg.y1) / 2, ang = Math.atan2(sg.y0 - sg.y1, L);
       [-1, 1].forEach(sx => {
         const x = sx * (SW / 2 + 0.15);
-        const rl = box(0.26, 0.14, Math.hypot(L, sg.y0 - sg.y1), railM, x, yc + 1.0, zc); rl.rotation.x = -ang; rl.userData.noCollide = true; g.add(rl);
-        const bs = box(0.3, 0.5, Math.hypot(L, sg.y0 - sg.y1), wallM, x, yc + 0.25, zc); bs.rotation.x = -ang; bs.userData.noCollide = true; g.add(bs);
+        const rl = box(0.26, 0.14, Math.hypot(L, sg.y0 - sg.y1), railM, x, yc + 1.0, zc); rl.rotation.x = ang; rl.userData.noCollide = true; g.add(rl);
+        const bs = box(0.3, 0.5, Math.hypot(L, sg.y0 - sg.y1), wallM, x, yc + 0.25, zc); bs.rotation.x = ang; bs.userData.noCollide = true; g.add(bs);
         const wall = box(0.4, Math.max(sg.y0, sg.y1) + 3.2, L, wallM, sx * (SW / 2 + 0.25), (Math.max(sg.y0, sg.y1) + 3.2) / 2, zc); wall.visible = false; g.add(wall);
         // hành lang: cột đỏ + mái ngói chạy dọc theo dốc
         const gx = sx * (SW / 2 + 1.25);
         const n = Math.max(1, Math.round(L / 3.2));
         for (let k = 0; k <= n; k++) { const zz = sg.z0 + L * k / n, yy = sg.y0 + (sg.y1 - sg.y0) * k / n; const c = cyl(0.13, 0.15, 2.7, 8, redM, gx, yy + 1.35, zz); c.userData.noCollide = true; g.add(c); const c2 = cyl(0.11, 0.13, 2.7, 8, redM, x, yy + 1.35, zz); c2.userData.noCollide = true; g.add(c2); }
         const rg = new THREE.Group(); rg.userData.gate = true; g.add(rg);
-        const rf = box(2.0, 0.14, Math.hypot(L, sg.y0 - sg.y1) + 0.3, roofM, sx * (SW / 2 + 0.7), yc + 2.8, zc); rf.rotation.x = -ang; rf.rotation.z = sx * 0.22; rf.userData.noCollide = true; rg.add(rf);
-        const ridge = box(0.18, 0.18, Math.hypot(L, sg.y0 - sg.y1) + 0.3, mat('galRidge', 0x7a2a14), sx * (SW / 2 + 0.2), yc + 2.98, zc); ridge.rotation.x = -ang; ridge.userData.noCollide = true; rg.add(ridge);
+        const rf = box(2.0, 0.14, Math.hypot(L, sg.y0 - sg.y1) + 0.3, roofM, sx * (SW / 2 + 0.7), yc + 2.8, zc); rf.rotation.x = ang; rf.rotation.z = sx * 0.22; rf.userData.noCollide = true; rg.add(rf);
+        const ridge = box(0.18, 0.18, Math.hypot(L, sg.y0 - sg.y1) + 0.3, mat('galRidge', 0x7a2a14), sx * (SW / 2 + 0.2), yc + 2.98, zc); ridge.rotation.x = ang; ridge.userData.noCollide = true; rg.add(ridge);
       });
     });
     // trụ đá + đèn lồng ở chân bậc
@@ -1048,13 +1048,10 @@ const SCENES = {
     [-1, 1].forEach(sx => { const t = tree(4.5, LEAF2(), sx * 12, zTop - 6, 'pine'); t.position.y = TOP; g.add(t); });
     // thông mọc trên sườn núi hai bên bậc
     for (let i = 0; i < 16; i++) { const a = Math.PI / 2 + (i % 2 ? 1 : -1) * (0.45 + (i >> 1) * 0.28), rr = RT + 2 + (i % 3) * 1.6, x = Math.cos(a) * rr, zz = MZ + Math.sin(a) * rr; const yy = TOP * Math.max(0, (RB - rr) / (RB - RT)); const t = tree(3.6, LEAF2(), x, zz, 'pine'); t.position.y = yy * 0.92; g.add(t); }
-    // tam quan
-    const gate = new THREE.Group(); gate.position.set(0, 0, 12.5);
-    [-2.6, 0, 2.6].forEach((x, i) => { if (i === 1) { [-1, 1].forEach(sx => gate.add(box(0.4, 3.2, 0.8, WALL(), sx * 1.0, 1.6, 0))); gate.add(box(2.4, 0.6, 0.8, WALL(), 0, 2.9, 0)); } else gate.add(box(1.8, 2.6, 0.8, WALL(), x, 1.3, 0)); const r = roof(i === 1 ? 3.2 : 2.4, 1.6, 0.9); r.position.set(x, i === 1 ? 3.2 : 2.6, 0); gate.add(r); });
-    g.add(gate);
+    // (cổng tam quan dùng cổng của khuôn viên — không dựng thêm cổng riêng)
     g.add(water(760, 11, 0, 19.5)); g.add(boat(-6, 18, 0.3)); lotusPads(g, 20, 60, 6, 0, 19);   // suối Yến kéo dài
     [-176, 176].forEach(x => { const b = mesh(new THREE.CircleGeometry(9, 28), WATER(), x, 0.05, 19.5, false); b.rotation.x = -Math.PI / 2; g.add(b); });   // vũng rộng hai đầu để thuyền quay đầu
-    riverBanks(g, 14, 25, 330, 40, 5, { mtOff: 70, farSkip: 60, gapsNear: [[-4, 8]], gapsFar: [[-3.5, 3.5], [10.1, 13.9]] });
+    riverBanks(g, 14, 25, 330, 40, 5, { mtOff: 70, farSkip: 60, gapsNear: [[-5, 5]], gapsFar: [[-3.5, 3.5], [10.1, 13.9]] });
     dockKit(g, { x: 12, z0: 27.5, z1: 22.6, booth: [16.5, 29.5, Math.PI] });
     [-14, 14, -20, 20].forEach((x, i) => g.add(tree(4.5, LEAF(), x, 9 + (i % 2) * 2)));
     return { cam: [34, 30, 46], target: [0, 9, -24] };

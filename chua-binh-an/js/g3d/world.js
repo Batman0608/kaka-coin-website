@@ -35,7 +35,7 @@ export const LAYOUT = {
     ['Đài sen trên một cột đá', 0, 2, 6, 'Đài vuông bằng gỗ trên một cột đá giữa hồ, như đóa sen vươn lên mặt nước. Leo bậc đá để lên đài.'],
     ['Hồ sen vuông (Linh Chiểu)', 9, 4, 4, 'Hồ vuông bao quanh cột đá, mùa hè sen nở kín mặt nước.'],
     ['Chùa Diên Hựu', 0, -18, 8, 'Năm 1049 vua Lý Thái Tông dựng chùa sau giấc mộng thấy Quán Âm. Tên chữ: Diên Hựu — phúc lành dài lâu.']] },
-  'huong': { yard: [{ r: [-37, 23, -7, 47], gate: ['+x', 34, 6] }, { r: [-22, -2, 22, 14.2], gate: ['+z', 3, 8] }],  spawn: [0, 34], abbot: [-14, 30], extraHall: [-25, 35, Math.PI / 2], climb: [0, 11], ferry: { from: [0, 25.5], to: [5, 13.6] }, pois: [
+  'huong': { yard: [{ r: [-37, 23, -7, 47], gate: ['+x', 34, 6] }, { r: [-22, -2, 22, 14.2], gate: ['+z', 0, 8] }],  spawn: [0, 34], abbot: [-14, 30], extraHall: [-25, 35, Math.PI / 2], climb: [0, 11], ferry: { from: [0, 25.5], to: [0, 12.6] }, pois: [
     ['Bến Đục · suối Yến', 0, 26, 4, 'Từ bến Đục, người hành hương ngồi thuyền xuôi suối Yến. Bấm "Lên thuyền" để sang bờ bên kia.', 'ferry'],
     ['Chùa Thiên Trù', -25, 35, 8, 'Chùa Thiên Trù — tương truyền là "bếp nhà trời", nơi dừng chân lễ Phật trước khi lên động.'],
     ['Cổng tam quan', 0, 12, 3, 'Ba cửa của chùa: Không môn, Vô tướng môn, Vô tác môn.'],
