@@ -75,14 +75,15 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
   /* ---------- màn hình đầu: danh sách gia phả ---------- */
   function renderHome(b) {
     const intro = el('div', 'gpintro');
-    intro.append(el('p', '', 'Ghi chép gia phả dòng họ, nhớ ngày giỗ ông bà tổ tiên. Gia phả được lưu trên máy chủ — chỉ bạn và những người bạn thêm mã nhân vật mới xem và sửa được.'));
-    const myc = el('div', 'gpcode'); myc.append(el('span', '', 'Mã nhân vật của bạn:'), el('b', '', list ? list.me : '…'));
+    const ban = el('div', 'gpban'); ban.append(el('div', 'gpico', '📜'));
+    const bt = el('div'); bt.append(el('b', '', 'Gia phả dòng họ'), el('p', '', 'Ghi chép cây phả hệ, nhớ ngày giỗ ông bà tổ tiên. Chỉ bạn và người thân được bạn thêm mã nhân vật mới xem và sửa được.')); ban.append(bt); intro.append(ban);
+    const myc = el('div', 'gpcode'); myc.append(el('span', '', '🔑 Mã nhân vật của bạn'), el('b', '', list ? list.me : '…'));
     if (list) myc.append(btn('📋 Chép', 'sm', async () => { try { await navigator.clipboard.writeText(list.me); toast('📋 Đã chép mã ' + list.me); } catch (e) {} }));
     myc.append(el('small', '', 'Đưa mã này cho người lập gia phả để được thêm vào cùng xem & sửa.'));
     intro.append(myc); b.append(intro);
     if (!list) { b.append(el('p', 'note', NET.online ? 'Đang tải…' : '⏳ Đang kết nối máy chủ… (gia phả cần có mạng)')); return; }
     const card = (f) => { const c = el('button', 'gpcard'); c.type = 'button';
-      c.append(el('b', '', f.name), el('small', '', `${f.origin ? f.origin + ' · ' : ''}${f.n} người`), el('span', 'gprole ' + f.role, f.role === 'owner' ? 'Chủ gia phả' : `Cùng quản lý · chủ: ${f.owner}`));
+      c.append(el('i', 'gpcico', '🏯'), el('b', '', f.name), el('small', '', `${f.origin ? f.origin + ' · ' : ''}${f.n} người`), el('span', 'gprole ' + f.role, f.role === 'owner' ? '👑 Chủ gia phả' : `🤝 Cùng quản lý · chủ: ${f.owner}`));
       c.onclick = () => { NET.soc('gp.get', { id: f.id }); }; return c; };
     b.append(el('h3', 'gph', '📖 Gia phả do bạn lập'));
     const g1 = el('div', 'gpgrid'); list.own.forEach(f => g1.append(card(f)));
@@ -140,13 +141,13 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
   function renderFam(b) {
     const { M, kids, gen } = model();
     const hd = el('div', 'gptop');
-    hd.append(btn('← Danh sách', 'sm ghost', () => { view = 'home'; fam = null; NET.soc('gp.list'); render(); }));
+    hd.append(btn('←', 'sm ghost gpback', () => { view = 'home'; fam = null; sel = ''; NET.soc('gp.list'); render(); }));
     const tt = el('div', 'gptt'); tt.append(el('h3', '', fam.name), el('small', '', `${fam.origin ? fam.origin + ' · ' : ''}${fam.role === 'owner' ? 'Bạn là chủ gia phả' : 'Chủ gia phả: ' + fam.owner}`)); hd.append(tt);
     const gens = Math.max(0, ...Object.values(gen)), soon = fam.people.filter(p => { const g = nextGio(p); return g && g.i <= 30; }).length;
-    const stt = el('div', 'gpstats'); [[fam.people.length, 'người'], [gens, 'đời'], [soon, 'giỗ trong 30 ngày']].forEach(([n, t]) => { const s = el('span'); s.append(el('b', '', String(n)), document.createTextNode(' ' + t)); stt.append(s); }); hd.append(stt);
+    const stt = el('div', 'gpstats'); [[fam.people.length, 'người'], [gens, 'đời'], [soon, 'giỗ 30 ngày tới']].forEach(([n, t]) => { const s = el('span'); s.append(el('b', '', String(n)), document.createTextNode(' ' + t)); stt.append(s); }); hd.append(stt);
     b.append(hd);
     const tabs = el('div', 'tutabs gptabs');
-    [['tree', '🌳 Cây phả hệ'], ['list', '📋 Danh sách'], ['gio', '🕯️ Lịch giỗ'], ['share', fam.role === 'owner' ? '👥 Người cùng quản lý' : '👥 Thông tin']].forEach(([k, t]) => { const x = el('button', tab === k ? 'on' : '', t); x.type = 'button'; x.onclick = () => { tab = k; render(); }; tabs.append(x); });
+    [['tree', '🌳 Cây phả hệ'], ['list', '📋 Danh sách'], ['gio', '🕯️ Lịch giỗ'], ['share', fam.role === 'owner' ? '👥 Quản lý' : '👥 Thông tin']].forEach(([k, t]) => { const x = el('button', tab === k ? 'on' : '', t); x.type = 'button'; x.onclick = () => { tab = k; render(); }; tabs.append(x); });
     b.append(tabs);
     const pg = el('div', 'gppage'); b.append(pg);
     if (!fam.people.length && tab !== 'share') { pg.append(el('p', 'note', 'Gia phả chưa có ai. Bấm nút dưới để thêm người đầu tiên (thường là Cụ Tổ).')); pg.append(btn('＋ Thêm người đầu tiên', 'gold', () => personForm(null, null))); return; }
@@ -158,14 +159,14 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
   function pcard(p, gen, onPick) {
     const c = el('button', `gpp ${p.gender}${p.dead || p.death ? ' dead' : ''}${sel === p.id ? ' on' : ''}`); c.type = 'button';
     c.append(el('i', 'gpgen', 'Đời ' + gen[p.id]));
-    c.append(el('b', '', p.name)); const y = yrs(p); if (y) c.append(el('small', '', y)); if (p.title) c.append(el('em', '', p.title));
+    c.append(el('span', 'gpav', (p.name.trim().split(/\s+/).pop() || '?')[0])); c.append(el('b', '', p.name)); const y = yrs(p); if (y) c.append(el('small', '', y)); if (p.title) c.append(el('em', '', p.title));
     if (p.dead || p.death) c.append(el('span', 'gpinc', '🕯️'));
     if (p.code) c.append(el('span', 'gpme', '🎮'));
     c.onclick = (e) => { e.stopPropagation(); onPick(p); }; return c;
   }
   function treeTab(pg, M, kids, gen) {
     const wrap = el('div', 'gptreewrap'), tools = el('div', 'gptools');
-    tools.append(el('span', 'note', 'Bấm vào một người để xem chi tiết và thêm Con · Vợ/Chồng · Cha/Mẹ.'));
+    tools.append(el('span', 'note gphint', '👆 Bấm vào một người để xem và thêm Con · Vợ/Chồng · Cha/Mẹ'));
     const zb = el('div', 'gpzoom'); zb.append(btn('−', 'sm', () => { zoom = Math.max(0.4, zoom - 0.15); sc.style.transform = `scale(${zoom})`; }), btn('1:1', 'sm', () => { zoom = 1; sc.style.transform = ''; }), btn('+', 'sm', () => { zoom = Math.min(1.6, zoom + 0.15); sc.style.transform = `scale(${zoom})`; }));
     tools.append(zb, btn('＋ Thêm người', 'sm gold', () => personForm(null, null)));
     pg.append(tools);
@@ -189,12 +190,14 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
     rs.forEach(r => { if (!placed.has(r.id)) rootUl.append(unit(r)); });
     fam.people.forEach(p => { if (!placed.has(p.id)) rootUl.append(unit(p)); });   // người chưa nối vào cây
     sc.append(rootUl);
-    if (sel && M[sel]) wrap.append(detail(M[sel], M, gen)); else wrap.append(el('div', 'gpdetail empty', '👆 Chọn một người trên cây để xem thông tin'));
+    if (sel && M[sel]) { wrap.classList.add('has'); wrap.append(detail(M[sel], M, gen)); }
     pg.append(wrap);
-    if (sel) setTimeout(() => { const on = sc.querySelector('.gpp.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' }); }, 30);
+    setTimeout(() => { const on = sel && sc.querySelector('.gpp.on');
+      if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+      else if (scroll.scrollWidth > scroll.clientWidth) { const first = sc.querySelector('.gptree > li > .gpcouple'); if (first) scroll.scrollLeft = Math.max(0, first.offsetLeft * zoom + first.offsetWidth * zoom / 2 - scroll.clientWidth / 2); } }, 30);   // điện thoại: tự canh giữa cụ tổ
   }
   function detail(p, M, gen) {
-    const d = el('div', 'gpdetail');
+    const d = el('div', 'gpdetail'); d.append(el('i', 'gphandle'));
     const x = el('button', 'gpx', '✕'); x.type = 'button'; x.onclick = () => { sel = ''; render(); }; d.append(x);
     d.append(el('h4', `gpn ${p.gender}`, `${p.gender === 'nu' ? '👩' : '👨'} ${p.name}`));
     const rows = [['Đời', 'Đời thứ ' + gen[p.id]], ['Vai vế', p.title], ['Tên khác', p.other], ['Chi / nhánh', p.branch], ['Năm sinh', p.birth], ['Năm mất', p.dead || p.death ? (p.death || 'không rõ') : ''],
@@ -232,7 +235,7 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
     const r2 = el('div', 'gprow'); r2.append(field('Vai vế / chức danh', tl), field('Tên khác', ot)); f.append(r2, dl);
     const r3 = el('div', 'gprow'); r3.append(field('Chi / nhánh', br), field('Thứ tự anh chị em', od)); f.append(r3);
     sec('Sinh – mất – ngày giỗ');
-    const r4 = el('div', 'gprow'); r4.append(field('Năm sinh', bi)); const dw = el('label', 'gpchk'); dw.append(dead, document.createTextNode(' Đã mất')); r4.append(dw); f.append(r4);
+    const r4 = el('div', 'gprow'); r4.append(field('Năm sinh', bi)); const dw = el('label', 'gpchk'); dw.append(dead, el('span', 'gptog'), el('b', '', 'Đã mất')); r4.append(field('Tình trạng', dw)); f.append(r4);
     const dbox = el('div', 'gpdead'); const r5 = el('div', 'gprow'); r5.append(field('Năm mất', de)); const gw = el('div', 'gpgio'); gw.append(gdd, el('span', '', '/'), gmm); r5.append(field('Ngày giỗ (âm lịch)', gw, 'Ngày/tháng âm — game tự tính ra ngày dương hằng năm')); dbox.append(r5, field('Nơi an táng', bu)); f.append(dbox);
     const tg = () => { dbox.style.display = dead.checked ? '' : 'none'; }; dead.onchange = tg; tg();
     sec('Quan hệ trong dòng họ');
@@ -247,7 +250,7 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
     spSel.onchange = () => { if (spSel.value && !sps.includes(spSel.value)) sps.push(spSel.value); spSel.value = ''; drawSp(); }; drawSp();
     f.append(field('Vợ / chồng', spBox), spSel);
     sec('Khác'); f.append(field('Quê quán / nơi sống', pl), field('Mã nhân vật trong game', cd, 'Gắn người này với nhân vật của họ trong game (không bắt buộc)'), field('Ghi chú', nt));
-    const act = el('div', 'row');
+    const act = el('div', 'row gpsave');
     act.append(btn('💾 Lưu', 'gold', () => {
       if (!nm.value.trim()) return toast('Hãy nhập họ tên');
       const person = { id: p ? p.id : '', name: nm.value, gender: g, title: tl.value, other: ot.value, branch: br.value, order: +od.value || 0, birth: bi.value, dead: dead.checked, death: dead.checked ? de.value : '', gioDay: +gdd.value || 0, gioMonth: +gmm.value || 0, burial: bu.value, place: pl.value, code: cd.value.trim().toUpperCase(), note: nt.value, fatherId: sf.value, motherId: sm.value, spouseIds: sps };
@@ -274,10 +277,10 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
     const L = fam.people.filter(p => p.gioDay && p.gioMonth).map(p => ({ p, g: nextGio(p) })).sort((a, b) => (a.g ? a.g.i : 999) - (b.g ? b.g.i : 999));
     const missing = fam.people.filter(p => (p.dead || p.death) && !(p.gioDay && p.gioMonth));
     if (!L.length) pg.append(el('p', 'note', 'Chưa có ngày giỗ nào. Khi sửa thông tin người đã mất, hãy nhập ngày giỗ âm lịch.'));
-    L.forEach(({ p, g }) => { const r = el('div', 'gpgiorow' + (g && g.i <= 7 ? ' soon' : ''));
-      const left = el('div'); left.append(el('b', '', p.name), el('small', '', `${p.title ? p.title + ' · ' : ''}giỗ ${p.gioDay}/${p.gioMonth} âm lịch`));
-      const mid = el('div', 'gpwhen', g ? (g.i === 0 ? 'HÔM NAY' : `còn ${g.i} ngày`) : '—'); if (g) mid.append(el('small', '', 'dương lịch ' + fmtD(g.d)));
-      r.append(left, mid, btn('🕯️ Ghi sổ cầu siêu', 'sm', () => { const t = getTemple(); if (NET.soc('mem.add', { temple: t.id, n: p.name.slice(0, 30), kind: 'sieu' })) toast(`🕯️ Đã ghi tên ${p.name} vào sổ cầu siêu ở ${t.name}`); else toast('Chưa kết nối máy chủ'); A.khanh && A.khanh(); }));
+    L.forEach(({ p, g }) => { const r = el('div', 'gpgiorow' + (g && g.i <= 7 ? ' soon' : '') + (g && g.i === 0 ? ' today' : ''));
+      const cal = el('div', 'gpcal'); if (g) { cal.append(el('small', '', 'Th' + (g.d.getMonth() + 1)), el('b', '', String(g.d.getDate())), el('small', '', String(g.d.getFullYear()))); } else cal.append(el('b', '', '—'));
+      const left = el('div', 'gpgioinfo'); left.append(el('b', '', p.name), el('small', '', `${p.title ? p.title + ' · ' : ''}giỗ ${p.gioDay}/${p.gioMonth} âm lịch`), el('span', 'gpwhen', g ? (g.i === 0 ? '🔔 Giỗ hôm nay' : `Còn ${g.i} ngày · ${fmtD(g.d)}`) : 'Chưa tính được ngày'));
+      r.append(cal, left, btn('🕯️ Cầu siêu', 'sm', () => { const t = getTemple(); if (NET.soc('mem.add', { temple: t.id, n: p.name.slice(0, 30), kind: 'sieu' })) toast(`🕯️ Đã ghi tên ${p.name} vào sổ cầu siêu ở ${t.name}`); else toast('Chưa kết nối máy chủ'); A.khanh && A.khanh(); }));
       pg.append(r); });
     if (missing.length) pg.append(el('p', 'note', `Còn ${missing.length} người đã mất chưa có ngày giỗ: ${missing.slice(0, 6).map(p => p.name).join(', ')}${missing.length > 6 ? '…' : ''}`));
   }
