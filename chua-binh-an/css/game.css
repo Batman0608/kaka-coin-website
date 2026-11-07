@@ -798,3 +798,8 @@ body.touch .banner { top: calc(290px + env(safe-area-inset-top, 0px)); }
   body:not(.touch) .chatinput { bottom: 150px; }
   body:not(.touch) .chatfeed { top: auto; bottom: 30px; left: 16px; width: 270px; height: 110px; justify-content: flex-start; }
 }
+/* tin nhắn chung: tự xuống dòng, đọc đủ nội dung, chữ nhỏ gọn */
+.cfl { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font-size: 10px; line-height: 1.3; padding: 2px 7px; }
+body:not(.touch) .cfl { font-size: 11px; }
+@media (min-width: 1000px) { body:not(.touch) .chatfeed { height: auto; max-height: 150px; justify-content: flex-end; } }
+@media (min-width: 1000px) { body:not(.touch) .chatbtn, body:not(.touch) .chatinput { bottom: 196px; } body:not(.touch) .chatfeed { overflow: hidden; } }

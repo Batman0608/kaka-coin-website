@@ -4,7 +4,7 @@
  *  · Lúc vắng người chơi thật, các Phật tử trong chùa (nhân vật có sẵn) thỉnh thoảng
  *    trò chuyện vài câu cho sân chùa thêm vui; ai nhắn khi vắng sẽ có người chào lại.
  * ========================================================================= */
-const MAX = 4, LIFE = 45000, CUT = 36, NAMECUT = 10;   // giới hạn chữ: tin tối đa ~36 ký tự, tên ~10 ký tự
+const MAX = 4, LIFE = 45000, CUT = 140, NAMECUT = 10;   // giới hạn chữ: tin hiện đủ, tự xuống dòng (chỉ cắt khi quá ~140 ký tự), tên ~10 ký tự
 const PROVS = ['Hà Nội', 'Huế', 'Đà Nẵng', 'Sài Gòn', 'Cần Thơ', 'Hải Phòng', 'Nghệ An', 'Thanh Hóa', 'Nam Định', 'Bắc Ninh', 'Đà Lạt', 'Quảng Ninh', 'Bình Dương', 'Đồng Nai'];
 const SAY = [
   'Nam mô A Di Đà Phật 🙏', 'Chúc cả nhà một ngày an lành', 'Chùa {T} đẹp quá mọi người ơi', 'Ai tụng kinh cùng mình không?',
