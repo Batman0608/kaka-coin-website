@@ -4,7 +4,7 @@
  * ========================================================================= */
 window.CBA = window.CBA || {};
 /* SỐ PHIÊN BẢN — tăng mỗi lần cập nhật (khớp VER trong sw.js) để tiện theo dõi trong Cài đặt */
-CBA.version = { so: 'v53', ngay: '07/11/2026' };
+CBA.version = { so: 'v54', ngay: '07/11/2026' };
 
 CBA.config = {
   templeName: 'Chùa Bình An',

@@ -731,3 +731,63 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 @keyframes cfIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 body:not(.touch) .chatfeed { top: auto; bottom: 96px; left: 16px; width: 250px; }
 body:not(.touch) .cfl { font-size: 12px; }
+
+/* =====================================================================
+ *  HUD GỌN (v54): bỏ nút +/−, thẻ người chơi gọn, nút chia sẻ thu thành
+ *  biểu tượng khi đã nhận thưởng hôm nay, các thanh sự kiện không đè nhau
+ * ===================================================================== */
+.zoom { display: none !important; }
+.tl { grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; }
+.tl > * { grid-column: 1 / -1; }
+.tl > .chip-p { grid-column: 1; min-width: 0; }
+.tl > .sharefb { grid-column: 2; align-self: center; margin: 0; }
+/* đã chia sẻ hôm nay → chỉ còn chữ f tròn */
+.sharefb.got { padding: 3px; gap: 0; width: 34px; height: 34px; justify-content: center; opacity: .85; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+.sharefb.got span { display: none; }
+.sharefb.got i { width: 26px; height: 26px; }
+/* thẻ người chơi: chỉ số xếp 2 cột cho thấp lại */
+.chip-p .pt { grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; }
+.chip-p .pt > b, .chip-p .pt > #pLv, .chip-p .pt > .bar { grid-column: 1 / -1; }
+
+/* ---- ĐIỆN THOẠI ---- */
+body.touch .tl { top: calc(58px + env(safe-area-inset-top, 0px)); gap: 4px; max-width: calc(100vw - 84px); }
+body.touch .tl .chip-p { padding: 4px 10px 4px 4px; gap: 7px; border-radius: 26px; max-width: 200px; }
+body.touch .chip-p .av { width: 34px; height: 34px; font-size: 15px; }
+body.touch .chip-p b { font-size: 12.5px; }
+body.touch .chip-p small { font-size: 10px; }
+body.touch .chip-p .bar { height: 4px; margin: 1px 0; }
+body.touch .tl > .sharefb:not(.got) { padding: 3px 9px 3px 3px; gap: 5px; }
+body.touch .sharefb:not(.got) i { width: 24px; height: 24px; font-size: 17px; line-height: 24px; }
+body.touch .sharefb:not(.got) b { font-size: 11px; } body.touch .sharefb:not(.got) small { font-size: 9.5px; }
+body.touch .tname { font-size: 17px; line-height: 1.1; margin-top: 2px; }
+body.touch .tplace { font-size: 10.5px; margin-top: -3px; opacity: .9; }
+body.touch .tl .rank { width: auto; max-width: 62vw; margin-top: 2px; }
+body.touch .tl .rank.min { justify-self: start; }
+body.touch .rank-h { padding: 4px 10px; font-size: 11.5px; gap: 8px; }
+body.touch .menu-btn { top: calc(58px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; font-size: 21px; }
+body.touch #goBtn { top: calc(108px + env(safe-area-inset-top, 0px)); padding: 6px 11px; font-size: 11.5px; }
+body.touch .side { top: calc(146px + env(safe-area-inset-top, 0px)); }
+body.touch .lunarbar { top: calc(28px + env(safe-area-inset-top, 0px)); }
+/* thanh tụng kinh / lễ hội / tu tập: xuống dưới cụm thông tin, chữ nhỏ, xếp tầng */
+body.touch .kinhbar { top: calc(192px + env(safe-area-inset-top, 0px)); font-size: 10.5px; padding: 4px 10px; gap: 5px; max-width: 86vw; }
+body.touch .kinhbar .ic { font-size: 13px; }
+body.touch .kinhbar.festbar { top: calc(220px + env(safe-area-inset-top, 0px)); }
+body.touch .kinhbar.tkbar { top: calc(248px + env(safe-area-inset-top, 0px)); }
+
+/* ---- MÁY TÍNH ---- */
+@media (min-width: 1000px) {
+  body:not(.touch) .tl { top: 42px; width: 276px; gap: 6px; padding: 10px; }
+  body:not(.touch) .tl > .sharefb:not(.got) { grid-column: 1 / -1; padding: 4px 10px 4px 5px; }
+  body:not(.touch) .tl .chip-p { padding: 6px 10px 6px 6px; }
+  body:not(.touch) .chip-p .av { width: 40px; height: 40px; font-size: 18px; }
+  body:not(.touch) .chip-p b { font-size: 14px; }
+  body:not(.touch) .chip-p .bar { margin: 3px 0 2px; }
+  body:not(.touch) .tname { font-size: 20px; padding-top: 2px; }
+  body:not(.touch) .tl .obj { padding: 5px 9px; font-size: 12px; }
+  body:not(.touch) #goBtn { padding: 7px 12px; font-size: 13px; }
+  body:not(.touch) .tl .online { margin: -2px 0; }
+  body:not(.touch) .rank-h { padding: 6px 10px; }
+  body:not(.touch) .rank li { padding: 3px 6px; }
+}
+/* thông báo lớn (lên hạng…) trên điện thoại: hạ xuống giữa, không che thẻ người chơi */
+body.touch .banner { top: calc(290px + env(safe-area-inset-top, 0px)); }
