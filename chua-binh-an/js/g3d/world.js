@@ -35,11 +35,12 @@ export const LAYOUT = {
     ['Đài sen trên một cột đá', 0, 2, 6, 'Đài vuông bằng gỗ trên một cột đá giữa hồ, như đóa sen vươn lên mặt nước. Leo bậc đá để lên đài.'],
     ['Hồ sen vuông (Linh Chiểu)', 9, 4, 4, 'Hồ vuông bao quanh cột đá, mùa hè sen nở kín mặt nước.'],
     ['Chùa Diên Hựu', 0, -18, 8, 'Năm 1049 vua Lý Thái Tông dựng chùa sau giấc mộng thấy Quán Âm. Tên chữ: Diên Hựu — phúc lành dài lâu.']] },
-  'huong': { yard: [{ r: [-37, 23, -7, 47], gate: ['+x', 34, 6] }, { r: [-15, -1, 15, 14.2], gate: ['+z', 3, 8] }],  spawn: [0, 34], abbot: [-14, 30], extraHall: [-25, 35, Math.PI / 2], ferry: { from: [0, 25.5], to: [5, 13.6] }, pois: [
+  'huong': { yard: [{ r: [-37, 23, -7, 47], gate: ['+x', 34, 6] }, { r: [-22, -2, 22, 14.2], gate: ['+z', 3, 8] }],  spawn: [0, 34], abbot: [-14, 30], extraHall: [-25, 35, Math.PI / 2], climb: [0, 11], ferry: { from: [0, 25.5], to: [5, 13.6] }, pois: [
     ['Bến Đục · suối Yến', 0, 26, 4, 'Từ bến Đục, người hành hương ngồi thuyền xuôi suối Yến. Bấm "Lên thuyền" để sang bờ bên kia.', 'ferry'],
     ['Chùa Thiên Trù', -25, 35, 8, 'Chùa Thiên Trù — tương truyền là "bếp nhà trời", nơi dừng chân lễ Phật trước khi lên động.'],
     ['Cổng tam quan', 0, 12, 3, 'Ba cửa của chùa: Không môn, Vô tướng môn, Vô tác môn.'],
-    ['Động Hương Tích', 0, 3, 4, 'Leo hết bậc đá là động Hương Tích. Năm 1770 chúa Trịnh Sâm cho khắc 5 chữ "Nam Thiên Đệ Nhất Động".']] },
+    ['Chân bậc đá lên núi', 0, 9, 3, 'Đường lên chùa là 64 bậc đá với hai chiếu nghỉ, hai bên có hành lang mái ngói che mưa nắng cho người hành hương.'],
+    ['Chánh điện đỉnh núi', 0, -40, 6, 'Leo hết bậc đá là chánh điện thờ Quan Âm trên đỉnh núi. Tương truyền Bồ Tát Quan Âm tu hành ở vùng núi Hương Sơn.']] },
   'yen-tu': { yard: [{ r: [-48, 30, -19, 60], gate: ['+z', -34, 6] }],  spawn: [0, 48], abbot: [-26, 58], extraHall: [-34, 43, 0], stream: [14, 34], pois: [
     ['Chùa Giải Oan', -34, 44, 7, 'Nơi Phật hoàng cho lập đàn cầu siêu cho các cung nữ.'],
     ['Suối Giải Oan', 12, 34, 4, 'Rửa mặt bên suối như gột bỏ phiền muộn trước khi lên núi.'],
@@ -131,6 +132,7 @@ export function buildWorld(scene, temple) {
   const bg = BG_OF[temple.id] || null;
   const conf = buildLandmark(root, temple.model || 'hall', { interior: true, set, altar, bg, style: temple.id });
   const L = LAYOUT[temple.id] || LAYOUT['binh-an'];
+  root.traverse(o => { if (o.userData.tree) o.userData.builderTree = true; });   // cây của mô hình gốc (vẽ trước khi có sân/điện mở rộng)
   if (L.extraHall) {
     const h = interiorHall({ w: 10, d: 7, h: 3.4, tiers: 2 }, set, altar, bg, temple.id); h.position.set(L.extraHall[0], 0, L.extraHall[1]); h.rotation.y = L.extraHall[2] || 0; root.add(h);
   }
@@ -156,6 +158,7 @@ export function buildWorld(scene, temple) {
   if (L.decor === 'chua-ha') haDecor(root, L); else if (L.decor) yardDecor(root, L);
   if (Lx.yard) buildYards(root, Lx.yard, temple);
   if (Lx.grown) yardGreen(root, Lx);
+  root.userData.treeAudit = pruneTrees(root, Lx);
   // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
   let meritAt = null;
   if (halls[0]) {
@@ -486,7 +489,8 @@ function yardGreen(root, L) {
   root.updateMatrixWorld(true);
   const probe = new Collision(); probe.build(root);
   const g = new THREE.Group(); root.add(g);
-  const free = (x, z, y, rad) => { for (const [dx, dz] of [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]]) { const h = probe.heightAt(x + dx, z + dz, y + 0.5, 0.3); if (h == null || Math.abs(h - y) > 0.25) return false; } return !HALLS.some(H => { const p = H.getWorldPosition(new THREE.Vector3()), m = H.userData.mainHall; return Math.hypot(x - p.x, z - p.z) < Math.max(m.w, m.d) / 2 + 7; }); };
+  const free = (x, z, y, rad) => { if (L.climb && Math.abs(x - L.climb[0]) < 4.5 + rad && z < L.climb[1] + 3) return false;   // lối lên bậc núi
+    for (const [dx, dz] of [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]]) { const h = probe.heightAt(x + dx, z + dz, y + 0.5, 0.3); if (h == null || Math.abs(h - y) > 0.25) return false; } return !HALLS.some(H => { const p = H.getWorldPosition(new THREE.Vector3()), m = H.userData.mainHall; return Math.hypot(x - p.x, z - p.z) < Math.max(m.w, m.d) / 2 + 7; }); };
   const stone = STONE(), lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
   const lantern = (x, z, y) => { const l = new THREE.Group(); l.position.set(x, y, z);
     l.add(box(0.6, 0.2, 0.6, stone, 0, 0.1, 0)); l.add(cyl(0.1, 0.13, 0.85, 8, stone, 0, 0.62, 0)); l.add(box(0.5, 0.42, 0.5, lampM, 0, 1.25, 0)); l.add(box(0.36, 0.44, 0.62, stone, 0, 1.25, 0));
@@ -621,6 +625,7 @@ function gardenDecor(root, L, temple, col, halls) {
   const avoid = [];   // [x, z, r]
   (L.pois || []).forEach(p => { if (p[5]) avoid.push([p[1], p[2], 4]); });
   if (L.abbot) avoid.push([L.abbot[0], L.abbot[1], 3]);
+  if (L.climb) avoid.push([L.climb[0], L.climb[1], 6], [L.climb[0], L.climb[1] - 6, 6]);   // chân bậc lên núi: để trống lối đi
   if (L.tree) avoid.push([L.tree[0], L.tree[1], 15]);
   root.traverse(o => { if (o.userData.burner) { const v = o.getWorldPosition(new THREE.Vector3()); avoid.push([v.x, v.z, 3.5]); } });
   // lối chính: từ cửa chánh điện ra cổng / chỗ xuất hiện — chừa trống 5 m mỗi bên
@@ -738,4 +743,45 @@ function gardenDecor(root, L, temple, col, halls) {
     }
   }
   return { spots, added: chosen.length > 0 };
+}
+
+/* =====================================================================
+ *  RÀ SOÁT CÂY: không để cây mọc trong điện, sảnh, trên bậc/nền công trình
+ *  · cây nằm trong khung điện (kể cả hiên, bậc trước điện) → bỏ
+ *  · cây đâm xuyên công trình (tường, tháp, cổng, nền cao, hành lang) → bỏ
+ *  · cây của mô hình gốc rơi vào sân lát gạch: gần điện/lối giữa → bỏ, chỗ khác → thêm bồn cây đá
+ * ===================================================================== */
+function pruneTrees(root, L) {
+  root.updateMatrixWorld(true);
+  const trees = [], solids = [], log = [];
+  root.traverse(o => { if (o.userData.tree) trees.push(o); });
+  const inTree = (o) => { for (let p = o; p; p = p.parent) if (p.userData && p.userData.tree) return true; return false; };
+  root.traverse(o => {
+    if (!o.isMesh || o.userData.mountain || o.userData.noCollide || inTree(o)) return;
+    const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3());
+    if (sz.y < 0.6 || sz.x > 70 || sz.z > 70) return;   // bỏ qua nền, mặt nước, đất lớn
+    solids.push(b);
+  });
+  const hallBoxes = HALLS.filter(h => { for (let p = h; p; p = p.parent) if (p === root) return true; return false; }).map(h => new THREE.Box3().setFromObject(h).expandByScalar(0.8));
+  const yards = (L.yard || []).map(y => { const [x0, z0, x1, z1] = y.r; return { x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1), gate: y.gate, y: y.y || 0 }; });
+  const p = new THREE.Vector3();
+  trees.forEach(t => {
+    if (!t.parent) return;
+    t.getWorldPosition(p); const x = p.x, z = p.z, y = p.y, h = t.userData.tree || 5;
+    const why = hallBoxes.some(b => x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z && y < b.max.y) ? 'điện'
+      : solids.some(b => [0.6, 1.5].some(dy => b.containsPoint(new THREE.Vector3(x, y + dy, z)) )) ? 'công trình' : null;
+    if (why) { t.parent.remove(t); log.push(`${why} ${x.toFixed(1)},${z.toFixed(1)}`); return; }
+    if (!t.userData.builderTree) return;
+    const yd = yards.find(r => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
+    if (!yd) return;
+    const nearHall = hallBoxes.some(b => x > b.min.x - 4 && x < b.max.x + 4 && z > b.min.z - 4 && z < b.max.z + 6);
+    const gx = yd.gate ? (/x/.test(yd.gate[0]) ? null : yd.gate[1]) : 0, gz = yd.gate && /x/.test(yd.gate[0]) ? yd.gate[1] : null;
+    const onAxis = (gx != null && Math.abs(x - gx) < 5) || (gz != null && Math.abs(z - gz) < 5);
+    if (nearHall || onAxis) { t.parent.remove(t); log.push(`sân ${x.toFixed(1)},${z.toFixed(1)}`); return; }
+    // bồn cây đá quanh gốc (cây trồng có chủ ý trong sân)
+    const r = Math.max(0.7, h * 0.13), ring = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.06, 0.38, 14, 1, true), mat('planter', 0x9a9284)); ring.position.set(0, 0.19, 0);
+    const soil = new THREE.Mesh(new THREE.CircleGeometry(r - 0.02, 14), mat('soil', 0x4a3420)); soil.rotation.x = -Math.PI / 2; soil.position.y = 0.3; soil.userData.noCollide = true; t.add(ring, soil);
+    log.push(`bồn ${x.toFixed(1)},${z.toFixed(1)}`);
+  });
+  return log;
 }

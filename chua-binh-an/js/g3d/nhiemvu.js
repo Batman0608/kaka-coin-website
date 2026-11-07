@@ -85,7 +85,8 @@ export function initMissions(X) {
   }
 
   /* ---------------- bảng bên phải ---------------- */
-  const box = el('div', 'mqp'); box.id = 'mqPanel'; document.body.append(box);
+  const box = el('div', 'mqp'); box.id = 'mqPanel';
+  { const rk = document.getElementById('rank'); if (rk && rk.parentNode) rk.after(box); else document.body.append(box); }   // nằm ngay dưới Bảng Công Đức
   function rowEl(m, big) {
     const d = done(m), r = el('button', 'mqr' + (d ? ' done' : '') + (big ? ' big' : ''));
     const pct = Math.round(prog(m) / m.n * 100);

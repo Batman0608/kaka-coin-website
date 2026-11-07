@@ -902,3 +902,23 @@ body.focus .mqp, body:has(.veil:not([hidden])) .mqp { display: none; }
 .mqlist .mqr { text-align: left; justify-content: flex-start; } .mqlist .mqt b, .mqlist .mqt small { text-align: left; }
 .mqp .mqr { text-align: left; }
 .mqp, .mqp * { font-family: var(--sans); }
+
+/* v57: bảng nhiệm vụ nằm dưới Bảng Công Đức (trong cụm thông tin bên trái) */
+.tl > .mqp { position: static; width: 190px; max-width: 100%; justify-self: start; margin-top: 2px; }
+.tl > .mqp.min { width: auto; }
+body.touch .tl > .mqp { padding: 4px; gap: 3px; }
+body.touch .tl > .mqp .mqr { padding: 4px 5px; }
+@media (max-height: 720px) { body.touch .tl > .mqp .mqr + .mqr { display: none; } }
+/* thanh tụng kinh / lễ hội / tu tập trên điện thoại: chuyển sang cột phải, dưới nút Vào điện */
+body.touch .kinhbar { left: auto; right: max(6px, env(safe-area-inset-right, 0px)); transform: none; top: calc(236px + env(safe-area-inset-top, 0px)); max-width: 52vw; white-space: normal; line-height: 1.25; border-radius: 12px; }
+body.touch .kinhbar.festbar { top: calc(300px + env(safe-area-inset-top, 0px)); }
+body.touch .kinhbar.tkbar { top: calc(364px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 1000px) {
+  body:not(.touch) .tl > .mqp { width: 100%; padding: 6px; background: rgba(0, 0, 0, .22); border-color: rgba(240, 192, 80, .25); box-shadow: none; backdrop-filter: none; }
+  body:not(.touch) .tl > .mqp .mqr + .mqr { display: none; }
+  body:not(.touch) .tl .online { display: none; }
+}
+@media (min-width: 1000px) {
+  body:not(.touch) .chatbtn, body:not(.touch) .chatinput { bottom: 132px; }
+  body:not(.touch) .chatfeed { bottom: 22px; max-height: 104px; }
+}

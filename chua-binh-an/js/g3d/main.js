@@ -1744,14 +1744,21 @@ $('tName').onclick = () => openTemplePicker(); $('bPass').onclick = openProfile;
   document.addEventListener('pointerdown', (e) => { if (document.body.classList.contains('touch') && side.classList.contains('open') && !side.contains(e.target) && e.target !== mb) close(); });
 })();
 // (đã bỏ nút +/−: phóng to bằng 2 ngón tay hoặc con lăn chuột)
+function climbFirst() {   // chùa trên núi: phải leo bậc lên đỉnh mới vào được chánh điện
+  const C2 = W && W.layout.climb, h = W && W.halls[0]; if (!C2 || !h || me.y > h.altar.y - 3) return false;
+  standUp(); fade(() => { me.pos.set(C2[0], 0, C2[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.yaw = Math.PI; cam.yaw = 0; updGo(); });
+  toast('⛰ Chánh điện ở trên đỉnh núi · hãy leo bậc đá lên để vào lễ Phật'); return true;
+}
 function goHall(done) {   // đưa người chơi vào đệm trong chánh điện (nếu đang ở ngoài)
   const h = W && W.halls[0]; if (!h) return done && done();
   if (Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7) return done && done();
+  if (climbFirst()) return;
   standUp(); fade(() => { const c = h.cushions[h.cushions.length - 1]; me.pos.set(c.x, 0, c.z + 0.9); me.y = c.y; me.yaw = Math.atan2(h.altar.x - c.x, h.altar.z - c.z); cam.yaw = me.yaw + Math.PI; updGo(); if (done) setTimeout(done, 500); });
 }
 $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
   const h = W.halls[0]; if (!h) return;
   const inHall = Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7;
+  if (!inHall && climbFirst()) return;
   standUp();
   fade(() => {
     if (inHall) { const L = W.layout; me.pos.set(L.spawn[0], 0, L.spawn[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.yaw = Math.PI; cam.yaw = 0; }
