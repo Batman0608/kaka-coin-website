@@ -13,6 +13,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), zlib =
 const { WebSocketServer } = require('ws');
 const BOTD = require('./duyen-bot.js');
 const { makeGiaPha } = require('./giapha.js');
+const { makeCongDong } = require('./congdong.js');
 
 const PORT = +process.env.PORT || 8080;
 const ROOM_CAP = +process.env.ROOM_CAP || 30;        // người / kênh (giới hạn để điện thoại vẽ mượt)
@@ -139,6 +140,7 @@ const SOC = (() => {
     const now = Date.now(); if (now - (p.socWin || 0) > 5000) { p.socWin = now; p.socN = 0; } if (++p.socN > 25) return;   // chống spam: tối đa 25 yêu cầu / 5 giây
     if (op.startsWith('du.')) return DU.handle(p, u, op, m, now);
     if (op.startsWith('gp.')) return GP.handle(p, op, m);
+    if (op.startsWith('cd.')) return CD.handle(p, op, m);
     if (op === 'bt.on') {   // lên thuyền tham quan: mỗi chuyến tối đa 6 người
       const trip = m.trip | 0, k = clean(m.temple, 20) + '#' + trip;
       Object.keys(BOATS).forEach(x => { if (now - BOATS[x].t > 15 * 60000) delete BOATS[x]; });
@@ -207,7 +209,8 @@ const SOC = (() => {
   function onSeen(p) { DU && DU.onSeen && DU.onSeen(p); }
   const DU = makeDuyen({ D, mark, online, reply, U });
   const GP = makeGiaPha({ D, mark, online, reply, send, clean, codeOf });
-  return { handle, seen: (p) => { seen(p); onSeen(p); }, gone, DU };
+  const CD = makeCongDong({ D, mark, reply, online, clean, cleanUid, codeOf, U, DATA_DIR });
+  return { handle, seen: (p) => { seen(p); onSeen(p); }, gone, DU, CD };
 })();
 const DU = SOC.DU;
 
@@ -424,6 +427,8 @@ const server = http.createServer((req, res) => {
     if (remote && !(ADMIN_KEY && key === ADMIN_KEY)) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Trang quản trị chỉ mở trên máy chủ (hoặc thêm ?key=... theo ADMIN_KEY trong cau-hinh-may-chu.bat)'); }
   }
   if (u === '/duyen/anh' && req.method === 'POST') return DU.upload(req, res);
+  if (u === '/cd/anh' && req.method === 'POST') return SOC.CD.upload(req, res);
+  { const mc = u.match(/^\/cd\/anh\/([a-z0-9]+)\.jpg$/); if (mc) return SOC.CD.photo(req, res, mc[1]); }
   { const mm = u.match(/^\/duyen\/anh\/([a-z0-9]+)\.jpg$/); if (mm) return DU.photo(req, res, mm[1]); }
   if (u === '/duyen/admin') { const remote = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || !/^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || ''); const key = new URL(req.url, 'http://x').searchParams.get('key');
     if (remote && !(ADMIN_KEY && key === ADMIN_KEY)) { res.writeHead(403); return res.end('Chỉ mở trên máy chủ'); }

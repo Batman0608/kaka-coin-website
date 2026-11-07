@@ -1,12 +1,12 @@
 /* =========================================================================
  *  THUYỀN RỒNG THAM QUAN — sông Hương (Thiên Mụ), hồ Tam Chúc, suối Yến (chùa Hương)
- *  · Người bán vé đứng ở bến ngoài cổng: 50 hoa sen / 1 vòng.
+ *  · Người bán vé đứng ở bến ngoài cổng: 30 hoa sen / 1 vòng.
  *  · Thuyền chạy theo lịch chung cho mọi người (đỗ bến ~45 giây rồi đi một vòng),
  *    nên ai ở cùng chùa cũng thấy cùng một con thuyền ở cùng một chỗ.
  *  · Mỗi chuyến tối đa 6 người (máy chủ giữ chỗ). Trên thuyền đi lại tự do trong mui.
  *  · Nút "⬇ Xuống thuyền" luôn hiện khi đang ở trên thuyền.
  * ========================================================================= */
-const PRICE = 50, DOCK = 45, SPEED = 4.6;
+const PRICE = 30, DOCK = 45, SPEED = 4.6;
 const CFG = {
   'thien-mu': { name: 'Thuyền rồng sông Hương', scale: 1, seller: [3.2, 12.7, Math.PI], pier: [8, 15.6],
     route: [[8, 19.6], [45, 21.5], [95, 23.9], [145, 23.9], [168, 26.5], [150, 29.1], [95, 29.1], [30, 31.5], [-50, 32], [-130, 31], [-165, 27], [-150, 22], [-90, 20.5], [-30, 19.8]],

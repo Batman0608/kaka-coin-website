@@ -816,7 +816,7 @@ function dockKit(g, { x, z0, z1, booth }) {
     k.add(box(2.6, 1.05, 1.0, mat('boothWood', 0x7a3a1a), 0, 0.525, 0.4)); k.add(box(2.8, 0.08, 1.2, GOLD(), 0, 1.09, 0.4));
     [[-1.3, -0.5], [1.3, -0.5], [-1.3, 0.9], [1.3, 0.9]].forEach(([px, pz]) => k.add(cyl(0.08, 0.08, 2.6, 8, RED(), px, 1.3, pz)));
     const rf = roof(3.4, 2.2, 0.9, 0x6a2a14); rf.position.set(0, 2.6, 0.2); rf.traverse(o => { o.userData.noCollide = true; }); k.add(rf);
-    const sg = plaque('BẾN THUYỀN', 'Vé tham quan 50 hoa sen', 2.6, 0.62); sg.position.set(0, 2.25, 1.02); sg.traverse(o => { o.userData.noCollide = true; }); k.add(sg);
+    const sg = plaque('BẾN THUYỀN', 'Vé tham quan 30 hoa sen', 2.6, 0.62); sg.position.set(0, 2.25, 1.02); sg.traverse(o => { o.userData.noCollide = true; }); k.add(sg);
     [-1.1, 1.1].forEach(px => { const l = mesh(new THREE.SphereGeometry(0.2, 10, 8), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), px, 2.0, 1.0, false); l.scale.y = 1.25; l.userData.noCollide = true; k.add(l); }); }
 }
 /* hai bờ sông dài: đồi thấp, rặng tre, cây — để đi thuyền xa vẫn có cảnh */

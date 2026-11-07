@@ -156,7 +156,7 @@ export function initTuHanh(X) {
 
   /* =================== 5. LỄ HỘI · SỰ KIỆN MÙA =================== */
   function season(d) {
-    if (FORCE && !d) return FORCE === 'giaothua' ? 'tet' : FORCE;
+    if (FORCE && !d) { const f = FORCE === 'giaothua' ? 'tet' : FORCE; if (['phatdan', 'vulan', 'tet'].includes(f)) return f; }
     const L = lunar(d); if (!L || L.leap) return '';
     if (L.month === 4 && L.day >= 8 && L.day <= 15) return 'phatdan';
     if (L.month === 7 && L.day >= 1 && L.day <= 15) return 'vulan';
@@ -267,14 +267,23 @@ export function initTuHanh(X) {
     banner('🐟 Phóng sinh', 'Nguyện các loài được tự tại an vui', `+18 hạt${gm ? ' · +' + gm + ' công đức' : ''}`); ticker(`🐟 ${P.name} vừa phóng sinh tại ${temple().name}`);
   }
   function ripple(p) { const r = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.16, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.copy(p); r.position.y += 0.03; add3d(r); fx.push({ mesh: r, ripple: true, t: 0, dur: 1.2 }); }
-  function floatLantern(text) {   // hoa đăng: đèn hoa sen trôi trên mặt nước
-    const b = nearWater(); if (!b) return; const p = waterPoint(b), g = new THREE.Group();
+  function floatLantern(text, o = {}) {   // hoa đăng: đèn hoa sen trôi trên mặt nước (o.quiet: đèn của người khác, không thưởng)
+    const b = o.b || nearWater(); if (!b) return; const p = o.p || waterPoint(b), g = new THREE.Group();
     for (let i = 0; i < 8; i++) { const a = i / 8 * 7, pe = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), M(0xf6a0bc, { emissive: 0xff7aa0, emissiveIntensity: 0.35 })); pe.scale.set(0.6, 1.3, 0.4); pe.position.set(Math.cos(a) * 0.14, 0.08, Math.sin(a) * 0.14); pe.rotation.set(-Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6); g.add(pe); }
     const flame = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd36b, toneMapped: false })); flame.position.y = 0.2; flame.scale.y = 1.6; g.add(flame);
-    const pl = new THREE.PointLight(0xffb050, 0.6, 3, 2); pl.position.y = 0.3; g.add(pl);
-    g.position.copy(p); add3d(g); floating.push({ g, b, v: new THREE.Vector2((Math.random() - 0.5) * 0.15, (Math.random() - 0.5) * 0.15), ph: Math.random() * 6, lbl: text ? X.label('🪷 ' + text, 'wishlbl') : null });
-    while (floating.length > 30) { const o = floating.shift(); scene.remove(o.g); if (o.lbl) o.lbl.remove(); }
+    if (!o.quiet) { const pl = new THREE.PointLight(0xffb050, 0.6, 3, 2); pl.position.y = 0.3; g.add(pl); }
+    g.position.copy(p); add3d(g); floating.push({ g, b, v: new THREE.Vector2((Math.random() - 0.5) * 0.15, (Math.random() - 0.5) * 0.15), ph: Math.random() * 6, lbl: text ? X.label((o.icon || '🪷 ') + text, 'wishlbl' + (o.mine ? ' mine' : '')) : null });
+    while (floating.length > 30) { const f = floating.shift(); scene.remove(f.g); if (f.lbl) f.lbl.remove(); }
+    if (o.quiet || o.free) return g;
     markToday('hoadang'); addBeads(9); const gm = addMerit(10, true); A.khanh(); practiced(); toast(`🪷 Hoa đăng đã trôi trên mặt hồ · +9 hạt${gm ? ' · +' + gm + ' công đức' : ''}`);
+  }
+  function floatOthers(list) {   // đèn của người khác trôi trên sông/hồ của chùa này, có hiện tên
+    const w = W(); if (!w || !w.col.waters.length) return 0;
+    const ws = w.col.waters.map(b => ({ b, d: Math.hypot((b.min.x + b.max.x) / 2 - me.pos.x, (b.min.z + b.max.z) / 2 - me.pos.z), a: (b.max.x - b.min.x) * (b.max.z - b.min.z) })).filter(x => x.a > 6).sort((a, b) => a.d - b.d);
+    if (!ws.length) return 0; let n = 0;
+    list.slice(0, 18).forEach((it, i) => { const b = ws[i % Math.min(2, ws.length)].b, cx = Math.max(b.min.x + 0.8, Math.min(b.max.x - 0.8, me.pos.x + (Math.random() - 0.5) * 24)), cz = Math.max(b.min.z + 0.8, Math.min(b.max.z - 0.8, me.pos.z + (Math.random() - 0.5) * 24));
+      floatLantern(`${it.name}: ${it.text}`.slice(0, 46), { b, p: new THREE.Vector3(cx, b.max.y + 0.02, cz), quiet: true, icon: it.ev === 'duyen' ? '💞 ' : '🏮 ' }); n++; });
+    return n;
   }
   function bathBuddha() {
     const g = props.bath; me.yaw = Math.atan2(g.position.x - me.pos.x, g.position.z - me.pos.z); me.av.setPose('incense'); setTimeout(() => me.av.setPose('idle'), 2400);
@@ -395,7 +404,7 @@ export function initTuHanh(X) {
     if (Date.now() - chantSent > 60000) { chantSent = Date.now(); NET.act('chant', 'kinh'); }
     practiced();
     const n = NET.chanters(), mult = n >= 4 ? 3 : n >= 1 ? 2 : 1;
-    const box = $('cMerit'); if (box && n) box.dataset.group = `🙏 Đang tụng cùng ${n} người · hạt ×${mult}`;
+    const box = $('cMerit'); if (box && n) box.dataset.group = `🙏 Đang tụng cùng ${n} người · thưởng viên mãn ×${mult}`;
     return mult;
   }
 
@@ -420,7 +429,7 @@ export function initTuHanh(X) {
     checkUnlocks();
     modal('🪷 Tu tập', (box) => {
       const tabs = el('div', 'tutabs'), body = el('div', 'tubody'); box.append(tabs, body);
-      const TABS = [['homnay', '📅 Hôm nay'], ['vuon', '🌱 Vườn'], ['duong', '☸️ Đường tu'], ['suutap', '🎁 Sưu tập'], ['hoihuong', '🕯 Hồi hướng'], ['ban', '🤝 Bạn đạo'], ['daotrang', '🪷 Đạo tràng']];
+      const TABS = [['homnay', '📅 Hôm nay'], ['sukien', '🎉 Sự kiện'], ['vuon', '🌱 Vườn'], ['duong', '☸️ Đường tu'], ['suutap', '🎁 Sưu tập'], ['hoihuong', '🕯 Hồi hướng'], ['ban', '🤝 Bạn đạo'], ['daotrang', '🪷 Đạo tràng']];
       const show = (k) => { [...tabs.children].forEach(b => b.classList.toggle('on', b.dataset.k === k)); body.innerHTML = ''; socView = null; gdView = null; VIEWS[k](body); };
       TABS.forEach(([k, t]) => { const b = el('button', '', t); b.dataset.k = k; b.onclick = () => show(k); tabs.append(b); });
       show(tab);
@@ -455,6 +464,7 @@ export function initTuHanh(X) {
     b.append(list);
   }
   const VIEWS = {
+    sukien(b) { if (X.eventsView) X.eventsView(b); },
     homnay(b) {
       const s = tkNow(), nx = tkNext(), L = lunar(), se = season();
       b.append(el('h3', '', '🕰 Lịch sinh hoạt trong ngày (giờ Việt Nam)'));
@@ -568,6 +578,7 @@ export function initTuHanh(X) {
     if (props.ongdo && nearP(props.ongdo.position, 2.6)) return doneToday('chu') ? null : { label: '🖌 Xin chữ ông đồ', fn: xinChu };
     if (props.mai && nearP(props.mai.position, 2.2)) return doneToday('loc') ? null : { label: '🌸 Hái lộc', fn: haiLoc };
     if (nearWater()) {
+      const ex = X.waterCtx && X.waterCtx(); if (ex) return ex;
       const s = season();
       if ((s === 'phatdan' || s === 'vulan') && !doneToday('hoadang')) return { label: '🪷 Thả hoa đăng', fn: () => floatLantern(s === 'vulan' ? 'Vu Lan báo hiếu' : 'Mừng Phật Đản') };
       if (holy() && !doneToday('release')) return { label: '🐟 Phóng sinh', fn: releaseFish };
@@ -598,6 +609,6 @@ export function initTuHanh(X) {
   return {
     beadMult: () => (tkNow() ? 1.5 : 1), practiced, preCheckIn, postCheckIn, malaRound, merit, chantBeat, guide, medMinute,
     quiz(st, ok, isLegend) { const id = temple().id; if (isLegend && ok && !T.lq[id]) { T.lq[id] = 1; addBeads(54); banner('📖 Ấn tri thức', temple().name, 'Trả lời đúng câu đố sự tích · +54 hạt'); save(); } },
-    frontSeat: () => has('seat:front'), context, onTemple, dispose, step, openHub, season, holy
+    frontSeat: () => has('seat:front'), context, onTemple, dispose, step, openHub, season, holy, floatLantern, floatOthers, nearWater, lunar: () => lunar()
   };
 }
