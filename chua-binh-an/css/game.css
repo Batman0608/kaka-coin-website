@@ -835,3 +835,70 @@ body:not(.touch) #bShare { right: 20px; bottom: 34px; width: 70px; }
 body:not(.touch) #bShare i { width: 48px; height: 48px; font-size: 27px; }
 body:not(.touch) #bShare small { font-size: 11px; }
 body.focus #bShare { display: none !important; }
+
+/* =====================================================================
+ *  v56: BẢNG NHIỆM VỤ HẰNG NGÀY (cạnh phải)
+ * ===================================================================== */
+.mqp { position: fixed; z-index: 6; right: max(6px, env(safe-area-inset-right, 0px)); top: calc(236px + env(safe-area-inset-top, 0px)); width: 172px;
+  display: grid; gap: 4px; padding: 6px; border-radius: 14px; background: rgba(26, 10, 4, .78); border: 1px solid rgba(240, 192, 80, .45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4); backdrop-filter: blur(4px); color: #fff3dc; font-family: var(--sans); }
+.mqp.min { width: auto; padding: 3px; }
+:where(.mqp button) { all: unset; box-sizing: border-box; cursor: pointer; }
+.mqh { display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 12px; color: #ffd36b; position: relative; }
+.mqh b { flex: 1; font-weight: 800; white-space: nowrap; } .mqh i { font-style: normal; font-size: 10px; }
+.mqdot { position: absolute; top: -7px; right: -7px; min-width: 16px; height: 16px; border-radius: 8px; background: #e0402a; color: #fff; font: 800 10px/16px var(--sans); text-align: center; font-style: normal; animation: mqBlink 1.2s ease-in-out infinite; }
+.mqr { display: flex; gap: 6px; align-items: center; padding: 5px 6px; border-radius: 10px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(240, 192, 80, .2); width: 100%; }
+.mqr:hover { background: rgba(240, 192, 80, .14); }
+.mqr.big { background: rgba(240, 192, 80, .12); border-color: rgba(240, 192, 80, .45); }
+.mqr.done { background: linear-gradient(90deg, rgba(255, 196, 60, .35), rgba(255, 140, 40, .25)); border-color: #ffd36b; animation: mqGlow 1.6s ease-in-out infinite; }
+.mqr.got { opacity: .55; }
+.mqi { font-style: normal; font-size: 18px; flex: none; width: 22px; text-align: center; }
+.mqn { font-style: normal; flex: none; width: 18px; height: 18px; border-radius: 50%; background: #c9a888; color: #3a0d05; font: 800 10px/18px var(--sans); text-align: center; }
+.mqt { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.mqt b { font-size: 11.5px; font-weight: 700; line-height: 1.2; color: #fff3dc; }
+.mqt small { font-size: 10px; color: #ffd36b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mqbar { display: block; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, .45); overflow: hidden; }
+.mqbar u { display: block; height: 100%; background: linear-gradient(90deg, #c98a1c, #ffe08a); text-decoration: none; transition: width .4s; }
+.mqr.chest { background: linear-gradient(90deg, #8e1a0e, #c98a1c); border-color: #ffe08a; animation: mqGlow 1.4s ease-in-out infinite; }
+.mqr.chest .mqi { font-size: 22px; }
+.mqall { font-size: 10.5px; color: #e6cfa0; text-align: right; padding: 0 4px; }
+.mqok { margin: 0; font-size: 11px; text-align: center; color: #ffe08a; }
+@keyframes mqGlow { 0%, 100% { box-shadow: 0 0 0 rgba(255, 210, 110, 0); } 50% { box-shadow: 0 0 12px rgba(255, 210, 110, .8); } }
+@keyframes mqBlink { 50% { transform: scale(1.18); } }
+.act.mqpulse { animation: mqAct 1s ease-in-out 6; border-color: #ffe08a !important; }
+@keyframes mqAct { 50% { box-shadow: 0 0 18px rgba(255, 220, 120, .95); transform: translateY(-3px); } }
+body.focus .mqp, body:has(.veil:not([hidden])) .mqp { display: none; }
+/* danh sách đầy đủ trong bảng */
+.mqlist { display: grid; gap: 6px; margin: 8px 0; }
+.mqlist .mqr { background: #fff7e6; border-color: #e3c58a; color: #3a2a12; }
+.mqlist .mqr .mqt b { color: #3a2a12; font-size: 13.5px; } .mqlist .mqr .mqt small { color: #9a5a10; font-size: 12px; white-space: normal; }
+.mqlist .mqr.done { background: linear-gradient(90deg, #ffe9b0, #ffd27a); }
+.mqchest { display: grid; gap: 4px; padding: 10px; border-radius: 12px; background: #fff1d2; border: 2px dashed #d6aa5a; color: #5a2a08; }
+.mqchest.open { border-style: solid; background: linear-gradient(90deg, #ffe08a, #ffc860); }
+.mqchest small { color: #7a4a18; }
+@media (min-width: 1000px) { body:not(.touch) .mqp { right: 118px; top: 46px; width: 232px; padding: 8px; gap: 6px; }
+  body:not(.touch) .mqh { font-size: 13px; } body:not(.touch) .mqt b { font-size: 12.5px; } body:not(.touch) .mqt small { font-size: 11px; } }
+/* dòng thời gian trong ngày (Tu tập → Hôm nay) */
+.tlbar { position: relative; height: 26px; margin: 18px 4px 6px; border-radius: 8px; background: linear-gradient(90deg, #1d2440 0%, #3a3a6a 18%, #f3d79a 30%, #fff2cc 50%, #f6c98a 70%, #6a3a5a 82%, #1d2440 100%); border: 1px solid #d6aa5a; }
+.tlh { position: absolute; top: -16px; transform: translateX(-50%); font: 600 10px var(--sans); color: #e6cfa0; font-style: normal; }
+.tls { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; text-decoration: none; opacity: .92; box-shadow: 0 0 0 1px rgba(255, 255, 255, .6); }
+.tls.tk, .tlleg i.tk { background: #c23a1e; } .tls.kinh, .tlleg i.kinh { background: #7a4ab0; } .tls.fest, .tlleg i.fest { background: #e08a10; }
+.tls.kinh { top: 13px; } 
+.tlnow { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1px; background: #19a34a; border-radius: 2px; box-shadow: 0 0 6px #19a34a; }
+.tlnow::after { content: ''; position: absolute; top: -6px; left: -4px; border: 5.5px solid transparent; border-top-color: #19a34a; }
+.tlleg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: #e6cfa0; margin: 2px 4px 10px; align-items: center; }
+.tlleg i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 3px; }
+.tlleg i.nowi { width: 3px; height: 12px; background: #19a34a; }
+.tllist { display: grid; gap: 6px; margin-bottom: 10px; }
+.tlrow { display: grid; grid-template-columns: 54px 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: #fff7e6; border: 1px solid #e3c58a; }
+.tlrow.past { opacity: .55; } .tlrow.live { background: linear-gradient(90deg, #e8ffe9, #fff7e6); border-color: #19a34a; box-shadow: 0 0 0 2px rgba(25, 163, 74, .2); }
+.tlt { font: 800 15px var(--sans); color: #7a1410; display: grid; line-height: 1.1; } .tlt small { font: 600 11px var(--sans); color: #9a7a4a; }
+.tlm { display: grid; gap: 1px; min-width: 0; } .tlm b { font-size: 13.5px; color: #3a2a12; } .tlm small { font-size: 11.5px; color: #7a5a32; } .tlm em { font-style: normal; font-size: 11.5px; color: #b0600a; font-weight: 700; }
+.tltag { font-style: normal; font: 700 11px var(--sans); color: #8a6a3a; text-align: right; white-space: nowrap; }
+.tlrow.live .tltag { color: #19a34a; } .tlrow.soon .tltag { color: #b0600a; }
+.tlrow .btn { grid-column: 2 / -1; justify-self: start; padding: 5px 14px; }
+@media (max-width: 640px) { .tlrow { grid-template-columns: 46px 1fr; } .tltag { grid-column: 2; text-align: left; } .tlh { font-size: 9px; } }
+
+.mqlist .mqr { text-align: left; justify-content: flex-start; } .mqlist .mqt b, .mqlist .mqt small { text-align: left; }
+.mqp .mqr { text-align: left; }
+.mqp, .mqp * { font-family: var(--sans); }

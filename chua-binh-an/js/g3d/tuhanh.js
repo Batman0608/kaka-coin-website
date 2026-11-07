@@ -427,11 +427,38 @@ export function initTuHanh(X) {
     }, { wide: true });
   }
   const row = (k, v) => { const li = el('li'); li.append(el('span', '', k), el('b', '', v)); return li; };
+  /* ---- dòng thời gian trong ngày: thời khóa, giờ sư tụng kinh, lễ rước kiệu ---- */
+  const hm = (m) => `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+  function daySlots() {
+    const sc = X.schedule ? X.schedule() : {}, out = [];
+    TK.forEach(x => out.push({ ic: x.icon, n: x.name, a: x.h * 60 + (x.m || 0), d: x.dur, note: x.note, gift: 'Dự lễ +27 hạt · mọi hạt ×1,5', c: 'tk', done: !!T.tk[dayKey() + ':' + x.id] }));
+    ((sc.kinh && sc.kinh.enabled !== false && sc.kinh.slots) || []).forEach(k => out.push({ ic: '🎧', n: 'Chư tăng tụng kinh', a: k.h * 60 + (k.m || 0), d: k.dur || 60, note: 'Ba vị sư tụng kinh trong chánh điện · vào điện nghe cùng', gift: 'Vào điện ngồi nghe, lạy, lần hạt', c: 'kinh' }));
+    const f = sc.fest; if (f) { const [h, m] = f.at.split(':').map(Number); out.push({ ic: '🏮', n: `Rước kiệu · ${f.temple.name}`, a: h * 60 + m, d: Math.round(f.dur / 60), note: 'Đoàn rước đi quanh chánh điện · đến gần bấm "Khiêng kiệu"', gift: 'Khiêng kiệu nhận hạt & công đức', c: 'fest' }); }
+    return out.sort((x, y) => x.a - y.a);
+  }
+  function dayTimeline(b) {
+    const d = kinhVN(), now = d.getHours() * 60 + d.getMinutes(), L = daySlots();
+    const bar = el('div', 'tlbar'), H0 = 0, H1 = 24 * 60, pos = (m) => ((m - H0) / (H1 - H0) * 100) + '%';
+    [0, 4, 8, 12, 16, 20, 24].forEach(h => { const t = el('i', 'tlh', h + 'h'); t.style.left = pos(h * 60); bar.append(t); });
+    L.forEach(x => { const s = el('u', 'tls ' + x.c); s.style.left = pos(x.a); s.style.width = `calc(${(x.d / (H1 - H0)) * 100}% + 2px)`; s.title = `${x.ic} ${x.n} ${hm(x.a)}–${hm(x.a + x.d)}`; bar.append(s); });
+    const nw = el('b', 'tlnow'); nw.style.left = pos(now); nw.title = 'Bây giờ ' + hm(now); bar.append(nw);
+    const lg = el('div', 'tlleg'); lg.innerHTML = '<i class="tk"></i>Thời khóa <i class="kinh"></i>Sư tụng kinh <i class="fest"></i>Rước kiệu <i class="nowi"></i>Bây giờ'; b.append(bar, lg);
+    const list = el('div', 'tllist'), rank = (x) => now >= x.a + x.d ? 2 : now >= x.a ? 0 : 1;
+    L.slice().sort((x, y) => rank(x) - rank(y) || x.a - y.a).forEach(x => {
+      const st = now >= x.a + x.d ? 'past' : now >= x.a ? 'live' : 'soon', left = x.a - now, r = el('div', 'tlrow ' + st);
+      const tag = st === 'live' ? `ĐANG DIỄN RA · còn ${x.a + x.d - now} phút` : st === 'past' ? (x.done ? '✓ Đã dự' : 'Đã qua') : left < 60 ? `Còn ${left} phút` : `Còn ${Math.floor(left / 60)} giờ ${left % 60} phút`;
+      const tt = el('b', 'tlt'); tt.append(hm(x.a), el('small', '', hm(x.a + x.d))); r.append(tt);
+      const mid = el('span', 'tlm'); mid.append(el('b', '', `${x.ic} ${x.n}`), el('small', '', x.note), el('em', '', '🎁 ' + x.gift)); r.append(mid, el('i', 'tltag', tag));
+      if (st === 'live' && x.c !== 'fest') { const g = btn('Đến ngay', 'gold', () => { const sc = X.schedule && X.schedule(); if (sc && sc.goHall) sc.goHall(); }); r.append(g); }
+      list.append(r);
+    });
+    b.append(list);
+  }
   const VIEWS = {
     homnay(b) {
       const s = tkNow(), nx = tkNext(), L = lunar(), se = season();
-      b.append(el('h3', '', '🕯 Thời khóa trong chùa (giờ Việt Nam)'));
-      const ul = el('ul', 'stats'); TK.forEach(x => ul.append(row(`${x.icon} ${x.name}`, `${x.h}:${String(x.m || 0).padStart(2, '0')} · ${x.dur} phút${s && s.id === x.id ? ' · ĐANG DIỄN RA' : ''}`))); b.append(ul);
+      b.append(el('h3', '', '🕰 Lịch sinh hoạt trong ngày (giờ Việt Nam)'));
+      dayTimeline(b);
       b.append(el('p', 'note', s ? `Đang ${s.name}: lạy Phật, tụng kinh, lần hạt hoặc thiền để dự lễ (+27 hạt) · mọi hạt nhận được ×1,5.` : `Khóa lễ tới: ${nx.icon} ${nx.name} lúc ${nx.h}:${String(nx.m || 0).padStart(2, '0')}. Đã dự ${T.tkCount} khóa lễ.`));
       b.append(el('h3', '', '🔥 Chuỗi ngày lên chùa'));
       const u2 = el('ul', 'stats'); u2.append(row('Chuỗi hiện tại', `${P.streak || 0} ngày`), row('Kỷ lục', `${T.best || 0} ngày`), row('Mốc thưởng kế tiếp', [7, 14, 21, 30, 100].map(n => `${n}`).find(n => +n > (T.best || 0)) ? `${[7, 14, 21, 30, 100].find(n => n > (T.best || 0))} ngày` : 'Đã đủ')); b.append(u2);

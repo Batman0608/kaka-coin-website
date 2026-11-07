@@ -74,7 +74,7 @@ export function initQuiz({ P, save, el, toast, A, addBeads, me, getW, getTemple,
     shuffle([q[1], ...q[2]]).forEach(o => { const b = el('button', 'qz-b', o); b.onclick = () => {
       if (card.classList.contains('done')) return; card.classList.add('done'); P.quiz.n++;
       [...opts.children].forEach(c => { if (c.textContent === q[1]) c.classList.add('ok'); });
-      if (o === q[1]) { P.quiz.ok++; addBeads(15); A.khanh && A.khanh(); toast('✅ Chính xác! +15 hạt'); }
+      if (o === q[1]) { P.quiz.ok++; window.dispatchEvent(new CustomEvent('cba-ev', { detail: 'quiz' })); addBeads(15); A.khanh && A.khanh(); toast('✅ Chính xác! +15 hạt'); }
       else { b.classList.add('bad'); toast('🙏 Chưa đúng — đáp án đã được tô xanh'); }
       save(); setTimeout(() => { if (cur === spot) close(); }, 4200);
     }; opts.append(b); });

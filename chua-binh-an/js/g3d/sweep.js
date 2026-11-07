@@ -75,15 +75,16 @@ export function initSweep({ THREE, scene, me, getW, getTemple, P, save, toast, b
       p.g.children.forEach(l => { const u = l.userData; if (!u.v || k < u.delay) return; l.position.addScaledVector(u.v, dt); u.v.y -= dt * 1.6; l.rotation.z += dt * 6; if (l.position.y < 0) { l.position.y = 0; u.v.multiplyScalar(0.6); } l.material = l.material; l.scale.multiplyScalar(1 - dt * 0.35); });
       if (k > busy.dur) {
         p.done = true; scene.remove(p.g); if (broom) scene.remove(broom); busy = null;
-        const gm = addMerit(5, true); addBeads(3); P.sweep = (P.sweep || 0) + 1; save(); A.smallBell && A.smallBell();
+        const gm = addMerit(5, true); addBeads(3); P.sweep = (P.sweep || 0) + 1; save(); window.dispatchEvent(new CustomEvent('cba-ev', { detail: 'sweep' })); A.smallBell && A.smallBell();
         const left = piles.filter(x => !x.done).length;
         toast(`🧹 Đã quét sạch một góc sân · ${meritTxt(gm)}, +3 hạt${left ? ` · còn ${left} đống lá` : ''}`);
-        if (!left) { const g2 = addMerit(20, true); addBeads(20); A.khanh && A.khanh(); banner('🧹 Sân chùa sạch sẽ', `Cảm ơn ${P.name || 'bạn'} đã quét sạch sân ${getTemple().name}`, `${meritTxt(g2)} · +20 hạt · lá sẽ rụng lại sau ít phút`); respawnAt = performance.now() + 8 * 60000; }
+        if (!left) { window.dispatchEvent(new CustomEvent('cba-ev', { detail: 'sweepall' })); const g2 = addMerit(20, true); addBeads(20); A.khanh && A.khanh(); banner('🧹 Sân chùa sạch sẽ', `Cảm ơn ${P.name || 'bạn'} đã quét sạch sân ${getTemple().name}`, `${meritTxt(g2)} · +20 hạt · lá sẽ rụng lại sau ít phút`); respawnAt = performance.now() + 8 * 60000; }
       }
     }
     if (respawnAt && performance.now() > respawnAt) { respawnAt = 0; onTemple(); }
     // lá khẽ lay động
     if (piles.length && !busy) { const s = Math.sin(t * 1.3) * 0.02; piles.forEach(p => { if (!p.done) p.g.rotation.y = s; }); }
   }
-  return { onTemple, dispose, step, context, busy: () => !!busy };
+  const nearest = () => piles.filter(p => !p.done).sort((a, b) => Math.hypot(a.x - me.pos.x, a.z - me.pos.z) - Math.hypot(b.x - me.pos.x, b.z - me.pos.z))[0] || null;
+  return { onTemple, dispose, step, context, nearest, busy: () => !!busy };
 }
