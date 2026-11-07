@@ -45,9 +45,9 @@ export const LAYOUT = {
     ['Suối Giải Oan', 12, 34, 4, 'Rửa mặt bên suối như gột bỏ phiền muộn trước khi lên núi.'],
     ['Đường lên chùa Đồng', 0, 24, 5, 'Đi bộ ngược lên sườn núi để tới chùa Đồng trên đỉnh cao khoảng 1.068 mét.'],
     ['Chùa Đồng trên đỉnh', 0, 3, 6, 'Chùa đúc bằng đồng giữa mây trời — đất tổ Thiền phái Trúc Lâm.']] },
-  'thien-mu': { yard: [{ r: [-14.7, -28.5, 14.7, 7.7], y: 1.6, gate: ['+z', 0, 5.6] }],  spawn: [8, 4], abbot: [-4, -3], pois: [
+  'thien-mu': { yard: [{ r: [-14.7, -34.5, 14.7, 7.7], y: 1.6, gate: ['+z', 0, 5.6] }],  spawn: [8, 4], abbot: [-4, -3], pois: [
     ['Tháp Phước Duyên', 0, 2, 6, 'Tháp bát giác 7 tầng, vua Thiệu Trị dựng năm 1844.'],
-    ['Điện Đại Hùng', 0, -13, 8, 'Chánh điện thờ Phật, phía sau tháp Phước Duyên.'],
+    ['Điện Đại Hùng', 0, -19, 8, 'Chánh điện thờ Phật, phía sau tháp Phước Duyên.'],
     ['Bến sông Hương', 0, 9, 4, '"Gió đưa cành trúc la đà, tiếng chuông Thiên Mụ canh gà Thọ Xương."'],
     ['Lầu chuông', -6, 3, 3, 'Đại hồng chung đúc năm 1710 đời chúa Nguyễn Phúc Chu.', 'bell']] },
   'linh-ung': { yard: [{ r: [-33.5, -21.5, 23.5, 15.5], y: 1.0, gate: ['+z', 0, 6] }],  spawn: [10, 12], abbot: [-9, 9], pois: [
@@ -683,5 +683,51 @@ function gardenDecor(root, L, temple, col, halls) {
     const st = dl ? maitreya(1.1, GOLD()) : standingGuanyin(3.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })); st.position.y = 0.5; st.traverse(o => { o.userData.noCollide = true; }); q.add(st);
     q.add(box(0.9, 1.2, 0.9, stone, 0, 0.6, 0)); faceTo(q, p.x, p.z); plates(q, 2.3, 0);
     spots.push({ name: dl ? 'Tượng Phật Di Lặc' : 'Tượng Quán Thế Âm Bồ Tát', x: p.x, z: p.z, r: 4.2 }); } }
+  // 5) sân rộng: vườn cảnh ở góc sân — hòn non bộ, bonsai, khóm trúc, ghế đá, đèn đá
+  const areaOf = (Y) => (Y.r[2] - Y.r[0]) * (Y.r[3] - Y.r[1]);
+  const big = yards.filter(Y => areaOf(Y) > 1400).sort((a, b) => areaOf(b) - areaOf(a))[0];
+  if (big) {
+    const [x0, z0, x1, z1] = big.r, corners = [[x0, z0], [x1, z0], [x0, z1], [x1, z1]];
+    const nCorner = areaOf(big) > 3000 ? 2 : 1;
+    const placeCorner = (R) => {
+      const sc = cands.filter(([x, z]) => x > x0 && x < x1 && z > z0 && z < z1).map(([x, z, y0]) => [Math.min(...corners.map(([cx, cz]) => Math.hypot(x - cx, z - cz))), x, z, y0])
+        .filter(c => !chosen.some(o => Math.hypot(o.x - c[1], o.z - c[2]) < o.R + R + 2)).sort((a, b) => a[0] - b[0]);
+      for (let i = 0; i < sc.length && i < 500; i++) { const [, x, z, y0] = sc[i]; if (free(x, z, R, y0)) { const b = { x, z, y: y0, R }; chosen.push(b); return b; } }
+      return null;
+    };
+    for (let k = 0; k < nCorner; k++) {
+      const p = placeCorner(4.6); if (!p) break;
+      const q = new THREE.Group(); q.position.set(p.x, p.y, p.z); g.add(q);
+      const rockM = mat('rockery', 0x7d776c, { flatShading: true }), rockD = mat('rockeryD', 0x5f5a52, { flatShading: true }), moss = mat('moss', 0x4f7a3a, { flatShading: true });
+      if (k === 0) {   // hòn non bộ giữa hồ nhỏ, có tháp & cầu tí hon
+        q.add(cyl(2.6, 2.7, 0.45, 24, stone, 0, 0.225, 0));
+        const wtr = new THREE.Mesh(new THREE.CircleGeometry(2.3, 24), mat('pondWater', 0x3c7f9a, { roughness: 0.15, metalness: 0.3 })); wtr.rotation.x = -Math.PI / 2; wtr.position.y = 0.46; wtr.userData.noCollide = true; q.add(wtr);
+        [[0, 0, 1.0, 2.2], [0.7, 0.3, 0.6, 1.4], [-0.6, -0.4, 0.55, 1.1], [0.2, -0.8, 0.4, 0.8]].forEach(([x, z, r, hh], i) => { const m = new THREE.Mesh(new THREE.ConeGeometry(r, hh, 6), i % 2 ? rockD : rockM); m.position.set(x, 0.45 + hh / 2, z); m.rotation.y = i; m.userData.noCollide = true; q.add(m);
+          const ms = new THREE.Mesh(new THREE.IcosahedronGeometry(r * 0.35, 0), moss); ms.position.set(x + r * 0.2, 0.45 + hh * 0.55, z); ms.userData.noCollide = true; q.add(ms); });
+        const tp = new THREE.Group(); tp.position.set(0, 2.6, 0); for (let t = 0; t < 3; t++) { tp.add(box(0.22 - t * 0.05, 0.14, 0.22 - t * 0.05, mat('miniWall', 0xe9dcc0), 0, t * 0.2, 0)); const r2 = new THREE.Mesh(new THREE.ConeGeometry(0.2 - t * 0.04, 0.08, 4), mat('miniRoof', 0x5a2a1a)); r2.position.y = t * 0.2 + 0.1; r2.rotation.y = Math.PI / 4; tp.add(r2); } tp.traverse(o => { o.userData.noCollide = true; }); q.add(tp);
+        const br = box(0.9, 0.08, 0.25, RED(), 1.3, 0.6, 1.2); br.userData.noCollide = true; br.rotation.y = 0.6; q.add(br);
+        // chậu bonsai quanh hồ
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.3, x = Math.cos(a) * 3.6, z = Math.sin(a) * 3.6;
+          q.add(cyl(0.32, 0.24, 0.3, 10, mat('potGlaze', i % 2 ? 0x2f5a6a : 0x8a3a1e, { roughness: 0.5 }), x, 0.15, z));
+          const tr = cyl(0.05, 0.07, 0.45, 6, mat('bark', 0x5a3a24), x, 0.52, z); tr.rotation.z = 0.3; tr.userData.noCollide = true; q.add(tr);
+          [[0.15, 0.85, 0], [-0.12, 0.75, 0.1], [0.05, 0.98, -0.1]].forEach(([dx, y, dz]) => { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18, 0), LEAF2()); c.scale.y = 0.6; c.position.set(x + dx, y, z + dz); c.userData.noCollide = true; q.add(c); }); }
+        spots.push({ name: 'Hòn non bộ', x: p.x, z: p.z, r: 5.5 });
+      } else {   // vườn trúc thiền: khóm trúc, ghế đá, đèn đá, sỏi cào
+        const sand = new THREE.Mesh(new THREE.CircleGeometry(4.2, 28), mat('raked', 0xd8d0bc, { roughness: 1 })); sand.rotation.x = -Math.PI / 2; sand.position.y = 0.03; sand.userData.noCollide = true; q.add(sand);
+        for (let r = 1.2; r < 4; r += 0.6) { const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.05, 40), mat('rakeLine', 0xb8ae98)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; ring.userData.noCollide = true; q.add(ring); }
+        const bm = mat('bamboo', 0x7aa04a), bl = mat('bambooLeaf', 0x4f8a3a, { flatShading: true });
+        for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 1.2 + Math.PI * 0.9, r = 3.4 + (i % 3) * 0.3, x = Math.cos(a) * r, z = Math.sin(a) * r, hh = 3.5 + (i % 4) * 0.6;
+          const c = cyl(0.05, 0.06, hh, 6, bm, x, hh / 2, z); c.rotation.z = (i % 3 - 1) * 0.06; q.add(c);
+          const lf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), bl); lf.scale.set(1, 0.5, 1); lf.position.set(x, hh - 0.2, z); lf.userData.noCollide = true; q.add(lf); }
+        const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7, 0), rockM); rk.position.set(0.4, 0.45, -0.3); rk.scale.set(1.3, 0.8, 1); q.add(rk);
+        const rk2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4, 0), rockD); rk2.position.set(-0.9, 0.3, 0.5); q.add(rk2);
+        const bench = new THREE.Group(); bench.position.set(0, 0, 2.6); bench.add(box(1.8, 0.12, 0.5, stone, 0, 0.45, 0)); [-0.7, 0.7].forEach(x => bench.add(box(0.15, 0.42, 0.42, stone, x, 0.21, 0))); q.add(bench);
+        const lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
+        [[-2.4, 1.6], [2.4, 1.6]].forEach(([x, z]) => { const l = new THREE.Group(); l.position.set(x, 0, z); l.add(box(0.5, 0.18, 0.5, stone, 0, 0.09, 0)); l.add(cyl(0.09, 0.12, 0.75, 8, stone, 0, 0.55, 0)); l.add(box(0.42, 0.36, 0.42, lampM, 0, 1.1, 0)); const cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.3, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.43; l.add(cap); q.add(l); });
+        faceTo(q, p.x, p.z);
+        spots.push({ name: 'Vườn trúc thiền', x: p.x, z: p.z, r: 5 });
+      }
+    }
+  }
   return { spots, added: chosen.length > 0 };
 }

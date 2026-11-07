@@ -464,6 +464,61 @@ function guardian(kind, side, m) {
   g.scale.setScalar(kind === 'rong' || kind === 'naga' ? 1.15 : 1.35);
   return g;
 }
+/* trang trí hai bên tường chánh điện: bệ thờ La Hán, đèn sen, phướn treo, câu đối trên cột */
+const CAU_DOI = ['Phật pháp vô biên', 'Từ bi hỷ xả', 'Tâm an vạn sự an', 'Nam mô A Di Đà Phật', 'Phước huệ song tu', 'Hoa khai kiến Phật', 'Quay đầu là bờ', 'Tùy duyên an lạc'];
+function hallSideDecor(g, w, d, base, h, az, colM) {
+  const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
+  const lac = mat('lahanGold', 0xc8932e, { metalness: 0.6, roughness: 0.38 }), lac2 = mat('lahanBronze', 0x8a5a24, { metalness: 0.7, roughness: 0.4 });
+  const robe = mat('lahanRobe', 0xb5651d, { metalness: 0.45, roughness: 0.45 });
+  const z0 = az + 3.4, z1 = d / 2 - 2.6; if (z1 - z0 < 3) return;
+  [-1, 1].forEach(s => {
+    const x = s * (w / 2 - 0.85);
+    // bệ thờ dài sơn son, viền vàng
+    g.add(box(1.1, 0.85, z1 - z0, mat('altar', 0x7a1a0e), x, base + 0.425, (z0 + z1) / 2));
+    nc(box(1.2, 0.06, z1 - z0 + 0.1, GOLD(), x, base + 0.88, (z0 + z1) / 2));
+    // tượng La Hán ngồi, xoay vào lối giữa
+    const n = Math.max(3, Math.floor((z1 - z0) / 1.7));
+    for (let i = 0; i < n; i++) {
+      const z = z0 + (i + 0.5) * (z1 - z0) / n, f = new THREE.Group(); f.position.set(x, base + 0.91, z); f.rotation.y = -s * Math.PI / 2;
+      const m = i % 2 ? lac2 : lac;
+      f.add(mesh(new THREE.CylinderGeometry(0.3, 0.42, 0.2, 14), robe, 0, 0.1, 0));                 // đùi xếp bằng
+      f.add(mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.55, 12), robe, 0, 0.45, -0.04));             // thân áo cà sa
+      f.add(mesh(new THREE.SphereGeometry(0.17, 14, 10), m, 0, 0.86, -0.02));                         // đầu
+      const pose = (i * 3 + (s > 0 ? 1 : 0)) % 4;   // mỗi vị một tư thế tay
+      if (pose === 0) f.add(mesh(new THREE.SphereGeometry(0.09, 8, 6), m, 0, 0.32, 0.22));          // chắp tay
+      else if (pose === 1) { const a = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), robe, 0.2, 0.62, 0.08); a.rotation.z = -0.9; f.add(a); f.add(mesh(new THREE.SphereGeometry(0.06, 6, 5), m, 0.34, 0.8, 0.1)); }   // giơ tay
+      else if (pose === 2) f.add(mesh(new THREE.SphereGeometry(0.11, 8, 6), GOLD(), 0, 0.3, 0.26)); // ôm bát
+      else { const t = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 5), WOOD(), -0.22, 0.5, 0.12); t.rotation.z = 0.15; f.add(t); }   // cầm tích trượng
+      f.add(mesh(new THREE.TorusGeometry(0.22, 0.015, 6, 20), GOLD(), 0, 0.9, -0.16));              // hào quang
+      nc(f);
+      if (i < n - 1) { const lz = z + (z1 - z0) / n / 2; nc(cyl(0.05, 0.07, 0.16, 8, GOLD(), x + s * 0.2, base + 0.99, lz));
+        nc(mesh(new THREE.SphereGeometry(0.06, 8, 6), mat('lotusLamp', 0xffb0c8, { emissive: 0xff6a8a, emissiveIntensity: 0.9 }), x + s * 0.2, base + 1.1, lz, false)); }
+    }
+    // phướn treo từ trần (vàng, đỏ, xanh xen kẽ)
+    const cols = [0xe0a92a, 0xb3261e, 0x2f6a8a, 0xe0a92a];
+    for (let z = -d / 2 + 4.6, k = 0; z < d / 2 - 2; z += 4.2, k++) {
+      const len = Math.min(2.6, h * 0.42), bx = s * (w / 2 - 2.0), ph = new THREE.Group(); ph.position.set(bx, base + h - 0.4, z);
+      ph.add(box(0.06, 0.06, 0.9, GOLD(), 0, 0, 0));
+      const cl = new THREE.Mesh(new THREE.PlaneGeometry(0.7, len), mat('phuon' + cols[k % 4], cols[k % 4], { side: THREE.DoubleSide, emissive: cols[k % 4], emissiveIntensity: 0.12 })); cl.rotation.y = Math.PI / 2; cl.position.y = -len / 2 - 0.05; ph.add(cl);
+      [0.3, 0.6].forEach(f => ph.add(box(0.03, 0.04, 0.72, GOLD(), 0, -len * f, 0)));
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.4, 3), mat('phuon' + cols[k % 4], cols[k % 4], { side: THREE.DoubleSide })); tail.rotation.z = Math.PI; tail.scale.z = 0.05; tail.rotation.y = Math.PI / 2; tail.position.y = -len - 0.2; ph.add(tail);
+      nc(ph);
+    }
+    // câu đối son son thếp vàng trên mặt cột trong điện, quay vào lối giữa
+    let k = s > 0 ? 0 : 4;
+    for (let z = -d / 2 + 3; z < d / 2 - 2; z += 4.2) {
+      if (z < az + 1) continue;
+      const bd = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 2.3), new THREE.MeshStandardMaterial({ map: boardTex(CAU_DOI[k++ % CAU_DOI.length], true, 96, 520), roughness: 0.6 }));
+      bd.position.set(s * (w * 0.36 - 0.27), base + h * 0.5, z); bd.rotation.y = -s * Math.PI / 2; nc(bd);
+    }
+    // đèn chầu bằng đồng đứng hai bên lối vào
+    const lz = d / 2 - 1.8, lx = s * (w * 0.2 - 0.6);
+    const dl = new THREE.Group(); dl.position.set(lx, base, lz);
+    dl.add(cyl(0.32, 0.4, 0.15, 12, BRONZE(), 0, 0.075, 0)); dl.add(cyl(0.06, 0.08, 1.5, 8, BRONZE(), 0, 0.85, 0)); dl.add(cyl(0.26, 0.16, 0.2, 12, BRONZE(), 0, 1.65, 0));
+    dl.add(mesh(new THREE.SphereGeometry(0.12, 8, 6), mat('flame', 0xffd36b, { emissive: 0xffa020, emissiveIntensity: 2 }), 0, 1.82, 0, false));
+    g.add(dl);
+  });
+}
 function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null, base = 0.8 } = {}) {
   const g = new THREE.Group(), S = STYLE || {}, main = !!(INTERIOR && w >= 9);
   if (main) { w = Math.max(w * 1.45, 15) * 1.25; d = Math.max(d * 1.8, 13) * 1.6; h = Math.max(h, 5.2) * 1.1; }   // chánh điện: diện tích gấp đôi bản trước
@@ -501,6 +556,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     } });
     const beam = box(w, 0.4, 0.3, DRED(), 0, base + h - 0.2, d / 2 - 0.15); beam.userData.camSkip = true; g.add(beam);   // xà ngang trước
     const az = altarFigures(g, w, d, base, INTERIOR.set, h);
+    hallSideDecor(g, w, d, base, h, az, colM);
     const lu = new THREE.Group(); lu.position.set(0, base, az + 2.6); lu.userData.burner = true; g.add(lu);
     lu.add(cyl(0.75, 0.85, 0.35, 16, STONE(), 0, 0.17, 0));
     lu.add(cyl(0.55, 0.42, 0.75, 20, BRONZE(), 0, 0.72, 0));
@@ -513,8 +569,8 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     const cushions = [];
     const cols = Math.min(9, Math.max(3, Math.floor((w - 4) / 1.6))), rows = Math.min(8, Math.max(2, Math.floor((d - 2.6) / 1.4)));
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      const x = (c - (cols - 1) / 2) * 1.6, z = az + 4.2 + r * 1.4;
-      if (Math.abs(x) < 1.6 && z < az + 4.6) continue;
+      const x = (c - (cols - 1) / 2) * 1.6, z = az + 6.6 + r * 1.4;   // hàng đệm đầu lùi xa bàn thờ ~5 m
+      if (Math.abs(x) < 1.6 && z < az + 7) continue;
       if (z > d / 2 - 2.2) continue;
       const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, base + 0.11, z); cu.userData.cushion = true; g.add(cu);
       { const cg = box(0.5, 0.02, 0.5, mat('cushg', 0xe0a93a), x, base + 0.17, z); cg.userData.cushion = true; g.add(cg); }
@@ -860,7 +916,7 @@ const SCENES = {
     ground(g, 160, 0x5a8a45); g.add(water(160, 22, 0, 24.5));
     const tw = tower({ tiers: 7, sides: 8, r: 2.6, th: 2.2, taper: 0.42, wall: mat('tmwall', 0xd9b89a), roofColor: 0x5a4a3a }); tw.position.set(0, 1.6, 2); g.add(tw);
     // chánh điện sau tháp: lùi đủ xa để cửa điện không bị tháp chắn; đồi kéo dài đỡ trọn điện
-    const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); const hd = h.userData.mainHall ? h.userData.mainHall.d : 5, hz = -1.9 - (hd / 2 + 2.9);
+    const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); const hd = h.userData.mainHall ? h.userData.mainHall.d : 5, hz = -1.9 - (hd / 2 + 2.9) - 6;   // lùi điện xa tháp Phước Duyên
     h.position.set(0, 1.6, hz); g.add(h);
     const back = Math.min(-13, hz - hd / 2 - 2);
     g.add(box(30, 1.6, 8 - back, mat('hill', 0x6a8a4a), 0, 0.8, (8 + back) / 2));   // mép đồi ra gần sông, chừa sân trước tháp
@@ -915,7 +971,7 @@ const SCENES = {
       hg.add(box(KW, 3.8, 0.3, km, 0, 3.9, zc - KD / 2 + 0.15)); [-1, 1].forEach(sx => hg.add(box(0.3, 3.8, KD, km, sx * (KW / 2 - 0.15), 3.9, zc)));
       const sub = new THREE.Group(); sub.position.set(0, 0, zc); hg.add(sub);
       const az = altarFigures(sub, KW, KD, 2, 'nam', 3.8);
-      const cushions = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) { const x = (c - 3) * 1.6, z = az + 2.4 + r * 1.35; const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, 2.11, z); cu.userData.cushion = true; sub.add(cu); cushions.push(new THREE.Vector3(x, 2.16, z)); }
+      const cushions = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) { const x = (c - 3) * 1.6, z = az + 4.0 + r * 1.35; const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, 2.11, z); cu.userData.cushion = true; sub.add(cu); cushions.push(new THREE.Vector3(x, 2.16, z)); }
       const front = [];
       // tường trước có cửa chính & hai cửa sổ — ẩn khi đứng trong điện
       const fz = KD / 2 - 0.15, cw = 2.6, dh = 3.0;
