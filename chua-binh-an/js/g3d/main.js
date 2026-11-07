@@ -1872,6 +1872,7 @@ function rayBoxes(a, b) {
   let best = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   for (const bx of W.col.boxes) {
     if (bx.ghost || bx.top < a.y - 0.6 || bx.top - bx.bottom < 1.2 || (camInHall && bx.camSkip)) continue;   // tường vô hình không chắn camera
+    if (bx.x1 - bx.x0 < 0.9 && bx.z1 - bx.z0 < 0.9) continue;   // cột, trụ đèn, thân cây mảnh: không kéo camera lại gần (tránh giật)
     let t0 = 0, t1 = 1;
     for (const [o, d, lo, hi] of [[a.x, dx, bx.x0, bx.x1], [a.y, dy, bx.bottom, bx.top], [a.z, dz, bx.z0, bx.z1]]) {
       if (Math.abs(d) < 1e-6) { if (o < lo || o > hi) { t0 = 2; break; } continue; }
@@ -1887,7 +1888,14 @@ setInterval(() => { if (W && S.amb && !paused) { A.bigBell(); } }, 60000);
 
 /* ---------------- tự đi tới đích (dâng lễ, về chỗ) ---------------- */
 /* đi bộ: không cho bước hụt xuống chỗ thấp hơn ~0,9 m (mép bậc thang, mép sân cao, thành cầu) → không rơi khỏi bậc, không kẹt */
-function walkH(x, z) { const h = W.col.heightAt(x, z, me.y); if (h == null) return null; if (h < me.y - 0.9 && !(BT && BT.aboard())) return null; return h; }
+function walkH(x, z, ux = 0, uz = 0) {
+  const h = W.col.heightAt(x, z, me.y); if (h == null) return null;
+  if (h < me.y - 0.9 && !(BT && BT.aboard())) {   // khe hở nhỏ (giữa bậc trên cùng và nền sân…) → bước qua, không rơi
+    for (const d of [0.35, 0.7]) { const h2 = W.col.heightAt(x + ux * d, z + uz * d, me.y); if (h2 != null && h2 >= me.y - 0.9) { me.bridge = 0.4; return me.y; } }
+    return null;
+  }
+  return h;
+}
 /* gỡ kẹt: giữ phím đi mà không nhích được 2,5 giây → về chỗ an toàn gần nhất; nhớ chỗ an toàn mỗi giây */
 let stuckT = 0, safeT = 0; const safe = [];
 function stuckCheck(ox, oz, dt) {
@@ -2110,21 +2118,25 @@ function loop() {
       if (BT && BT.aboard()) BT.walk(nx, nz);   // trên thuyền: đi lại trong phạm vi sàn thuyền
       else {
       const ox = me.pos.x, oz = me.pos.z;
-      let h = walkH(nx, nz);
+      const ux = Math.sin(a), uz = Math.cos(a);
+      let h = walkH(nx, nz, ux, uz);
       if (h != null) { me.pos.x = nx; me.pos.z = nz; }
-      else { const hx = walkH(nx, me.pos.z), hz = walkH(me.pos.x, nz); if (hx != null) { me.pos.x = nx; h = hx; } else if (hz != null) { me.pos.z = nz; h = hz; } }
+      else { const hx = walkH(nx, me.pos.z, ux, 0), hz = walkH(me.pos.x, nz, 0, uz); if (hx != null) { me.pos.x = nx; h = hx; } else if (hz != null) { me.pos.z = nz; h = hz; } }
       stuckCheck(ox, oz, dt);
       }
       let dy = a - me.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); me.yaw += dy * Math.min(1, dt * 12);
       me.av.speed = mag * (keys.ShiftLeft ? 1.5 : 1);
       // góc nhìn tự xoay ra sau lưng theo hướng đi (không xoay khi đang lùi về phía camera, khi đang kéo xoay tay)
-      if (S.camFollow !== false && !drag && !pinch && iz < 0.35 && Date.now() - (cam.userT || 0) > 1200) {
+      // chỉ xoay khi đang tiến về phía trước (đẩy cần lên), xoay chậm & êm; đi ngang/lùi thì giữ nguyên góc nhìn
+      const fwdK = Math.max(0, -iz / (mag || 1) - 0.25);
+      if (S.camFollow !== false && fwdK > 0 && !drag && !pinch && Date.now() - (cam.userT || 0) > 1500) {
         let dc = (me.yaw + Math.PI) - cam.yaw; dc = Math.atan2(Math.sin(dc), Math.cos(dc));
-        cam.yaw += dc * Math.min(1, dt * 2.2 * mag * (0.35 + Math.min(1, Math.abs(ix) + 0.3)));
+        const rate = Math.min(0.9, Math.abs(dc) * 1.2) * fwdK * mag;   // tối đa ~0,9 rad/giây
+        cam.yaw += Math.sign(dc) * Math.min(Math.abs(dc), rate * dt);
       }
     }
     if (BT && BT.carry()) { /* thuyền chở người chơi đi theo */ }
-    else if (!me.seated) { const g = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.01) ?? me.y; me.y += (g - me.y) * Math.min(1, dt * (g < me.y ? 6 : 14)); }
+    else if (!me.seated) { let g = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.01) ?? me.y; if (me.bridge > 0) { me.bridge -= dt; if (g < me.y - 0.9) g = me.y; } me.y += (g - me.y) * Math.min(1, dt * (g < me.y ? 6 : 14)); }
     festBear(dt, manual);
     me.av.root.position.set(me.pos.x, me.y, me.pos.z); me.av.root.rotation.y = me.yaw; me.av.update(dt, moving || autoMoving || !!me.bearing);
     showerStep(dt); dragonStep(dt);
@@ -2138,13 +2150,11 @@ function loop() {
     // trong điện: camera ở tầm mắt, dưới trần gỗ, nhìn thấy Tam Thế Phật, trần, đèn treo và người chơi
     const dist = malaOn ? 3.2 : inHall ? Math.max(8, Math.min(cam.dist + 1, 13)) : cam.dist, pitch = malaOn ? 0.42 : inHall ? Math.min(0.95, Math.max(cam.pitch, 0.16)) : cam.pitch;
     const camAt = (yw) => new THREE.Vector3(tgt.x + Math.sin(yw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yw) * Math.cos(pitch) * dist);
-    let cp = camAt(cam.yaw), hit = rayBoxes(tgt, cp);
-    if (hit < 0.55 && !drag && !pinch && !malaOn) {   // bị tường/cột chắn sát lưng → tự xoay dần sang hướng thoáng gần nhất
-      let bestY = cam.yaw, bestH = hit;
-      for (const d of [0.25, -0.25, 0.5, -0.5, 0.8, -0.8]) { const h = rayBoxes(tgt, camAt(cam.yaw + d)); if (h > bestH + 0.15) { bestH = h; bestY = cam.yaw + d; } }
-      if (bestY !== cam.yaw) { cam.yaw += (bestY - cam.yaw) * Math.min(1, dt * 1.5); cp = camAt(cam.yaw); hit = rayBoxes(tgt, cp); }
-    }
-    if (hit < 1) cp = tgt.clone().lerp(cp, Math.max(0.15, hit - 0.08));
+    let cp = camAt(cam.yaw); const hit = rayBoxes(tgt, cp);
+    // tường chắn giữa camera và nhân vật: kéo camera lại gần ngay (không nhìn xuyên tường), khi thoáng thì lùi ra từ từ (không giật gần–xa)
+    const kT = hit < 1 ? Math.max(0.18, hit - 0.08) : 1;
+    cam.k = cam.k == null ? kT : kT < cam.k ? kT : cam.k + (kT - cam.k) * Math.min(1, dt * 0.9);
+    if (cam.k < 0.999) cp = tgt.clone().lerp(cp, cam.k);
     if (inHall && hallIn.group && hallIn.w) {   // giữ camera trong lòng chánh điện (không lọt ra ngoài nhìn xuyên tường)
       const lc = hallIn.group.worldToLocal(cp.clone()), hw = hallIn.w / 2 - 0.55, hd = hallIn.d / 2;
       lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 7, lc.z));   // được lùi ra ngoài cửa trước (cột hiên đã ẩn) → không bị phóng to cp = hallIn.group.localToWorld(lc);

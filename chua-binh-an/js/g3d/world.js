@@ -797,5 +797,6 @@ function stairWalls(root) {
     st.getWorldQuaternion(q); e.setFromQuaternion(q, 'YXZ'); const k = Math.round(e.y / (Math.PI / 2)); if (Math.abs(e.y - k * Math.PI / 2) > 0.02 || Math.abs(e.x) > 0.02 || Math.abs(e.z) > 0.02) return;   // chỉ dãy bậc thẳng trục
     const len = (n - 1) * run, zc = -run / 2 - len / 2, hTop = n * rise + 1.8;
     [-1, 1].forEach(sx => { const wall = box(0.3, hTop, len, mat('stairWallInv', 0x888888), sx * (w / 2 + 0.15), hTop / 2, zc); wall.visible = false; wall.userData.camSkip = true; st.add(wall); });
+    { const top = n * rise, land = box(w, 0.06, 1.2, mat('stairWallInv', 0x888888), 0, top - 0.03, -(n - 1) * run - run / 2 - 0.6); land.visible = false; land.userData.noShadow = true; st.add(land); }   // chiếu nghỉ vô hình nối bậc trên cùng với nền (bịt khe hở)
   });
 }
