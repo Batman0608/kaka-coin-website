@@ -922,3 +922,17 @@ body.touch .kinhbar.tkbar { top: calc(364px + env(safe-area-inset-top, 0px)); }
   body:not(.touch) .chatbtn, body:not(.touch) .chatinput { bottom: 132px; }
   body:not(.touch) .chatfeed { bottom: 22px; max-height: 104px; }
 }
+
+/* v58: thông báo hệ thống chuyển vào khung tin nhắn; tụng kinh chỉ còn nút loa */
+.kinhbar.tkbar, #festBar { display: none !important; }
+.cfl.sys b { color: #ff9a6a !important; }
+.cfl.sys { color: #ffe9b8; }
+.cfl.tap { pointer-events: auto; cursor: pointer; }
+.cfl.tap:hover { color: #fff; }
+.cfgo { font-style: normal; color: #ffd36b; font-weight: 700; }
+#kinhBar { width: 42px; height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; max-width: none; gap: 0;
+  left: auto; transform: none; right: max(10px, env(safe-area-inset-right, 0px)); top: calc(236px + env(safe-area-inset-top, 0px));
+  background: rgba(42, 16, 8, .9); border: 1px solid rgba(240, 192, 80, .6); }
+#kinhBar .ic { font-size: 20px; line-height: 1; }
+body.touch #kinhBar { top: calc(236px + env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); padding: 0; }
+@media (min-width: 1000px) { body:not(.touch) #kinhBar { top: auto; bottom: 124px; right: 31px; width: 48px; height: 48px; } body:not(.touch) #kinhBar .ic { font-size: 22px; } }

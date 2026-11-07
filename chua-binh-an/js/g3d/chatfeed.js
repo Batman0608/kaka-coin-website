@@ -37,6 +37,14 @@ export function initChatFeed({ el, NET, getNpcs, chatBubble, getTemple, me }) {
     while (box.children.length > MAX) box.firstChild.remove();   // tin đến trước ẩn trước
     setTimeout(() => { r.classList.add('out'); setTimeout(() => r.remove(), 600); }, LIFE);
   }
+  // tin hệ thống (thời khóa, lễ rước, tụng kinh…): bấm vào để mở đúng chức năng
+  function sys(text, fn) {
+    const r = el('div', 'cfl sys'), n = el('b', '', '📢 Hệ thống: ');
+    r.append(n, document.createTextNode(String(text || '').replace(/\s+/g, ' ').trim()));
+    if (fn) { r.classList.add('tap'); r.append(el('i', 'cfgo', ' · bấm xem ›')); r.onclick = (e) => { e.stopPropagation(); fn(); }; }
+    box.append(r); while (box.children.length > MAX) box.firstChild.remove();
+    setTimeout(() => { r.classList.add('out'); setTimeout(() => r.remove(), 600); }, LIFE);
+  }
   const fill = (s) => s.replace('{T}', ((getTemple() || {}).name || 'mình').replace(/^Chùa\s+/i, '')).replace('{P}', pick(PROVS));
   const nameOf = (n) => (n.name || (n.label && n.label.childNodes[0] && n.label.childNodes[0].textContent) || 'Phật tử').trim();
   function botSay(text) {
@@ -62,5 +70,5 @@ export function initChatFeed({ el, NET, getNpcs, chatBubble, getTemple, me }) {
     if (!busy) botSay(pick(SAY));
   }
   function clear() { box.innerHTML = ''; nextBot = performance.now() + 8000; }
-  return { add, onBubble, step, clear };
+  return { add, sys, onBubble, step, clear };
 }

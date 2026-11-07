@@ -958,8 +958,8 @@ function stopKinh() { if (kinhAudio) { kinhAudio.pause(); kinhAudio.__src = ''; 
 function showKinhBar(win, muted) {
   const bar = $('kinhBar'); bar.hidden = false; bar.classList.toggle('muted', muted); bar.innerHTML = '';
   const blocked = !muted && kinhBlocked && (!kinhAudio || kinhAudio.paused);
-  const ic = muted ? '🔇' : '🔊', txt = muted ? 'Đã tắt tụng kinh · chạm để nghe lại' : blocked ? 'Chạm để nghe tụng kinh' : 'Đang tụng kinh · chạm để tắt tiếng';
-  bar.append(el('span', 'ic', ic), el('span', '', txt));
+  const ic = muted || blocked ? '🔇' : '🔊', txt = muted ? 'Đã tắt tụng kinh · chạm để nghe lại' : blocked ? 'Chạm để nghe tụng kinh' : 'Đang tụng kinh · chạm để tắt tiếng';
+  bar.append(el('span', 'ic', ic)); bar.title = txt; bar.setAttribute('aria-label', txt);   // chỉ còn biểu tượng loa
 }
 $('kinhBar').onclick = () => {
   const win = kinhWinNow; if (!win) return;
@@ -1631,6 +1631,22 @@ SH = initShare({ P, save, modal, closeModal, el, toast, addBeads, addMerit: (n) 
 }
 DY = initDuyen({ share: (r) => SH && SH.share(r), P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
 if (W && temple) { DY.onTemple(); SW.onTemple(); GP.onTemple(); BT.onTemple(); }
+/* ---------------- thông báo hệ thống → khung tin nhắn (lặp lại định kỳ khi còn diễn ra) ---------------- */
+const sysSeen = {}; let sysT = 0;
+function sysTick() {
+  const now = performance.now(); if (now - sysT < 3000 || !FEED) return; sysT = now;
+  const items = [
+    [$('festBar'), null, () => $('festBar').click()],
+    [document.querySelector('.kinhbar.tkbar'), null, () => document.querySelector('.kinhbar.tkbar').click()],
+    [$('kinhBar'), '🎧 Chư tăng đang tụng kinh · bấm 🔊 để tắt/bật tiếng', null]
+  ];
+  items.forEach(([b, fixed, fn], i) => {
+    if (!b || b.hidden || !W) { delete sysSeen[i]; return; }
+    const txt = (fixed || b.textContent.replace(/\s+/g, ' ').trim()).replace(' · lạy, tụng, thiền để dự lễ', ''); if (!txt) return;
+    const key = txt.replace(/\d+/g, '#'), s = sysSeen[i];
+    if (!s || s.key !== key || now - s.t > 75000) { sysSeen[i] = { key, t: now }; FEED.sys(txt, fn); }
+  });
+}
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
 function chatBubble(root, text, name, h, dur = 3) {
@@ -2089,7 +2105,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step();
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); sysTick();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
