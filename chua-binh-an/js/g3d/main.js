@@ -1576,7 +1576,7 @@ TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, f
   getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
   meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
 if (W && temple) TH.onTemple();
-SH = initShare({ P, save, modal, closeModal, el, toast, addBeads });
+SH = initShare({ P, save, modal, closeModal, el, toast, addBeads, addMerit: (n) => addMerit(n) });
 DY = initDuyen({ share: (r) => SH && SH.share(r), P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
 if (W && temple) DY.onTemple();
 /* ---------------- trò chuyện (chat) ---------------- */

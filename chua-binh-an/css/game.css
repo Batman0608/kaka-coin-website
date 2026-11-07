@@ -562,3 +562,15 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 .modal.share .shtext { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; line-height: 1.45; padding: 10px; border-radius: 10px; border: 1px solid #d9c9a5; background: #fffaf0; color: #3a2a12; resize: vertical; }
 .modal.share .row { flex-wrap: wrap; gap: 8px; }
 .modal.share .shfb { background: #1877f2; color: #fff; border-color: #1877f2; }
+/* nút chia sẻ Facebook góc trên trái */
+.sharefb { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 5px 12px 5px 6px; border-radius: 999px; border: 1px solid #5b8ef0; background: linear-gradient(180deg, #2d86ff, #1460d8); color: #fff; cursor: pointer; box-shadow: 0 2px 10px rgba(20, 96, 216, .45); font: inherit; animation: shPulse 2.6s ease-in-out infinite; }
+.sharefb i { width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #1877f2; font: 900 19px/26px Arial, sans-serif; font-style: normal; text-align: center; }
+.sharefb span { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.sharefb b { font-size: 13px; } .sharefb small { font-size: 11px; color: #ffe08a; font-weight: 700; }
+.sharefb.got { animation: none; opacity: .9; } .sharefb.got small { color: #d6e6ff; font-weight: 400; }
+@keyframes shPulse { 0%, 100% { box-shadow: 0 2px 10px rgba(20, 96, 216, .45); } 50% { box-shadow: 0 2px 18px rgba(80, 160, 255, .9); } }
+.modal.share .shbig { width: 100%; border-radius: 10px; display: block; aspect-ratio: 1200 / 630; object-fit: cover; margin: 6px 0; border: 2px solid #d6aa5a; }
+.modal.share .shthumbs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; }
+.modal.share .shth { flex: 0 0 auto; padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; cursor: pointer; opacity: .7; }
+.modal.share .shth.on { border-color: #ffd36b; opacity: 1; } .modal.share .shth img { width: 96px; height: 50px; object-fit: cover; border-radius: 6px; display: block; }
+.modal.share a.btn { text-decoration: none; }
