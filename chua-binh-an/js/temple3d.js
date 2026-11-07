@@ -530,7 +530,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     const wm = wall || WALL();
     g.add(box(w, h, 0.3, wm, 0, base + h / 2, -d / 2 + 0.15));
     [-1, 1].forEach(sx => g.add(box(0.3, h, d, wm, sx * (w / 2 - 0.15), base + h / 2, 0)));
-    const fl = box(w - 0.6, 0.06, d - 0.3, mat('floor', 0x6a3a1e), 0, base + 0.03, 0.1); fl.userData.floor = true; g.add(fl);
+    g.add(woodFloor(w - 0.6, d - 0.3, 0, base + 0.03, 0.1));   // sàn gỗ lim
     const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
     const fill = new THREE.PointLight(0xffd6a0, 1.5, Math.max(w, d) * 1.4, 1.2); fill.position.set(0, base + h - 1.0, 0.15 * d); g.add(fill);
     const fill2 = new THREE.PointLight(0xffd6a0, 0.9, Math.max(w, d), 1.3); fill2.position.set(0, base + h - 1.2, d * 0.32); g.add(fill2);
@@ -742,6 +742,32 @@ function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0, top = 0) {
   if (top) m.userData.mesa = { r, h, top };   // đỉnh bằng phẳng để dựng chùa
   return m;
 }
+/* sàn gỗ lim trong chánh điện: ván dài, vân gỗ, mạch ván */
+let _wood = null;
+function woodTex() {
+  if (_wood) return _wood;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512; const k = c.getContext('2d');
+  const bw = 64;   // 8 tấm ván / 2 m
+  for (let i = 0; i < 512 / bw; i++) {
+    let y = -Math.random() * 300;
+    while (y < 512) { const len = 220 + Math.random() * 260, v = Math.random();
+      const R = 112 + v * 34 | 0, G = 62 + v * 20 | 0, B = 32 + v * 12 | 0;
+      k.fillStyle = `rgb(${R},${G},${B})`; k.fillRect(i * bw, y, bw, len);
+      for (let n = 0; n < 9; n++) { k.strokeStyle = `rgba(${40 + v * 20 | 0},${18},${8},${0.18 + Math.random() * 0.2})`; k.lineWidth = 1 + Math.random() * 1.5; k.beginPath(); const gx = i * bw + 4 + Math.random() * (bw - 8); k.moveTo(gx, y); k.bezierCurveTo(gx + (Math.random() - 0.5) * 10, y + len * 0.3, gx + (Math.random() - 0.5) * 10, y + len * 0.7, gx + (Math.random() - 0.5) * 6, y + len); k.stroke(); }
+      if (Math.random() < 0.35) { k.fillStyle = 'rgba(50,22,8,.35)'; k.beginPath(); k.ellipse(i * bw + bw / 2 + (Math.random() - 0.5) * 30, y + len * Math.random(), 4, 9, 0, 0, 7); k.fill(); }   // mắt gỗ
+      k.fillStyle = 'rgba(255,220,180,.07)'; k.fillRect(i * bw + 2, y, 3, len);
+      k.fillStyle = 'rgba(25,10,4,.85)'; k.fillRect(i * bw, y + len - 2, bw, 2);   // mạch đầu ván
+      y += len; }
+    k.fillStyle = 'rgba(25,10,4,.9)'; k.fillRect(i * bw, 0, 2, 512);   // mạch dọc
+  }
+  _wood = new THREE.CanvasTexture(c); _wood.colorSpace = THREE.SRGBColorSpace; _wood.wrapS = _wood.wrapT = THREE.RepeatWrapping; _wood.anisotropy = 4;
+  return _wood;
+}
+function woodFloor(w, d, x, y, z) {
+  const t = woodTex().clone(); t.needsUpdate = true; t.repeat.set(w / 2, d / 2);
+  const o = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0.05 }));
+  o.position.set(x, y, z); o.receiveShadow = true; o.userData.floor = true; return o;
+}
 function water(w, d, x = 0, z = 0) { const o = mesh(new THREE.PlaneGeometry(w, d, 1, 1), WATER(), x, 0.05, z, false); o.rotation.x = -Math.PI / 2; return o; }
 /* bến thuyền: cầu tàu gỗ từ bờ ra nước + quầy bán vé có mái (đi lại được trên cầu tàu) */
 function dockKit(g, { x, z0, z1, booth }) {
@@ -802,7 +828,7 @@ function bats(g, n, center, r) {
 }
 let NO_GROUND = false;
 function ground(g, size = 120, color = null) { if (NO_GROUND) return; const o = mesh(new THREE.PlaneGeometry(size, size), color ? mat('gr' + color, color) : GRASS(), 0, 0, 0, false); o.rotation.x = -Math.PI / 2; g.add(o); }
-function courtyard(g, w, d, z = 4) { const o = mesh(new THREE.PlaneGeometry(w, d), mat('court', 0xc9b48a), 0, 0.02, z, false); o.rotation.x = -Math.PI / 2; o.userData.court = true; g.add(o); }
+function courtyard(g, w, d, z = 4) { const o = mesh(new THREE.PlaneGeometry(w, d), mat('court', 0x9a958a, { roughness: 0.95 }), 0, 0.02, z, false); o.rotation.x = -Math.PI / 2; o.userData.court = true; g.add(o); }
 function burner(x, z) { const g = new THREE.Group(); g.position.set(x, 0, z); g.userData.burner = true; g.add(cyl(0.6, 0.45, 0.7, 12, BRONZE(), 0, 0.75, 0)); g.add(cyl(0.12, 0.12, 0.4, 8, BRONZE(), 0, 0.2, 0)); g.add(cyl(0.7, 0.6, 0.1, 12, BRONZE(), 0, 1.1, 0)); return g; }
 
 /* ---------------- cảnh của từng chùa ---------------- */
@@ -896,7 +922,7 @@ const SCENES = {
     // Cấp 2 (y2.3): nền rộng + Điện Pháp Chủ (đóng), sân trước điện thoáng
     terr(30, (z2f + z3f) / 2, z2f - z3f, 2.3);
     closedHall(zP, 2.3, 8.5, 5, 3.2, 'ĐIỆN PHÁP CHỦ');
-    { const c2 = mesh(new THREE.PlaneGeometry(18, z2f - zP - 4), mat('court', 0xc9b48a), 0, 2.32, (z2f + zP + 4) / 2, false); c2.rotation.x = -Math.PI / 2; c2.userData.court = true; g.add(c2); g.add(burner(0, (z2f + zP) / 2 + 2)).position.y = 2.3; }
+    { const c2 = mesh(new THREE.PlaneGeometry(18, z2f - zP - 4), mat('court', 0x9a958a, { roughness: 0.95 }), 0, 2.32, (z2f + zP + 4) / 2, false); c2.rotation.x = -Math.PI / 2; c2.userData.court = true; g.add(c2); const bz = burner(0, (z2f + zP) / 2 + 2); bz.position.y = 2.3; g.add(bz); }   // (trước đây lỡ nâng cả cảnh lên 2,3 m → người chơi như đi dưới đất)
     flank(z3f + 5.5, z3f, 2.1, 2.3);                       // bậc hai bên lên cấp 3 (y2.3 -> y4.4)
     // Cấp 3 (y4.4): CHÁNH ĐIỆN TAM THẾ — vào lễ bình thường, có sân rộng phía trước
     const h = hall({ w: 16, d: 8, h: 4.6, tiers: 3 }); const thd = h.userData.mainHall ? h.userData.mainHall.d : 8, thw = h.userData.mainHall ? h.userData.mainHall.w : 16, hzc = z3f - 0.6 - thd / 2 - 3.4 - 8;
@@ -1011,7 +1037,7 @@ const SCENES = {
     hg.add(box(KW + 3, 2, KD + 2.5, kb, 0, 1, zc));
     if (INTERIOR) {
       hg.add(box(KW, 3.8, 0.3, km, 0, 3.9, zc - KD / 2 + 0.15)); [-1, 1].forEach(sx => hg.add(box(0.3, 3.8, KD, km, sx * (KW / 2 - 0.15), 3.9, zc)));
-      const sub = new THREE.Group(); sub.position.set(0, 0, zc); hg.add(sub);
+      const sub = new THREE.Group(); sub.position.set(0, 0, zc); hg.add(sub); sub.add(woodFloor(KW - 0.6, KD - 0.3, 0, 2.03, 0));
       const az = altarFigures(sub, KW, KD, 2, 'nam', 3.8);
       const cushions = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) { const x = (c - 3) * 1.6, z = az + 4.0 + r * 1.35; const cu = box(0.75, 0.1, 0.75, mat('cush', 0xa3231a), x, 2.11, z); cu.userData.cushion = true; sub.add(cu); cushions.push(new THREE.Vector3(x, 2.16, z)); }
       const front = [];

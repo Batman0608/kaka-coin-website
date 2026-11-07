@@ -150,7 +150,7 @@ export function buildWorld(scene, temple) {
     const p = plaque(t, sub, a.w, a.h); p.position.set(a.x, a.y, a.z); h.add(p);
     (m.front || m.roofs).push(p);   // ẩn khi người chơi ở trong điện để không che tầm nhìn
   });
-  // khuôn viên chùa: nền gạch đỏ sẫm, tường rào bao quanh, cổng ở phía trước (bên ngoài vẫn là cỏ xanh)
+  // khuôn viên chùa: nền gạch vuông xám cũ, tường rào bao quanh, cổng ở phía trước (bên ngoài vẫn là cỏ xanh)
   let Lx = L;
   if (L.yard && !L.decor) Lx = expandYards(root, L);   // các chùa khác: nới sân ~3 lần diện tích trên phần đất bằng
   if (L.decor === 'chua-ha') haDecor(root, L); else if (L.decor) yardDecor(root, L);
@@ -208,18 +208,26 @@ function meritBox() {
 
 /* ---------------- khuôn viên: nền gạch + tường rào + cổng ---------------- */
 let _brick = null;
-function brickTex() {
+function brickTex() {   // gạch vuông xám đã cũ: ố màu, sứt mẻ, rêu mạch — như sân chùa lâu năm
   if (_brick) return _brick;
   const c = document.createElement('canvas'); c.width = c.height = 512; const k = c.getContext('2d');
-  k.fillStyle = '#3a160e'; k.fillRect(0, 0, 512, 512);   // mạch vữa
-  const bw = 64, bh = 32;
-  for (let r = 0; r < 512 / bh; r++) for (let i = -1; i < 512 / bw + 1; i++) {
-    const x = i * bw + (r % 2 ? bw / 2 : 0), y = r * bh, v = Math.random();
-    const R = 110 + v * 34 | 0, G = 38 + v * 14 | 0, B = 26 + v * 10 | 0;
-    k.fillStyle = `rgb(${R},${G},${B})`; k.fillRect(x + 2, y + 2, bw - 4, bh - 4);
-    k.fillStyle = 'rgba(255,200,170,.06)'; k.fillRect(x + 2, y + 2, bw - 4, 4);   // mép sáng
-    for (let n = 0; n < 6; n++) { k.fillStyle = `rgba(0,0,0,${Math.random() * 0.12})`; k.fillRect(x + 4 + Math.random() * (bw - 10), y + 4 + Math.random() * (bh - 10), 3, 3); }
+  k.fillStyle = '#4a4740'; k.fillRect(0, 0, 512, 512);   // mạch vữa
+  const tw = 128;
+  for (let r = 0; r < 4; r++) for (let i = 0; i < 4; i++) {
+    const x = i * tw, y = r * tw, v = Math.random(), base = 128 + v * 34 | 0, warm = Math.random() * 8 | 0;
+    k.fillStyle = `rgb(${base + warm},${base + warm - 2},${base - 6})`; k.fillRect(x + 3, y + 3, tw - 6, tw - 6);
+    // vết ố loang
+    for (let n = 0; n < 5; n++) { const g2 = k.createRadialGradient(x + Math.random() * tw, y + Math.random() * tw, 0, x + tw / 2, y + tw / 2, 20 + Math.random() * 50); g2.addColorStop(0, `rgba(${60 + Math.random() * 30 | 0},${55 + Math.random() * 25 | 0},${45},${0.12 + Math.random() * 0.12})`); g2.addColorStop(1, 'rgba(0,0,0,0)'); k.fillStyle = g2; k.fillRect(x + 3, y + 3, tw - 6, tw - 6); }
+    // hạt đá, rỗ
+    for (let n = 0; n < 70; n++) { k.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${Math.random() * 0.12})`; k.fillRect(x + 4 + Math.random() * (tw - 8), y + 4 + Math.random() * (tw - 8), 2, 2); }
+    // vết nứt
+    if (Math.random() < 0.3) { k.strokeStyle = 'rgba(40,38,34,.55)'; k.lineWidth = 1.2; k.beginPath(); let px = x + 10 + Math.random() * (tw - 20), py = y + 4; k.moveTo(px, py); for (let s = 0; s < 6; s++) { px += (Math.random() - 0.5) * 22; py += tw / 6; k.lineTo(px, Math.min(py, y + tw - 4)); } k.stroke(); }
+    // mẻ góc
+    if (Math.random() < 0.25) { k.fillStyle = '#4a4740'; k.beginPath(); const cx = x + (Math.random() < 0.5 ? 3 : tw - 3), cy = y + (Math.random() < 0.5 ? 3 : tw - 3); k.moveTo(cx, cy); k.lineTo(cx + (cx < x + tw / 2 ? 14 : -14), cy); k.lineTo(cx, cy + (cy < y + tw / 2 ? 10 : -10)); k.fill(); }
+    k.fillStyle = 'rgba(255,255,255,.05)'; k.fillRect(x + 3, y + 3, tw - 6, 3);
   }
+  // rêu xanh trong mạch gạch
+  for (let n = 0; n < 60; n++) { const onV = Math.random() < 0.5, p = (Math.random() * 4 | 0) * tw, q = Math.random() * 512; k.fillStyle = `rgba(${70 + Math.random() * 20 | 0},${100 + Math.random() * 30 | 0},${50},${0.35 + Math.random() * 0.3})`; if (onV) k.fillRect(p - 2, q, 5, 6 + Math.random() * 14); else k.fillRect(q, p - 2, 6 + Math.random() * 14, 5); }
   _brick = new THREE.CanvasTexture(c); _brick.colorSpace = THREE.SRGBColorSpace; _brick.wrapS = _brick.wrapT = THREE.RepeatWrapping; _brick.anisotropy = 4;
   return _brick;
 }
@@ -234,7 +242,7 @@ function buildYards(root, yards, temple) {
   root.traverse(o => { if (o.userData.court) { const p = o.getWorldPosition(new THREE.Vector3()); if (yards.some(Y => p.x > Y.r[0] && p.x < Y.r[2] && p.z > Y.r[1] && p.z < Y.r[3])) o.visible = false; } });
   yards.forEach((Y, yi) => {
     const [x0, z0, x1, z1] = Y.r, y = Y.y || 0, w = x1 - x0, d = z1 - z0;
-    // nền gạch đỏ sẫm
+    // nền gạch vuông xám cũ
     const t = brickTex().clone(); t.needsUpdate = true; t.repeat.set(w / 2, d / 2);
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }));
     fl.rotation.x = -Math.PI / 2; fl.position.set((x0 + x1) / 2, y + 0.012, (z0 + z1) / 2); fl.receiveShadow = true; fl.userData.noCollide = true; root.add(fl);
@@ -389,7 +397,7 @@ function gateBuild(style, gw, temple, M) {
 function yardDecor(root, L) {
   const g = new THREE.Group(); root.add(g);
   const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
-  const pave = mat('pave', 0xcfc2a6, { roughness: 0.95 }), paveE = mat('paveEdge', 0x8f8270);
+  const pave = mat('pave', 0xb3aea2, { roughness: 0.95 }), paveE = mat('paveEdge', 0x6f6a60);
   // lối đá lớn từ cổng vào thẳng chánh điện, viền đá sẫm hai bên
   flat(4.2, 24, pave, 0, 20); [-1, 1].forEach(s => flat(0.25, 24, paveE, s * 2.2, 20, 0.024));
   // đường kinh hành vòng quanh chánh điện (đoàn rước kiệu đi theo lối này)
@@ -506,7 +514,7 @@ function haDecor(root, L) {
   const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
   const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
   const disc = (r0, r1, m, x, z, y) => { const o = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 64), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
-  const pave = mat('pave', 0xcfc2a6, { roughness: 0.95 }), paveE = mat('paveEdge', 0x8f8270), stone = STONE();
+  const pave = mat('pave', 0xb3aea2, { roughness: 0.95 }), paveE = mat('paveEdge', 0x6f6a60), stone = STONE();
   const pink = mat('haPave', 0xd9b3a8, { roughness: 0.95 }), rose2 = mat('haPave2', 0xb7848a, { roughness: 0.95 });
   const [TX, TZ] = L.tree, R = 13;   // tâm cây & bán kính quảng trường
   // lối đá: cổng → quảng trường → chánh điện

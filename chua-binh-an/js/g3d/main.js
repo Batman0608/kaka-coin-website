@@ -2108,4 +2108,3 @@ function notice(next) {
 notice(() => { if (P.name) welcome(); else characterForm(true); });
 hud();
 loop();
-window.__me=me; window.__cam=cam; window.__W=()=>W; window.__BT=()=>BT; window.__GP=()=>GP; window.__T=THREE; window.__P=P; // DEBUG-TMP
