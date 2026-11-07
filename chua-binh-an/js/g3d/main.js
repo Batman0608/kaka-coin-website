@@ -2085,7 +2085,27 @@ function welcome() {
     else { const ar = el('div', 'row'), li = el('button', 'btn ghost', '🔑 Đăng nhập tài khoản'); li.onclick = () => { ACC.openAccount('login'); closeHook = () => setTimeout(welcome, 0); }; ar.append(li); b.append(el('p', 'note warn', '⚠️ Chưa đăng nhập: dữ liệu chỉ lưu tạm trên trình duyệt này.'), ar); }
   }, { noClose: true });
 }
-if (P.name) welcome(); else characterForm(true);
+/* thông báo trước khi vào game: miễn phí, không chuyển tiền cho ai, mục đích văn hoá — mời góp ý */
+function notice(next) {
+  const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  try { if (localStorage.getItem('cba_notice') === today) return next(); } catch (e) {}
+  modal('📢 Thông báo từ Ban quản trị', (b) => {
+    b.classList.add('notice');
+    const L = el('div', 'ntc');
+    [['🎁', 'Trò chơi miễn phí', '“Chùa Bình An Online” hiện hoàn toàn miễn phí cho mọi người.'],
+     ['🚫', 'Không chuyển tiền cho bất kỳ ai', 'Chúng tôi KHÔNG yêu cầu chuyển tiền hay thanh toán vào bất kỳ tài khoản nào. Ai nhân danh trò chơi để xin tiền, đòi chuyển khoản hay hỏi mã OTP đều là lừa đảo — xin đừng làm theo.'],
+     ['🪷', 'Mục đích', 'Giải trí lành mạnh, giới thiệu và lan tỏa văn hoá Phật giáo, các ngôi chùa Việt cùng những thông tin hữu ích.'],
+     ['🙏', 'Mời quý vị góp ý', 'Nội dung về các chùa, sự tích, giáo lý được biên soạn có tham khảo. Nếu thấy chỗ nào sai sót, xin góp ý để chúng tôi điều chỉnh ngay. Xin cảm ơn!']]
+      .forEach(([i, t, d]) => { const r = el('div', 'ntr'); r.append(el('span', 'nti', i)); const x = el('div'); x.append(el('b', '', t), el('p', '', d)); r.append(x); L.append(r); });
+    b.append(L);
+    const ck = el('label', 'ntck'), cb = el('input'); cb.type = 'checkbox'; ck.append(cb, document.createTextNode(' Không nhắc lại trong hôm nay')); b.append(ck);
+    const row = el('div', 'row');
+    const fb = el('a', 'btn', '📘 Góp ý qua Fanpage'); fb.href = ((CBA.shop || {}).contact || {}).facebook || 'https://www.facebook.com/share/19u9bTRswX/'; fb.target = '_blank'; fb.rel = 'noopener';
+    const ok = el('button', 'btn gold', '🙏 Tôi đã hiểu · vào game'); ok.onclick = () => { try { if (cb.checked) localStorage.setItem('cba_notice', today); } catch (e) {} closeModal(); setTimeout(next, 0); };
+    row.append(ok, fb); b.append(row);
+  }, { noClose: true });
+}
+notice(() => { if (P.name) welcome(); else characterForm(true); });
 hud();
 loop();
 window.__me=me; window.__cam=cam; window.__W=()=>W; window.__BT=()=>BT; window.__GP=()=>GP; window.__T=THREE; window.__P=P; // DEBUG-TMP

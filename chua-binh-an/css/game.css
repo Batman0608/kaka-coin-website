@@ -712,3 +712,13 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 /* nút xuống thuyền */
 .boatoff { position: fixed; z-index: 25; right: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); padding: 12px 18px; border-radius: 999px; border: 2px solid #ffd36b; background: linear-gradient(180deg, #1f6a8a, #0f4a64); color: #fff; font: inherit; font-weight: 800; font-size: 15px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); cursor: pointer; }
 @media (max-width: 760px) { .boatoff { right: 10px; bottom: calc(230px + env(safe-area-inset-bottom, 0px)); } }
+/* thông báo trước khi vào game */
+.modal.notice { width: min(520px, 100%); border: 2px solid #d6aa5a; }
+.ntc { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.ntr { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .05); border: 1px solid #5a3a1e; }
+.ntr:nth-child(2) { border-color: #d9534a; background: rgba(217, 83, 74, .12); }
+.nti { font-size: 24px; line-height: 1; flex: none; margin-top: 2px; }
+.ntr b { color: #ffd36b; font-size: 15px; } .ntr p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.5; opacity: .92; }
+.ntck { display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: .85; margin-bottom: 8px; cursor: pointer; }
+.modal.notice .row .btn { flex: 1; text-align: center; text-decoration: none; }
+.ntck input { width: 18px !important; height: 18px; min-height: 0; flex: none; margin: 0; }
