@@ -266,7 +266,7 @@ jbase.addEventListener('mousedown', joyStart); addEventListener('mousemove', (e)
 // kéo để xoay camera, cuộn / chụm để phóng to
 const view = renderer.domElement; let drag = null, pinch = null;
 view.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') return; drag = { x: e.clientX, y: e.clientY }; view.setPointerCapture(e.pointerId); });
-view.addEventListener('pointermove', (e) => { if (!drag) return; cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (e.clientY - drag.y) * 0.004)); drag = { x: e.clientX, y: e.clientY }; });
+view.addEventListener('pointermove', (e) => { if (!drag) return; cam.userT = Date.now(); cam.yaw -= (e.clientX - drag.x) * 0.006; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (e.clientY - drag.y) * 0.004)); drag = { x: e.clientX, y: e.clientY }; });
 view.addEventListener('pointerup', () => { drag = null; });
 view.addEventListener('wheel', (e) => { cam.dist = Math.max(2.5, Math.min(26, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
 view.addEventListener('touchstart', (e) => {
@@ -277,7 +277,7 @@ view.addEventListener('touchstart', (e) => {
 view.addEventListener('touchmove', (e) => {
   if (pinch && e.touches.length >= 2) { const [a, b] = e.touches; cam.dist = Math.max(2.5, Math.min(26, pinch.dist * pinch.d / Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))); return; }
   if (!drag) return; const t = [...e.touches].find(x => x.identifier === drag.id); if (!t) return;
-  cam.yaw -= (t.clientX - drag.x) * 0.008; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (t.clientY - drag.y) * 0.005)); drag.x = t.clientX; drag.y = t.clientY;
+  cam.userT = Date.now(); cam.yaw -= (t.clientX - drag.x) * 0.008; cam.pitch = Math.max(0.04, Math.min(1.5, cam.pitch + (t.clientY - drag.y) * 0.005)); drag.x = t.clientX; drag.y = t.clientY;
 }, { passive: true });
 view.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; if (drag && ![...e.touches].some(t => t.identifier === drag.id)) drag = null; });
 
@@ -1538,6 +1538,7 @@ function openSettings() {
       r.append(t1, t2); b.append(el('p', 'note', `Mã nhân vật: ${P.id} · Số dư: 🪷 ${fmt(P.lotus || 0)} · Chế độ: ${SHOP.mode === 'firebase' ? 'Firebase' : 'thử (chưa cấu hình Firebase)'}`), r); }
     if (!isStandalone()) { b.append(el('h3', '', '📲 Cài game về máy')); const ib = el('button', 'btn', '📲 Cài game'); ib.onclick = () => { closeModal(); installApp(); }; b.append(el('p', 'note', 'Đưa Chùa Bình An ra màn hình chính điện thoại (hoặc máy tính) để mở nhanh, toàn màn hình như ứng dụng.'), ib); }
     b.append(el('h3', '', '🎮 Trò chơi'),
+      tg('Góc nhìn tự xoay theo hướng đi của nhân vật', S.camFollow !== false, v => { S.camFollow = v; saveS(); }),
       tg('Phật tử khác trong chùa (mô phỏng, không phát tiếng mõ)', S.npc, v => { S.npc = v; saveS(); toast('Áp dụng khi đổi chùa'); }),
       tg('Đồ họa nhẹ (máy yếu) — áp dụng khi tải lại', S.low, v => { S.low = v; saveS(); }));
     const row = el('div', 'row'); const ch = el('button', 'btn', 'Đổi nhân vật'); ch.onclick = () => characterForm(false); row.append(ch); b.append(row);
@@ -1870,7 +1871,7 @@ const camRay = new THREE.Raycaster();
 function rayBoxes(a, b) {
   let best = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
   for (const bx of W.col.boxes) {
-    if (bx.top < a.y - 0.6 || bx.top - bx.bottom < 1.2 || (camInHall && bx.camSkip)) continue;
+    if (bx.ghost || bx.top < a.y - 0.6 || bx.top - bx.bottom < 1.2 || (camInHall && bx.camSkip)) continue;   // tường vô hình không chắn camera
     let t0 = 0, t1 = 1;
     for (const [o, d, lo, hi] of [[a.x, dx, bx.x0, bx.x1], [a.y, dy, bx.bottom, bx.top], [a.z, dz, bx.z0, bx.z1]]) {
       if (Math.abs(d) < 1e-6) { if (o < lo || o > hi) { t0 = 2; break; } continue; }
@@ -1885,6 +1886,23 @@ function rayBoxes(a, b) {
 setInterval(() => { if (W && S.amb && !paused) { A.bigBell(); } }, 60000);
 
 /* ---------------- tự đi tới đích (dâng lễ, về chỗ) ---------------- */
+/* đi bộ: không cho bước hụt xuống chỗ thấp hơn ~0,9 m (mép bậc thang, mép sân cao, thành cầu) → không rơi khỏi bậc, không kẹt */
+function walkH(x, z) { const h = W.col.heightAt(x, z, me.y); if (h == null) return null; if (h < me.y - 0.9 && !(BT && BT.aboard())) return null; return h; }
+/* gỡ kẹt: giữ phím đi mà không nhích được 2,5 giây → về chỗ an toàn gần nhất; nhớ chỗ an toàn mỗi giây */
+let stuckT = 0, safeT = 0; const safe = [];
+function stuckCheck(ox, oz, dt) {
+  const moved = Math.hypot(me.pos.x - ox, me.pos.z - oz) > 0.002;
+  if (moved) { stuckT = 0; safeT += dt; if (safeT > 1 && W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.3) != null) { safeT = 0; safe.push([me.pos.x, me.pos.z, me.y]); if (safe.length > 30) safe.shift(); } return; }
+  stuckT += dt; if (stuckT > 2.5) { stuckT = 0; const here = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.3); if (here == null || Math.abs(here - me.y) > 0.6) unstuck(); }
+}
+function unstuck(silent) {
+  const ok = (x, z, y) => { const h = W.col.heightAt(x, z, y + 0.3); return h != null && Math.abs(h - y) < 0.5; };
+  // 1) điểm trống gần nhất quanh chỗ đứng
+  for (let r = 0.6; r <= 4; r += 0.6) for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, x = me.pos.x + Math.cos(a) * r, z = me.pos.z + Math.sin(a) * r, h = W.col.heightAt(x, z, 60); if (h != null && ok(x, z, h) && Math.abs(h - me.y) < 1.2) { me.pos.x = x; me.pos.z = z; me.y = h; if (!silent) toast('🆘 Đã gỡ kẹt'); return; } }
+  // 2) chỗ an toàn vừa đi qua · 3) cổng chùa
+  while (safe.length) { const [x, z, y] = safe.pop(); if (ok(x, z, y) && Math.hypot(x - me.pos.x, z - me.pos.z) > 0.5) { me.pos.x = x; me.pos.z = z; me.y = y; if (!silent) toast('🆘 Đã đưa về chỗ an toàn vừa đi qua'); return; } }
+  const L = W.layout; me.pos.set(L.spawn[0], 0, L.spawn[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; if (!silent) toast('🆘 Đã đưa về cổng chùa');
+}
 let auto = null;   // { pts: [Vector3...], done, stuck }
 function walkTo(pts, done) { standUp(); auto = { pts: pts.map(p => p.clone()), done, stuck: 0 }; }
 function autoStep(dt) {
@@ -2091,12 +2109,19 @@ function loop() {
       const nx = me.pos.x + Math.sin(a) * sp, nz = me.pos.z + Math.cos(a) * sp;
       if (BT && BT.aboard()) BT.walk(nx, nz);   // trên thuyền: đi lại trong phạm vi sàn thuyền
       else {
-      let h = W.col.heightAt(nx, nz, me.y);
+      const ox = me.pos.x, oz = me.pos.z;
+      let h = walkH(nx, nz);
       if (h != null) { me.pos.x = nx; me.pos.z = nz; }
-      else { const hx = W.col.heightAt(nx, me.pos.z, me.y), hz = W.col.heightAt(me.pos.x, nz, me.y); if (hx != null) { me.pos.x = nx; h = hx; } else if (hz != null) { me.pos.z = nz; h = hz; } }
+      else { const hx = walkH(nx, me.pos.z), hz = walkH(me.pos.x, nz); if (hx != null) { me.pos.x = nx; h = hx; } else if (hz != null) { me.pos.z = nz; h = hz; } }
+      stuckCheck(ox, oz, dt);
       }
       let dy = a - me.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); me.yaw += dy * Math.min(1, dt * 12);
       me.av.speed = mag * (keys.ShiftLeft ? 1.5 : 1);
+      // góc nhìn tự xoay ra sau lưng theo hướng đi (không xoay khi đang lùi về phía camera, khi đang kéo xoay tay)
+      if (S.camFollow !== false && !drag && !pinch && iz < 0.35 && Date.now() - (cam.userT || 0) > 1200) {
+        let dc = (me.yaw + Math.PI) - cam.yaw; dc = Math.atan2(Math.sin(dc), Math.cos(dc));
+        cam.yaw += dc * Math.min(1, dt * 2.2 * mag * (0.35 + Math.min(1, Math.abs(ix) + 0.3)));
+      }
     }
     if (BT && BT.carry()) { /* thuyền chở người chơi đi theo */ }
     else if (!me.seated) { const g = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.01) ?? me.y; me.y += (g - me.y) * Math.min(1, dt * (g < me.y ? 6 : 14)); }

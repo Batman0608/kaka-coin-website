@@ -97,7 +97,7 @@ export class Collision {
       const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z;
       if (sx < 0.12 && sz < 0.12) return;
       if (o.userData.cushion) return;
-      this.boxes.push({ x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y, camSkip: !!o.userData.camSkip });
+      this.boxes.push({ x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y, camSkip: !!o.userData.camSkip, ghost: !o.visible });
     });
   }
   /* độ cao mặt đất tại (x,z) cho người đang đứng ở độ cao y; null = bị chặn */
@@ -159,6 +159,7 @@ export function buildWorld(scene, temple) {
   if (Lx.yard) buildYards(root, Lx.yard, temple);
   if (Lx.grown) yardGreen(root, Lx);
   root.userData.treeAudit = pruneTrees(root, Lx);
+  stairWalls(root);   // bậc thang: chặn hai bên, chỉ đi lên / xuống
   // hòm công đức trong chánh điện chính, bên phải bàn thờ, quay ra cửa
   let meritAt = null;
   if (halls[0]) {
@@ -784,4 +785,17 @@ function pruneTrees(root, L) {
     log.push(`bồn ${x.toFixed(1)},${z.toFixed(1)}`);
   });
   return log;
+}
+
+/* tường chắn vô hình hai bên mọi dãy bậc (trừ bậc đầu tiên để bước vào): đang trên bậc chỉ lên/xuống, không bước hụt ra ngoài */
+function stairWalls(root) {
+  root.updateMatrixWorld(true);
+  const list = []; root.traverse(o => { if (o.userData.stairs) list.push(o); });
+  const q = new THREE.Quaternion(), e = new THREE.Euler();
+  list.forEach(st => {
+    const { n, rise, run, w } = st.userData.stairs; if (n < 3) return;
+    st.getWorldQuaternion(q); e.setFromQuaternion(q, 'YXZ'); const k = Math.round(e.y / (Math.PI / 2)); if (Math.abs(e.y - k * Math.PI / 2) > 0.02 || Math.abs(e.x) > 0.02 || Math.abs(e.z) > 0.02) return;   // chỉ dãy bậc thẳng trục
+    const len = (n - 1) * run, zc = -run / 2 - len / 2, hTop = n * rise + 1.8;
+    [-1, 1].forEach(sx => { const wall = box(0.3, hTop, len, mat('stairWallInv', 0x888888), sx * (w / 2 + 0.15), hTop / 2, zc); wall.visible = false; wall.userData.camSkip = true; st.add(wall); });
+  });
 }
