@@ -9,9 +9,11 @@ import { Avatar } from './avatar.js';
 import { initTuHanh } from './tuhanh.js';
 import { initDuyen } from './duyen.js';
 import { initShare } from './share.js';
+import { initQuiz } from './quiz.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 let DY = null;   // cầu duyên (chùa Hà)
 let SH = null;   // kêu gọi chia sẻ game lên Facebook
+let QZ = null;   // câu hỏi khi tham quan khuôn viên chùa
 Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
 import { buildWorld, smoke, LAYOUT } from './world.js';
@@ -117,7 +119,7 @@ function disposeWorld() {
   [...scene.children].forEach(o => { if (o.isSprite || (o.userData && o.userData.tmp)) scene.remove(o); });
 }
 function loadTemple(id) {
-  disposeWorld();
+  disposeWorld(); if (QZ) QZ.close();
   temple = TEMPLES.find(t => t.id === id) || TEMPLES[0]; P.temple = temple.id; save();
   const sky = temple.model === 'yentu' ? 0xcfe0ea : temple.model === 'khmer' ? 0xbfe0f0 : 0xf0d6a8;
   scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, 50, 190);
@@ -378,7 +380,12 @@ let lastBow = 0;
 function doBow() {
   if (Date.now() - lastBow < 2300) return;
   if (auto) return;
-  if (!me.seated && W.halls[0]) { lastBow = Date.now(); return goSit(() => { lastBow = 0; doBow(); }); }   // về đệm trước rồi mới lạy
+  if (!me.seated && W.halls[0] && insideHall(W.halls[0])) { lastBow = Date.now(); return goSit(() => { lastBow = 0; doBow(); }); }   // đang trong điện: về đệm rồi lạy
+  if (!me.seated && W.halls[0] && !W.halls.some(h => insideHall(h))) {   // ngoài sân: lạy ngay tại chỗ, hướng về tượng Phật gần nhất hoặc chánh điện (không tự chuyển vào điện)
+    const st = (W.quizSpots || []).filter(q => /Tượng|Phật/.test(q.name) && Math.hypot(q.x - me.pos.x, q.z - me.pos.z) < 9)[0], tg = st || W.halls[0].altar;
+    me.yaw = Math.atan2(tg.x - me.pos.x, tg.z - me.pos.z);
+    if (!P.bowTip) { P.bowTip = 1; setTimeout(() => toast('🙏 Lạy Phật tại chỗ · muốn tính lễ ở chánh điện, bấm "Vào chánh điện"'), 900); }
+  }
   lastBow = Date.now();
   if (me.seated) faceAltar();
   me.av.bow(); A.mo(0.8); P.lay++; addBeads(3); NET.act('bow'); if (TH) TH.practiced();
@@ -1576,6 +1583,7 @@ TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, f
   getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
   meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
 if (W && temple) TH.onTemple();
+QZ = initQuiz({ P, save, el, toast, A, addBeads, me, getW: () => W, getTemple: () => temple, TEMPLES, isBusy: () => !$('veil').hidden });
 SH = initShare({ P, save, modal, closeModal, el, toast, addBeads, addMerit: (n) => addMerit(n) });
 DY = initDuyen({ share: (r) => SH && SH.share(r), P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
 if (W && temple) DY.onTemple();
@@ -2019,7 +2027,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t);
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
