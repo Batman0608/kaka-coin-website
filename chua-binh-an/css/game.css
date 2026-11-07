@@ -729,7 +729,7 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 .cfl b { font-weight: 800; } .cfl.me { background: rgba(90, 40, 8, .7); }
 .cfl.out { opacity: 0; transform: translateX(-12px); }
 @keyframes cfIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-body:not(.touch) .chatfeed { top: auto; bottom: 96px; left: 16px; width: 250px; }
+body:not(.touch) .chatfeed { width: 250px; }
 body:not(.touch) .cfl { font-size: 12px; }
 
 /* =====================================================================
@@ -791,3 +791,10 @@ body.touch .kinhbar.tkbar { top: calc(248px + env(safe-area-inset-top, 0px)); }
 }
 /* thông báo lớn (lên hạng…) trên điện thoại: hạ xuống giữa, không che thẻ người chơi */
 body.touch .banner { top: calc(290px + env(safe-area-inset-top, 0px)); }
+/* khung tin nhắn chung: nằm ngay dưới nút chat, bên trái */
+.chatfeed { left: max(10px, env(safe-area-inset-left, 0px)); top: calc(50% + 30px); width: min(52vw, 200px); }
+@media (min-width: 1000px) {
+  body:not(.touch) .chatbtn { bottom: 150px; }
+  body:not(.touch) .chatinput { bottom: 150px; }
+  body:not(.touch) .chatfeed { top: auto; bottom: 30px; left: 16px; width: 270px; height: 110px; justify-content: flex-start; }
+}
