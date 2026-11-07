@@ -709,3 +709,6 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
   .gped { flex-wrap: wrap; }
 }
 @keyframes gpUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* nút xuống thuyền */
+.boatoff { position: fixed; z-index: 25; right: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); padding: 12px 18px; border-radius: 999px; border: 2px solid #ffd36b; background: linear-gradient(180deg, #1f6a8a, #0f4a64); color: #fff; font: inherit; font-weight: 800; font-size: 15px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); cursor: pointer; }
+@media (max-width: 760px) { .boatoff { right: 10px; bottom: calc(230px + env(safe-area-inset-bottom, 0px)); } }

@@ -743,6 +743,31 @@ function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0, top = 0) {
   return m;
 }
 function water(w, d, x = 0, z = 0) { const o = mesh(new THREE.PlaneGeometry(w, d, 1, 1), WATER(), x, 0.05, z, false); o.rotation.x = -Math.PI / 2; return o; }
+/* bến thuyền: cầu tàu gỗ từ bờ ra nước + quầy bán vé có mái (đi lại được trên cầu tàu) */
+function dockKit(g, { x, z0, z1, booth }) {
+  const plank = mat('pierWood', 0x8a6a42, { roughness: 0.85 }), post = mat('pierPost', 0x5a3a22), w = 3.2, len = Math.abs(z1 - z0), zc = (z0 + z1) / 2, dir = Math.sign(z1 - z0);
+  g.add(box(w, 0.35, len, plank, x, 0.175, zc));
+  for (let k = 0; k <= len; k += 1.6) [-1, 1].forEach(s => { const p = box(0.22, 1.4, 0.22, post, x + s * (w / 2 - 0.1), 0.0, z0 + dir * k); p.userData.noCollide = true; g.add(p); });
+  for (let k = 0.4; k < len; k += 0.5) { const l = box(w - 0.05, 0.02, 0.06, mat('pierLine', 0x6a4a2a), x, 0.36, z0 + dir * k); l.userData.noCollide = true; g.add(l); }
+  [-1, 1].forEach(s => { const r = box(0.08, 0.08, len * 0.7, mat('pierRope', 0xc9a65a), x + s * (w / 2 - 0.1), 0.9, z0 + dir * len * 0.35); r.userData.noCollide = true; g.add(r);
+    for (let k = 0; k <= len * 0.7; k += 1.6) { const q = box(0.12, 0.6, 0.12, post, x + s * (w / 2 - 0.1), 0.65, z0 + dir * k); q.userData.noCollide = true; g.add(q); } });
+  if (booth) { const [bx, bz, rot] = booth, k = new THREE.Group(); k.position.set(bx, 0, bz); k.rotation.y = rot || 0; g.add(k);
+    k.add(box(2.6, 1.05, 1.0, mat('boothWood', 0x7a3a1a), 0, 0.525, 0.4)); k.add(box(2.8, 0.08, 1.2, GOLD(), 0, 1.09, 0.4));
+    [[-1.3, -0.5], [1.3, -0.5], [-1.3, 0.9], [1.3, 0.9]].forEach(([px, pz]) => k.add(cyl(0.08, 0.08, 2.6, 8, RED(), px, 1.3, pz)));
+    const rf = roof(3.4, 2.2, 0.9, 0x6a2a14); rf.position.set(0, 2.6, 0.2); rf.traverse(o => { o.userData.noCollide = true; }); k.add(rf);
+    const sg = plaque('BẾN THUYỀN', 'Vé tham quan 50 hoa sen', 2.6, 0.62); sg.position.set(0, 2.25, 1.02); sg.traverse(o => { o.userData.noCollide = true; }); k.add(sg);
+    [-1.1, 1.1].forEach(px => { const l = mesh(new THREE.SphereGeometry(0.2, 10, 8), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), px, 2.0, 1.0, false); l.scale.y = 1.25; l.userData.noCollide = true; k.add(l); }); }
+}
+/* hai bờ sông dài: đồi thấp, rặng tre, cây — để đi thuyền xa vẫn có cảnh */
+function riverBanks(g, zNear, zFar, half, skip = 45, seed = 1) {
+  let r = seed * 9301; const rnd = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  for (let x = -half; x <= half; x += 7) {
+    if (Math.abs(x) < skip) { /* gần chùa: chỉ trồng bên kia sông */ }
+    else { const t = tree(4 + rnd() * 3, rnd() > 0.5 ? LEAF() : LEAF2(), x + rnd() * 3, zNear - 3 - rnd() * 5); g.add(t); }
+    const t2 = tree(4 + rnd() * 3.5, rnd() > 0.4 ? LEAF() : LEAF2(), x + rnd() * 3, zFar + 3 + rnd() * 6); g.add(t2);
+    if (rnd() > 0.72) g.add(mountain(8 + rnd() * 8, 6 + rnd() * 10, 0x4f7a3f, (x | 0) + seed, x + rnd() * 6, zFar + 18 + rnd() * 12));
+  }
+}
 function lotusPads(g, n, w, d, cx = 0, cz = 0) {
   for (let i = 0; i < n; i++) {
     const pad = mesh(new THREE.CircleGeometry(0.35 + Math.random() * 0.25, 14), mat('pad', 0x3f8a3a), cx + (Math.random() - 0.5) * w, 0.08, cz + (Math.random() - 0.5) * d, false);
@@ -830,18 +855,20 @@ const SCENES = {
     return { cam: [28, 17, 36], target: [0, 6, -2] };
   },
   tamchuc(g) {
-    ground(g, 260, 0x5a8248);
+    ground(g, 760, 0x5a8248);
     // hồ Tam Chúc phía trước (tiền Lục Nhạc), thuyền, sen
-    g.add(water(170, 36, 0, 56));
+    g.add(water(560, 46, 0, 61));   // hồ Tam Chúc mở rộng — đi thuyền tham quan quanh các đảo đá
+    riverBanks(g, 37, 84, 270, 40, 7);
     [[-30, 52, 3.2], [24, 60, 2.6], [-8, 66, 2.2], [34, 50, 2.2], [-40, 58, 2.6], [12, 70, 2]].forEach(([x, z, r]) => g.add(mountain(r, r * 1.4, 0x4a6a40, (x | 0) + 3, x, z)));
     { const rail = mat('lakeRail', 0xd8cdb4), zr = 37.4;   // lan can đá dọc bờ hồ: không đi xuống nước
-      for (let x = -84; x <= 84; x += 2.4) { g.add(box(0.32, 1.15, 0.32, rail, x, 0.575, zr)); g.add(box(0.42, 0.14, 0.42, rail, x, 1.22, zr)); }
-      g.add(box(168.6, 0.14, 0.2, rail, 0, 1.02, zr)); g.add(box(168.6, 0.1, 0.16, rail, 0, 0.5, zr)); g.add(box(168.6, 0.18, 0.5, STONE(), 0, 0.09, zr)); }
+      for (let x = -84; x <= 84; x += 2.4) { if (Math.abs(x) < 2.2) continue; g.add(box(0.32, 1.15, 0.32, rail, x, 0.575, zr)); g.add(box(0.42, 0.14, 0.42, rail, x, 1.22, zr)); }
+      [-1, 1].forEach(s => { const cx = s * 43.3; g.add(box(81.4, 0.14, 0.2, rail, cx, 1.02, zr)); g.add(box(81.4, 0.1, 0.16, rail, cx, 0.5, zr)); g.add(box(81.4, 0.18, 0.5, STONE(), cx, 0.09, zr)); }); }   // chừa lối xuống bến thuyền
+    dockKit(g, { x: 0, z0: 37.2, z1: 43, booth: [7.5, 35.4, 0] });
     g.add(boat(-12, 46, 0.15)); g.add(boat(9, 49, -0.2)); lotusPads(g, 18, 80, 10, 0, 48);
     // núi Thất Tinh (hậu Thất Tinh) phía sau + Chùa Ngọc granit đỏ trên sườn
-    g.add(mountain(24, 32, 0x3f6a35, 2, 0, -52)); g.add(mountain(18, 22, 0x4a7a3a, 6, -32, -48)); g.add(mountain(18, 20, 0x56803f, 8, 32, -50));
-    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 13, -38); ngoc.scale.setScalar(0.95); g.add(ngoc);
-    g.add(cyl(5, 6.5, 1.3, 20, STONE(), 0, 12.3, -38));
+    g.add(mountain(24, 32, 0x3f6a35, 2, 0, -92)); g.add(mountain(18, 22, 0x4a7a3a, 6, -40, -86)); g.add(mountain(18, 20, 0x56803f, 8, 40, -88));
+    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 13, -76); ngoc.scale.setScalar(0.95); g.add(ngoc);
+    g.add(cyl(5, 6.5, 1.3, 20, STONE(), 0, 12.3, -76)); g.add(mountain(14, 12.3, 0x4a7a3a, 5, 0, -76, 6));
     // tượng Di Lặc đồng trên đồi bên phải (có đài sen, hào quang)
     { const ds = 3.0, top = 6, dx = 31, dz = 10;   // đồi đỉnh bằng, bệ đá, tượng ngồi vững trên đỉnh, hào quang sau đầu
       g.add(mountain(12, top, 0x5f8a45, 4, dx, dz, 5));
@@ -860,27 +887,30 @@ const SCENES = {
       g.add(box(0.14, hh * 0.78, 0.2, GOLD(), 0, y + 0.4 + hh * 0.39, fz));   // thanh giữa hai cánh (khóa)
       const sg = plaque(label, '', Math.min(w * 0.5, 3.2), 0.42); sg.position.set(0, y + 0.4 + hh * 0.86, fz + 0.03); sg.traverse(o => { o.userData.noCollide = true; }); g.add(sg);
     };
+    // ba điện cách xa nhau gấp đôi trước đây để không che khuất nhau: Quan Âm → (24 m) → Pháp Chủ → (sân 14 m) → Tam Thế
+    const zQ = 20, zP = -4, z2f = zQ - 2.5 - 4, z3f = zP - 2.5 - 6;
     // Cấp 1 (y0): sân trước + Điện Quan Âm (đóng)
-    courtyard(g, 24, 16, 24); g.add(burner(0, 30));
-    closedHall(17, 0, 8, 5, 3, 'ĐIỆN QUAN ÂM');
-    flank(16.5, 11, 2.3, 0);                               // bậc hai bên lên cấp 2
-    // Cấp 2 (y2.3): nền + Điện Pháp Chủ (đóng)
-    terr(30, 4, 16, 2.3);
-    closedHall(5, 2.3, 8.5, 5, 3.2, 'ĐIỆN PHÁP CHỦ');
-    flank(3.5, -2, 2.1, 2.3);                              // bậc hai bên lên cấp 3 (y2.3 -> y4.4)
-    // Cấp 3 (y4.4): CHÁNH ĐIỆN TAM THẾ — vào lễ bình thường
-    const h = hall({ w: 16, d: 8, h: 4.6, tiers: 3 }); const thd = h.userData.mainHall ? h.userData.mainHall.d : 8, thw = h.userData.mainHall ? h.userData.mainHall.w : 16, hzc = -2.6 - thd / 2 - 3.4;
-    terr(Math.max(32, thw + 4), (-2 + hzc - thd / 2 - 1.6) / 2, (-2) - (hzc - thd / 2 - 1.6), 4.4);
+    courtyard(g, 24, 12, 25); g.add(burner(0, 29));
+    closedHall(zQ, 0, 8, 5, 3, 'ĐIỆN QUAN ÂM');
+    flank(z2f + 5.5, z2f, 2.3, 0);                         // bậc hai bên lên cấp 2
+    // Cấp 2 (y2.3): nền rộng + Điện Pháp Chủ (đóng), sân trước điện thoáng
+    terr(30, (z2f + z3f) / 2, z2f - z3f, 2.3);
+    closedHall(zP, 2.3, 8.5, 5, 3.2, 'ĐIỆN PHÁP CHỦ');
+    { const c2 = mesh(new THREE.PlaneGeometry(18, z2f - zP - 4), mat('court', 0xc9b48a), 0, 2.32, (z2f + zP + 4) / 2, false); c2.rotation.x = -Math.PI / 2; c2.userData.court = true; g.add(c2); g.add(burner(0, (z2f + zP) / 2 + 2)).position.y = 2.3; }
+    flank(z3f + 5.5, z3f, 2.1, 2.3);                       // bậc hai bên lên cấp 3 (y2.3 -> y4.4)
+    // Cấp 3 (y4.4): CHÁNH ĐIỆN TAM THẾ — vào lễ bình thường, có sân rộng phía trước
+    const h = hall({ w: 16, d: 8, h: 4.6, tiers: 3 }); const thd = h.userData.mainHall ? h.userData.mainHall.d : 8, thw = h.userData.mainHall ? h.userData.mainHall.w : 16, hzc = z3f - 0.6 - thd / 2 - 3.4 - 8;
+    terr(Math.max(32, thw + 4), (z3f + hzc - thd / 2 - 1.6) / 2, z3f - (hzc - thd / 2 - 1.6), 4.4);
     h.position.set(0, 4.4, hzc); g.add(h);
     // vườn Cột Kinh hai bên lối giữa (cấp 1)
-    for (let i = 0; i < 7; i++) { const z = 27 - i * 2.2; [-9.5, 9.5].forEach(x => { g.add(cyl(0.34, 0.4, 4.4 + (i % 2) * 0.6, 10, STONE(), x, 2.2, z)); g.add(cyl(0.5, 0.42, 0.3, 10, mat('ckcap', 0x8a6a3a), x, 4.5, z)); }); }
+    for (let i = 0; i < 5; i++) { const z = 30.5 - i * 2.4; [-9.5, 9.5].forEach(x => { g.add(cyl(0.34, 0.4, 4.4 + (i % 2) * 0.6, 10, STONE(), x, 2.2, z)); g.add(cyl(0.5, 0.42, 0.3, 10, mat('ckcap', 0x8a6a3a), x, 4.5, z)); }); }
     // hành lang La Hán hai bên chạy dọc tổ hợp
-    laHanCorridor(g, -13.5, -1, 28); laHanCorridor(g, 13.5, -1, 28);
+    laHanCorridor(g, -13.5, 15, 34); laHanCorridor(g, 13.5, 15, 34);
     [-24, 24, -22, 24].forEach((x, i) => g.add(tree(6, LEAF(), x, 34 + (i % 2) * 5)));
-    return { cam: [32, 24, 44], target: [0, 8, -6] };
+    return { cam: [40, 34, 56], target: [0, 8, -16] };
   },
   huong(g) {
-    ground(g, 160, 0x4f7a3f);
+    ground(g, 760, 0x4f7a3f);
     const m1 = mountain(18, 30, 0x6a7a5a, 2, 0, -14); g.add(m1); g.add(mountain(14, 22, 0x5a6a4a, 4, -26, -18)); g.add(mountain(13, 20, 0x5f7050, 6, 26, -20));
     const st = stairs(2.4, 26, 0.31, 0.3); st.position.set(0, 0, 10.5); g.add(st);
     // sân trước động: mặt sân ngang đúng bậc trên cùng (8,06 m), phủ chồng lên bậc cuối → không còn khe hở rơi xuống
@@ -900,7 +930,10 @@ const SCENES = {
     const gate = new THREE.Group(); gate.position.set(0, 0, 12.5);
     [-2.6, 0, 2.6].forEach((x, i) => { if (i === 1) { [-1, 1].forEach(sx => gate.add(box(0.4, 3.2, 0.8, WALL(), sx * 1.0, 1.6, 0))); gate.add(box(2.4, 0.6, 0.8, WALL(), 0, 2.9, 0)); } else gate.add(box(1.8, 2.6, 0.8, WALL(), x, 1.3, 0)); const r = roof(i === 1 ? 3.2 : 2.4, 1.6, 0.9); r.position.set(x, i === 1 ? 3.2 : 2.6, 0); gate.add(r); });
     g.add(gate);
-    g.add(water(80, 9, 0, 19)); g.add(boat(-6, 18, 0.3)); g.add(boat(6, 20, -0.2)); lotusPads(g, 20, 60, 6, 0, 19);
+    g.add(water(760, 11, 0, 19.5)); g.add(boat(-6, 18, 0.3)); lotusPads(g, 20, 60, 6, 0, 19);   // suối Yến kéo dài
+    [-176, 176].forEach(x => { const b = mesh(new THREE.CircleGeometry(9, 28), WATER(), x, 0.05, 19.5, false); b.rotation.x = -Math.PI / 2; g.add(b); });   // vũng rộng hai đầu để thuyền quay đầu
+    riverBanks(g, 14, 25, 330, 40, 5);
+    dockKit(g, { x: 12, z0: 27.5, z1: 22.6, booth: [16.5, 29.5, Math.PI] });
     [-9, 9, -14, 14].forEach((x, i) => g.add(tree(4.5, LEAF(), x, 9 + (i % 2) * 2)));
     return { cam: [10, 13, 40], target: [0, 7, 2] };
   },
@@ -913,7 +946,16 @@ const SCENES = {
     return { cam: [30, 38, 34], target: [0, 30, 0], update: upd };
   },
   thienmu(g) {
-    ground(g, 160, 0x5a8a45); g.add(water(160, 22, 0, 24.5));
+    ground(g, 760, 0x5a8a45); g.add(water(760, 26, 0, 26.5));   // sông Hương kéo dài, đi thuyền rồng tham quan
+    riverBanks(g, 13.5, 39.5, 330, 45, 3);
+    dockKit(g, { x: 8, z0: 11.2, z1: 16.9, booth: [3.2, 11.4, 0] });
+    { // cầu sắt nhiều nhịp vòm (gợi cầu Trường Tiền) — thuyền đi qua dưới gầm
+      const bm = mat('bridgeSteel', 0xd8dce0, { metalness: 0.5, roughness: 0.4 }), bx = 120, z0 = 11, z1 = 42, n = 6, sp = (z1 - z0) / n;
+      g.add(box(7, 0.4, z1 - z0, mat('bridgeDeck', 0x6a6a6a), bx, 6.2, (z0 + z1) / 2));
+      for (let i = 0; i < n; i++) { const zc = z0 + sp * (i + 0.5);
+        [-3.2, 3.2].forEach(ox => { const arc = mesh(new THREE.TorusGeometry(sp / 2, 0.12, 6, 20, Math.PI), bm, bx + ox, 6.4, zc); arc.rotation.y = Math.PI / 2; g.add(arc); });
+        if (i) g.add(cyl(0.7, 0.9, 6.2, 10, STONE(), bx, 3.1, z0 + sp * i)); }
+    }
     const tw = tower({ tiers: 7, sides: 8, r: 2.6, th: 2.2, taper: 0.42, wall: mat('tmwall', 0xd9b89a), roofColor: 0x5a4a3a }); tw.position.set(0, 1.6, 2); g.add(tw);
     // chánh điện sau tháp: lùi đủ xa để cửa điện không bị tháp chắn; đồi kéo dài đỡ trọn điện
     const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); const hd = h.userData.mainHall ? h.userData.mainHall.d : 5, hz = -1.9 - (hd / 2 + 2.9) - 6;   // lùi điện xa tháp Phước Duyên

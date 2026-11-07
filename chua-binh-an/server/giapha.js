@@ -12,10 +12,12 @@ function makeGiaPha({ D, mark, online, reply, send, clean, codeOf }) {
   const G = D.gp = Object.assign({ fam: {} }, D.gp || {});
   const rid = () => Math.random().toString(36).slice(2, 10);
   const nameOf = (uid) => (D.users[uid] && D.users[uid].name) || 'Phật tử';
+  const pidOf = (uid) => (D.users[uid] && D.users[uid].pid) || codeOf(uid);   // mã nhân vật hiện trong Hồ sơ (CBA…)
+  const findUid = (code) => Object.keys(D.users).find(k => D.users[k].pid === code) || Object.keys(D.users).find(k => codeOf(k) === code);
   const role = (f, uid) => !f ? '' : f.owner === uid ? 'owner' : (f.ed || []).includes(uid) ? 'editor' : '';
-  const summary = (f, uid) => ({ id: f.id, name: f.name, origin: f.origin || '', n: Object.keys(f.people).length, owner: nameOf(f.owner), ownerCode: codeOf(f.owner), role: role(f, uid), up: f.up });
-  const full = (f, uid) => ({ id: f.id, name: f.name, origin: f.origin || '', note: f.note || '', owner: nameOf(f.owner), ownerCode: codeOf(f.owner), role: role(f, uid), up: f.up,
-    people: Object.values(f.people), editors: (f.ed || []).map(u => ({ uid: u, code: codeOf(u), name: nameOf(u), online: online.has(u) })), log: (f.log || []).slice(-30) });
+  const summary = (f, uid) => ({ id: f.id, name: f.name, origin: f.origin || '', n: Object.keys(f.people).length, owner: nameOf(f.owner), ownerCode: pidOf(f.owner), role: role(f, uid), up: f.up });
+  const full = (f, uid) => ({ id: f.id, name: f.name, origin: f.origin || '', note: f.note || '', owner: nameOf(f.owner), ownerCode: pidOf(f.owner), role: role(f, uid), up: f.up,
+    people: Object.values(f.people), editors: (f.ed || []).map(u => ({ uid: u, code: pidOf(u), name: nameOf(u), online: online.has(u) })), log: (f.log || []).slice(-30) });
   function push(f, exceptP, note) {   // gửi bản mới cho mọi người có quyền đang online
     [f.owner, ...(f.ed || [])].forEach(u => { const o = online.get(u); if (o && o !== exceptP) send(o.ws, { t: 'soc', op: 'gp.fam', fam: full(f, u), note }); });
   }
@@ -33,7 +35,7 @@ function makeGiaPha({ D, mark, online, reply, send, clean, codeOf }) {
     o.gioDay = o.dead ? Math.max(0, Math.min(30, x.gioDay | 0)) || null : null;
     o.gioMonth = o.dead ? Math.max(0, Math.min(12, x.gioMonth | 0)) || null : null;
     o.burial = clean(x.burial, 80); o.place = clean(x.place, 80); o.note = clean(x.note, 400);
-    o.code = /^[A-Z0-9]{6}$/.test(String(x.code || '').toUpperCase()) ? String(x.code).toUpperCase() : '';   // mã nhân vật trong game (nếu người này cũng chơi)
+    o.code = /^[A-Z0-9]{6,9}$/.test(String(x.code || '').toUpperCase()) ? String(x.code).toUpperCase() : '';   // mã nhân vật trong game (nếu người này cũng chơi)
     o.fatherId = ref(x.fatherId); o.motherId = ref(x.motherId);
     o.spouseIds = Array.isArray(x.spouseIds) ? [...new Set(x.spouseIds.map(ref).filter(Boolean))].slice(0, 6) : (o.spouseIds || []);
     return o;
@@ -45,8 +47,9 @@ function makeGiaPha({ D, mark, online, reply, send, clean, codeOf }) {
   function handle(p, op, m) {
     const uid = p.uid;
     if (op === 'gp.list') {
+      const pid = String(m.pid || '').toUpperCase(); if (/^CBA[A-Z0-9]{6}$/.test(pid) && D.users[uid] && D.users[uid].pid !== pid) { D.users[uid].pid = pid; mark(); }
       const all = Object.values(G.fam), own = all.filter(f => f.owner === uid), sh = all.filter(f => (f.ed || []).includes(uid));
-      return reply(p, { op: 'gp.list', own: own.map(f => summary(f, uid)), shared: sh.map(f => summary(f, uid)), me: codeOf(uid), max: MAX_FAM });
+      return reply(p, { op: 'gp.list', own: own.map(f => summary(f, uid)), shared: sh.map(f => summary(f, uid)), me: pidOf(uid), max: MAX_FAM });
     }
     if (op === 'gp.create') {
       const own = Object.values(G.fam).filter(f => f.owner === uid);
@@ -96,7 +99,7 @@ function makeGiaPha({ D, mark, online, reply, send, clean, codeOf }) {
     }
     if (op === 'gp.ed.add') {
       if (r !== 'owner') return reply(p, { op: 'err', msg: 'Chỉ chủ gia phả mới thêm người cùng quản lý' });
-      const code = clean(m.code, 8).toUpperCase(), u2 = Object.keys(D.users).find(k => codeOf(k) === code);
+      const code = clean(m.code, 12).toUpperCase(), u2 = findUid(code);
       if (!u2) return reply(p, { op: 'err', msg: 'Không tìm thấy mã nhân vật ' + code + '. Người đó cần vào game ít nhất một lần.' });
       if (u2 === uid) return reply(p, { op: 'err', msg: 'Đây là mã của chính bạn' });
       f.ed = f.ed || []; if (f.ed.length >= MAX_ED) return reply(p, { op: 'err', msg: `Tối đa ${MAX_ED} người cùng quản lý` });

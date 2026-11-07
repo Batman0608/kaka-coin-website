@@ -20,51 +20,64 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
   NET.onSoc((m) => {
     if (m.op === 'gp.list') { list = m; if (isOpen() && view === 'home') render(); }
     else if (m.op === 'gp.fam') { const same = fam && fam.id === m.fam.id; if (!m.opened && !same) return; fam = m.fam; if (m.focus) sel = m.focus; if (m.opened) { view = 'fam'; } if (m.note) toast(m.note); if (isOpen()) render(); }
-    else if (m.op === 'gp.left') { if (fam && fam.id === m.id) { fam = null; view = 'home'; if (m.dropped) toast('🗑 Đã xóa gia phả'); else toast('📜 Bạn không còn quyền ở gia phả này'); } NET.soc('gp.list'); if (isOpen()) render(); }
+    else if (m.op === 'gp.left') { if (fam && fam.id === m.id) { fam = null; view = 'home'; if (m.dropped) toast('🗑 Đã xóa gia phả'); else toast('📜 Bạn không còn quyền ở gia phả này'); } NET.soc('gp.list', { pid: P.id }); if (isOpen()) render(); }
   });
 
   /* ---------- ông giữ gia phả ---------- */
   function onTemple() {
-    dispose(); const W = getW(); if (!W || !W.layout || !W.layout.abbot) return;
-    const [ax, az] = W.layout.abbot, ay = W.col.heightAt(ax, az, 50) ?? 0;
-    let pos = null;
-    for (let i = 0; i < 12 && !pos; i++) { const a = i / 12 * Math.PI * 2 + 0.4, r = 2.8 + (i % 2) * 0.8, x = ax + Math.cos(a) * r, z = az + Math.sin(a) * r;
-      let ok = true; for (let k = 0; k <= 4 && ok; k++) { const b = k / 4 * Math.PI * 2, rr = k === 4 ? 0 : 0.6, h = W.col.heightAt(x + Math.cos(b) * rr, z + Math.sin(b) * rr, ay + 0.5, 0.3); if (h == null || Math.abs(h - ay) > 0.06) ok = false; }
-      if (ok) pos = [x, z]; }
-    if (!pos) pos = [ax + 2.8, az];
+    dispose(); const W = getW(); if (!W) return;
+    // ngồi bên án thư, phía PHẢI cửa chánh điện (nhìn từ sân vào), quay mặt ra sân
+    const h = (W.halls || [])[0]; let pos = null, yaw = 0, gy = 0;
+    const flat = (x, z, y0) => { for (let k = 0; k <= 6; k++) { const b = k / 6 * Math.PI * 2, rr = k === 6 ? 0 : 0.9, hh = W.col.heightAt(x + Math.cos(b) * rr, z + Math.sin(b) * rr, y0 + 0.6, 0.3); if (hh == null || Math.abs(hh - y0) > 0.08) return false; } return true; };
+    if (h) {
+      const hy = new THREE.Euler().setFromQuaternion(h.yaw).y, f = new THREE.Vector3(Math.sin(hy), 0, Math.cos(hy)), r = new THREE.Vector3(Math.cos(hy), 0, -Math.sin(hy));
+      const c = h.altar.clone().add(f.clone().multiplyScalar(h.d / 2 - 2.1));   // tâm điện
+      for (const [ox, oz] of [[h.w * 0.2 + 3.8, h.d / 2 + 2.6], [h.w * 0.2 + 3.8, h.d / 2 + 4.2], [h.w * 0.2 + 5.2, h.d / 2 + 3.2], [h.w / 2 - 0.5, h.d / 2 + 2.8], [h.w * 0.2 + 2.6, h.d / 2 + 4.6]]) {
+        const p = c.clone().add(r.clone().multiplyScalar(ox)).add(f.clone().multiplyScalar(oz)), y0 = W.col.heightAt(p.x, p.z, h.altar.y + 1) ?? null;
+        if (y0 != null && flat(p.x, p.z, y0)) { pos = [p.x, p.z]; gy = y0; yaw = hy; break; }
+      }
+    }
+    if (!pos) { const L = W.layout || {}; if (!L.abbot) return; pos = [L.abbot[0] + 2.8, L.abbot[1]]; gy = W.col.heightAt(pos[0], pos[1], 50) ?? 0; yaw = 0; }
+    const grp = new THREE.Group(); grp.position.set(pos[0], gy, pos[1]); grp.rotation.y = yaw; grp.userData.tmp = true; scene.add(grp);
+    const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7 }, o || {}));
+    const wood = M(0x6a2a12), gold = M(0xd9a83a, { metalness: 0.6, roughness: 0.35 }), red = M(0xa3231a);
+    const B = (w, hh, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), m); o.position.set(x, y, z); o.castShadow = true; grp.add(o); return o; };
+    B(2.2, 0.06, 1.6, M(0x8a1a12), 0, 0.03, 0);                         // chiếu đỏ
+    B(1.4, 0.1, 0.62, wood, 0, 0.42, 0.75); B(1.46, 0.04, 0.68, gold, 0, 0.48, 0.75);   // án thư sơn son
+    [[-0.62, 0.5], [0.62, 0.5], [-0.62, 1.0], [0.62, 1.0]].forEach(([x, z]) => B(0.08, 0.38, 0.08, wood, x, 0.19, z));
+    B(0.5, 0.07, 0.36, red, -0.25, 0.53, 0.75); B(0.52, 0.015, 0.38, gold, -0.25, 0.57, 0.75);   // cuốn gia phả
+    { const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), M(0xf2e6c8)); sc.rotation.z = Math.PI / 2; sc.position.set(0.35, 0.55, 0.7); grp.add(sc); }   // cuộn giấy
+    { const ink = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.06, 10), M(0x1a1a1a)); ink.position.set(0.32, 0.53, 0.9); grp.add(ink); const br = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.3, 5), wood); br.position.set(0.5, 0.56, 0.9); br.rotation.z = 1.2; grp.add(br); }
+    { const lp = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.22, 10), M(0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 })); lp.position.set(-0.6, 0.6, 0.85); grp.add(lp); }   // đèn dầu
+    B(0.7, 0.1, 0.7, red, 0, 0.11, -0.05);                              // bồ đoàn
+    // biển nhỏ "GIA PHẢ" dựng cạnh bàn
+    { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const k = c.getContext('2d'); k.fillStyle = '#7a160d'; k.fillRect(0, 0, 256, 96); k.strokeStyle = '#e9b949'; k.lineWidth = 8; k.strokeRect(4, 4, 248, 88); k.fillStyle = '#ffd36b'; k.font = '900 40px Georgia, serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText('GIA PHẢ', 128, 50);
+      const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.34), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false })); sg.position.set(0.95, 1.05, 0.9); grp.add(sg);
+      B(0.05, 1.0, 0.05, wood, 0.95, 0.5, 0.88); }
+    grp.traverse(o => { o.userData.noCollide = true; });
     const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'tram' }, seed: 31 });
-    av.root.position.set(pos[0], W.col.heightAt(pos[0], pos[1], 50) ?? ay, pos[1]); av.root.userData.tmp = true; scene.add(av.root);
-    // bàn gỗ nhỏ đặt cuốn phả
-    const desk = new THREE.Group(); desk.position.copy(av.root.position); desk.userData.tmp = true;
-    const wood = new THREE.MeshStandardMaterial({ color: 0x6a3a1e, roughness: 0.8 }), book = new THREE.MeshStandardMaterial({ color: 0xa3231a, roughness: 0.6 }), gold = new THREE.MeshStandardMaterial({ color: 0xd9a83a, metalness: 0.6, roughness: 0.4 });
-    const top = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.55), wood); top.position.y = 0.78; desk.add(top);
-    [[-0.42, -0.22], [0.42, -0.22], [-0.42, 0.22], [0.42, 0.22]].forEach(([x, z]) => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.76, 0.06), wood); l.position.set(x, 0.38, z); desk.add(l); });
-    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.3), book); bk.position.set(0, 0.85, 0); desk.add(bk);
-    const bk2 = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.02, 0.32), gold); bk2.position.set(0, 0.9, 0); desk.add(bk2);
-    const yaw = Math.atan2(ax - pos[0], az - pos[1]) + Math.PI;   // quay lưng về phía sư trụ trì, mặt ra sân
-    av.root.rotation.y = yaw; desk.rotation.y = yaw; desk.translateZ(0.7); scene.add(desk);
-    keeper = { av, desk, label: label('📜 Ông giữ gia phả', 'abbot'), lastBow: 0 };
+    av.root.position.set(0, 0.16, -0.05); av.setPose('lotus'); grp.add(av.root);
+    keeper = { av, grp, label: label('📜 Ông giữ gia phả', 'abbot'), lastBow: 0, wp: new THREE.Vector3() };
+    // báo mã nhân vật (CBA…) cho máy chủ để người khác thêm được bằng mã trong Hồ sơ
+    [3000, 12000].forEach(ms => setTimeout(() => NET.soc('gp.list', { pid: P.id }), ms));
   }
-  function dispose() { if (keeper) { scene.remove(keeper.av.root); scene.remove(keeper.desk); keeper.label.remove(); keeper = null; } }
+  function dispose() { if (keeper) { scene.remove(keeper.grp); keeper.label.remove(); keeper = null; } }
   function step(dt) {
-    if (!keeper) return; placeLabel(keeper.label, keeper.av.root.position, keeper.av.height + 0.15);
+    if (!keeper) return; keeper.av.root.getWorldPosition(keeper.wp); placeLabel(keeper.label, keeper.wp, keeper.av.height * 0.75 + 0.2);
     if (keeper.av.update) keeper.av.update(dt);
-    const d = Math.hypot(me.pos.x - keeper.av.root.position.x, me.pos.z - keeper.av.root.position.z);
-    if (d < 4 && performance.now() - keeper.lastBow > 20000) { keeper.lastBow = performance.now(); keeper.av.bow && keeper.av.bow(); }
   }
   function context() {
-    if (!keeper) return null; const p = keeper.av.root.position;
-    if (Math.hypot(me.pos.x - p.x, me.pos.z - p.z) > 2.8) return null;
+    if (!keeper) return null; const p = keeper.grp.position;
+    if (Math.hypot(me.pos.x - p.x, me.pos.z - p.z) > 3.2) return null;
     return { label: '📜 Gia phả dòng họ', fn: open };
   }
 
   /* ---------- mở bảng ---------- */
   function open() {
     view = fam ? 'fam' : 'home';
-    const ask = () => { if (!NET.soc('gp.list')) return false; if (fam) NET.soc('gp.get', { id: fam.id }); return true; };
+    const ask = () => { if (!NET.soc('gp.list', { pid: P.id })) return false; if (fam) NET.soc('gp.get', { id: fam.id }); return true; };
     modal('📜 Gia phả dòng họ', (b) => { box = b; b.classList.add('gpm'); render(); }, { wide: true });
     if (!ask()) { const iv = setInterval(() => { if (!isOpen()) return clearInterval(iv); if (ask()) clearInterval(iv); }, 1500); }
-    if (keeper && keeper.av.bow) keeper.av.bow();
   }
   function render() {
     if (!isOpen()) return; const head = box.querySelector('.mhead'); [...box.children].forEach(c => { if (c !== head) c.remove(); });
@@ -141,7 +154,7 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
   function renderFam(b) {
     const { M, kids, gen } = model();
     const hd = el('div', 'gptop');
-    hd.append(btn('←', 'sm ghost gpback', () => { view = 'home'; fam = null; sel = ''; NET.soc('gp.list'); render(); }));
+    hd.append(btn('←', 'sm ghost gpback', () => { view = 'home'; fam = null; sel = ''; NET.soc('gp.list', { pid: P.id }); render(); }));
     const tt = el('div', 'gptt'); tt.append(el('h3', '', fam.name), el('small', '', `${fam.origin ? fam.origin + ' · ' : ''}${fam.role === 'owner' ? 'Bạn là chủ gia phả' : 'Chủ gia phả: ' + fam.owner}`)); hd.append(tt);
     const gens = Math.max(0, ...Object.values(gen)), soon = fam.people.filter(p => { const g = nextGio(p); return g && g.i <= 30; }).length;
     const stt = el('div', 'gpstats'); [[fam.people.length, 'người'], [gens, 'đời'], [soon, 'giỗ 30 ngày tới']].forEach(([n, t]) => { const s = el('span'); s.append(el('b', '', String(n)), document.createTextNode(' ' + t)); stt.append(s); }); hd.append(stt);
@@ -228,7 +241,7 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
     const bi = input(v.birth, 'Năm sinh, ví dụ 1945', 'text', 10);
     const dead = el('input'); dead.type = 'checkbox'; dead.checked = !!(v.dead || v.death);
     const de = input(v.death, 'Năm mất (bỏ trống nếu không rõ)', 'text', 10), gdd = input(v.gioDay || '', 'Ngày', 'number', 2), gmm = input(v.gioMonth || '', 'Tháng', 'number', 2), bu = input(v.burial, 'Nghĩa trang, xứ đồng…', 'text', 80);
-    const pl = input(v.place, 'Quê quán / nơi sinh sống', 'text', 80), cd = input(v.code, 'Nếu người này cũng chơi game (6 ký tự)', 'text', 6), nt = el('textarea'); nt.value = v.note || ''; nt.rows = 3; nt.maxLength = 400; nt.placeholder = 'Tiểu sử, công đức, sự tích…'; nt.addEventListener('keydown', e => e.stopPropagation());
+    const pl = input(v.place, 'Quê quán / nơi sinh sống', 'text', 80), cd = input(v.code, 'Nếu người này cũng chơi game (mã CBA…)', 'text', 9), nt = el('textarea'); nt.value = v.note || ''; nt.rows = 3; nt.maxLength = 400; nt.placeholder = 'Tiểu sử, công đức, sự tích…'; nt.addEventListener('keydown', e => e.stopPropagation());
     const sec = (t) => f.append(el('div', 'gpsec', t));
     sec('Thông tin chính');
     const r1 = el('div', 'gprow'); r1.append(field('Họ tên *', nm), field('Giới tính', gd)); f.append(r1);
@@ -293,8 +306,8 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
       if (own) r.append(btn('Bỏ quyền', 'sm ghost', () => NET.soc('gp.ed.del', { id: fam.id, uid: e.uid }))); L.append(r); });
     pg.append(L);
     if (own) {
-      const add = el('div', 'gptools'); const c = input('', 'Mã nhân vật 6 ký tự, ví dụ A1B2C3', 'text', 6); c.style.textTransform = 'uppercase';
-      add.append(c, btn('＋ Thêm người cùng quản lý', 'sm gold', () => { const v = c.value.trim().toUpperCase(); if (!/^[A-Z0-9]{6}$/.test(v)) return toast('Mã nhân vật gồm 6 ký tự'); NET.soc('gp.ed.add', { id: fam.id, code: v }); c.value = ''; }));
+      const add = el('div', 'gptools'); const c = input('', 'Mã nhân vật, ví dụ CBAX7K2Q9', 'text', 9); c.style.textTransform = 'uppercase';
+      add.append(c, btn('＋ Thêm người cùng quản lý', 'sm gold', () => { const v = c.value.trim().toUpperCase(); if (!/^[A-Z0-9]{6,9}$/.test(v)) return toast('Mã nhân vật dạng CBA… (xem trong Hồ sơ của người đó)'); NET.soc('gp.ed.add', { id: fam.id, code: v }); c.value = ''; }));
       pg.append(el('div', 'gpsec', 'Mời người thân cùng quản lý'), add, el('small', 'note', 'Người chơi xem mã nhân vật của mình trong Hồ sơ hoặc ngay ở bảng Gia phả.'));
       pg.append(el('div', 'gpsec', 'Thông tin dòng họ'));
       const nm = input(fam.name, 'Tên dòng họ', 'text', 50), og = input(fam.origin, 'Quê gốc', 'text', 60), nt = el('textarea'); nt.value = fam.note || ''; nt.rows = 2; nt.maxLength = 400; nt.placeholder = 'Lời dặn con cháu, địa chỉ từ đường…'; nt.addEventListener('keydown', e => e.stopPropagation());

@@ -123,11 +123,12 @@ const SOC = (() => {
   let dirty = false; const mark = () => { dirty = true; };
   setInterval(() => { if (!dirty) return; dirty = false; fs.mkdir(DATA_DIR, { recursive: true }, () => fs.writeFile(DATA_FILE + '.tmp', JSON.stringify(D), (e) => { if (!e) fs.rename(DATA_FILE + '.tmp', DATA_FILE, () => {}); })); }, 5000);
   const online = new Map();   // uid → player
+  const BOATS = {};   // thuyền tham quan: 'chùa#chuyến' → người đang trên thuyền
   const U = (uid) => (D.users[uid] = D.users[uid] || { name: 'Phật tử', fr: [], dt: '', garden: null, temple: '', last: 0 });
   const pubU = (uid) => { const u = D.users[uid]; if (!u) return null; const o = online.get(uid); return { uid, code: codeOf(uid), name: u.name, online: !!o, temple: o && o.room ? o.room.temple : u.temple, last: u.last, garden: u.garden }; };
   const reply = (p, o) => send(p.ws, Object.assign({ t: 'soc' }, o));
   function seen(p) { const u = U(p.uid); u.name = p.name; u.last = Date.now(); online.set(p.uid, p); mark(); }
-  function gone(p) { if (online.get(p.uid) === p) online.delete(p.uid); const u = D.users[p.uid]; if (u) { u.last = Date.now(); if (p.room) u.temple = p.room.temple; mark(); } }
+  function gone(p) { Object.values(BOATS).forEach(b => b.on.delete(p.uid)); if (online.get(p.uid) === p) online.delete(p.uid); const u = D.users[p.uid]; if (u) { u.last = Date.now(); if (p.room) u.temple = p.room.temple; mark(); } }
   function groupInfo(id) {
     const g = D.groups[id]; if (!g) return null; const wk = weekKey(), w = (g.wk && g.wk[wk]) || {};
     return { id, code: id, name: g.name, owner: g.owner, goal: g.goal, total: Object.values(w).reduce((a, b) => a + b, 0), week: wk,
@@ -138,6 +139,14 @@ const SOC = (() => {
     const now = Date.now(); if (now - (p.socWin || 0) > 5000) { p.socWin = now; p.socN = 0; } if (++p.socN > 25) return;   // chống spam: tối đa 25 yêu cầu / 5 giây
     if (op.startsWith('du.')) return DU.handle(p, u, op, m, now);
     if (op.startsWith('gp.')) return GP.handle(p, op, m);
+    if (op === 'bt.on') {   // lên thuyền tham quan: mỗi chuyến tối đa 6 người
+      const trip = m.trip | 0, k = clean(m.temple, 20) + '#' + trip;
+      Object.keys(BOATS).forEach(x => { if (now - BOATS[x].t > 15 * 60000) delete BOATS[x]; });
+      const b = BOATS[k] = BOATS[k] || { t: now, on: new Set() };
+      if (!b.on.has(p.uid) && b.on.size >= 6) return reply(p, { op: 'bt.full', trip, msg: 'Thuyền chuyến này đã đủ 6 người · mời bạn đợi chuyến sau' });
+      b.on.add(p.uid); return reply(p, { op: 'bt.ok', trip, n: b.on.size });
+    }
+    if (op === 'bt.off') { Object.values(BOATS).forEach(b => b.on.delete(p.uid)); return; }
     if (op === 'fr.list') return reply(p, { op: 'fr', list: u.fr.map(pubU).filter(Boolean), me: codeOf(p.uid) });
     if (op === 'fr.add') {
       const code = clean(m.code, 8).toUpperCase(), uid = Object.keys(D.users).find(k => codeOf(k) === code);

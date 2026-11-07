@@ -25,11 +25,11 @@ export const LAYOUT = {
     ['Gác chuông', -14, 6, 5, 'Chuông lớn của chùa. Đứng gần và bấm "Thỉnh chuông".', 'bell'],
     ['Bảo tháp 13 tầng', 16, 1, 6, 'Bảo tháp cao nhiều tầng trên sườn núi Bái Đính.'],
     ['Núi Bái Đính', -10, -8, 7, 'Chùa cổ Bái Đính nằm trong hang núi, gắn với thiền sư Nguyễn Minh Không thời Lý.']] },
-  'tam-chuc': { yard: [{ r: [-17.5, -32, 17.5, 32], gate: ['+z', 0, 6] }], spawn: [0, 34], abbot: [8, 26], pois: [
+  'tam-chuc': { yard: [{ r: [-17.5, -56, 17.5, 32], gate: ['+z', 0, 6] }], spawn: [0, 34], abbot: [8, 27], pois: [
     ['Hồ Tam Chúc', 0, 37, 7, 'Hồ rộng khoảng 600 ha với sáu hòn đảo đá — "tiền Lục Nhạc", sau lưng là bảy ngọn núi "hậu Thất Tinh".'],
-    ['Vườn Cột Kinh', 0, 22, 6, 'Hai hàng cột kinh bằng đá cao, khắc kinh Phật, dẫn lối lên các cấp điện.'],
-    ['Điện Pháp Chủ', 0, 11, 6, 'Điện cấp giữa thờ đức Pháp Chủ. Cửa điện đóng — đứng ngoài sân chiêm bái, rồi theo bậc hai bên lên cao.'],
-    ['Chánh điện Tam Thế', 0, -12, 9, 'Điện cao nhất, thờ Tam Thế Phật: quá khứ, hiện tại và vị lai — vào lễ Phật tại đây.'],
+    ['Vườn Cột Kinh', 0, 30, 6, 'Hai hàng cột kinh bằng đá cao, khắc kinh Phật, dẫn lối lên các cấp điện.'],
+    ['Điện Pháp Chủ', 0, 0, 6, 'Điện cấp giữa thờ đức Pháp Chủ. Cửa điện đóng — đứng ngoài sân chiêm bái, rồi theo bậc hai bên lên cao.'],
+    ['Chánh điện Tam Thế', 0, -34, 9, 'Điện cao nhất, thờ Tam Thế Phật: quá khứ, hiện tại và vị lai — vào lễ Phật tại đây.'],
     ['Tượng Di Lặc', 32, 12, 8, 'Tượng Phật Di Lặc bằng đồng trên đồi, hướng mặt ra hồ Tam Chúc.']] },
   'mot-cot': { yard: [{ r: [-14, -37, 14, 13], gate: ['+z', 0, 5] }],  spawn: [0, 22], abbot: [4, 10], extraHall: [0, -23.5, 0], pois: [
     ['Đài sen trên một cột đá', 0, 2, 6, 'Đài vuông bằng gỗ trên một cột đá giữa hồ, như đóa sen vươn lên mặt nước. Leo bậc đá để lên đài.'],
