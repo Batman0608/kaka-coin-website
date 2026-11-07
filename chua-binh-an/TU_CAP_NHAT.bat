@@ -30,7 +30,16 @@ echo.
 echo [1/6] Tai ban moi nhat tu GitHub...
 if exist "%WORK%" rmdir /s /q "%WORK%"
 mkdir "%WORK%"
-curl -L --fail -o "%WORK%\src.tgz" "%URL%" || (set "ERR=Tai that bai - kiem tra ket noi mang." & goto :END)
+set "URL2=https://github.com/batman0608/kaka-coin-website/archive/refs/heads/claude/chua-binh-an-game.tar.gz"
+curl -L --fail --retry 2 --connect-timeout 20 -o "%WORK%\src.tgz" "%URL%" && goto :GOT
+echo     Khong tai duoc - lam moi DNS va thu lai...
+ipconfig /flushdns >nul 2>nul
+curl -L --fail --retry 2 --connect-timeout 20 -o "%WORK%\src.tgz" "%URL2%" && goto :GOT
+echo     Thu tra ten mien qua DNS Cloudflare / Google...
+curl -L --fail --connect-timeout 20 --doh-url https://1.1.1.1/dns-query -o "%WORK%\src.tgz" "%URL%" && goto :GOT
+curl -L --fail --connect-timeout 20 --doh-url https://8.8.8.8/dns-query -o "%WORK%\src.tgz" "%URL%" && goto :GOT
+set "ERR=Tai that bai - may chu khong vao duoc GitHub. Kiem tra mang / doi DNS sang 8.8.8.8 roi chay lai." & goto :END
+:GOT
 
 echo [2/6] Giai nen...
 tar -xzf "%WORK%\src.tgz" -C "%WORK%" || (set "ERR=Giai nen loi." & goto :END)
