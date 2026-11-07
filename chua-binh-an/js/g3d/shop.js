@@ -147,7 +147,7 @@ export function initShop(ctx) {
   }
   const copyBtn = (text) => { const c = el('button', 'btn sm', '📋 Chép'); c.onclick = () => { (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Đã chép: ' + text), () => toast(text)); }; return c; };
   function openTopup() {
-    if (CFG.topupEnabled === false) return toast('Chức năng nạp đang tạm đóng');
+    if (CFG.topupEnabled === false) return toast('🎁 Game đang miễn phí · tạm ngưng nạp hoa sen. Nhận hoa sen qua quà hằng ngày nhé!');
     modal('➕ Nạp hoa sen', (b) => {
       b.append(el('p', 'note', `10.000đ = ${lotusOf(10000)} hoa sen · Mã nhân vật của bạn: ${P.id}`));
       const grid = el('div', 'packs');
@@ -158,6 +158,7 @@ export function initShop(ctx) {
     }, { wide: true });
   }
   function payStep(b, amount, don) {
+    if (CFG.topupEnabled === false) return;   // tạm ẩn số tài khoản
     [...b.children].forEach((c, i) => { if (i) c.remove(); });
     const kind = don ? 'donate' : 'topup', content = contentOf(amount, kind), L = don ? 0 : lotusOf(amount), box = el('div', 'pay');
     const qr = qrUrl(amount, kind);
@@ -258,7 +259,7 @@ export function initShop(ctx) {
 
   /* ---------- hòm công đức ---------- */
   function openDonate(temple) {
-    if (CFG.topupEnabled === false) return toast('Hòm công đức đang tạm đóng');
+    if (CFG.topupEnabled === false) return toast('🎁 Game đang miễn phí · hòm công đức tạm ngưng nhận cúng dường');
     modal(`💝 Hòm công đức · ${temple.name}`, (b) => {
       b.append(el('p', 'note', 'Phát tâm cúng dường tùy hỷ để duy trì hương đăng, tu bổ chùa. Mỗi mức cúng dường được cấp một chứng nhận công đức và biểu tượng cạnh tên nhân vật.'));
       if (isAdmin) b.append(adminStats(temple));
@@ -353,7 +354,7 @@ export function initShop(ctx) {
   }
 
   return {
-    get lotus() { return P.lotus; }, get mode() { return backend.mode; }, get isAdmin() { return isAdmin; },
+    get payOpen() { return CFG.topupEnabled !== false; }, get lotus() { return P.lotus; }, get mode() { return backend.mode; }, get isAdmin() { return isAdmin; },
     items: SHOP_ITEMS, spend, addLotus, dailyReady, claimDaily, openTopup, openAdmin, adminLogin, openDonate, certList, showCert,
     onChange(f) { listeners.add(f); }, myList
   };

@@ -146,7 +146,7 @@ function loadTemple(id) {
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
   abbot = { av: ab, label: label('Sư trụ trì ' + sangha().tru, 'abbot') }; abbot.av.root.userData.tmp = true;
   setupAbbot(); spawnResMonk();
-  if (W.merit) meritLbl = label('💝 Hòm công đức', 'merit');
+  if (W.merit && SHOP.payOpen) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
   if (S.npc) spawnNpcs();
   if (typeof NET !== 'undefined') NET.join(temple.id);   // nhiều người chơi thật (nếu có máy chủ)
@@ -282,7 +282,7 @@ function findContext() {
   if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
   { const c = (BT && BT.context()) || (GP && GP.context()) || (SW && SW.context()) || (DY && DY.context()) || (TH && TH.context()); if (c) return c; }
   if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
-  if (W.merit && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
+  if (W.merit && SHOP.payOpen && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
   if (hall) { const c = hall.cushions.filter(c => !c.taken).sort((a, b) => a.distanceTo(me.pos) - b.distanceTo(me.pos))[0]; if (c && near(c, 1.4)) return { label: '🧘 Ngồi lên đệm', fn: () => sitOn(c, hall) }; }
   if (abbot && near(abbot.av.root.position, 2.6)) return { label: '📜 Nghe sự tích chùa', fn: legend };
@@ -627,10 +627,10 @@ function openOffer(tab = 'free') {
     bar.append(el('b', 'lotus', `🪷 ${fmt(P.lotus || 0)} hoa sen`));
     const gift = el('button', 'btn sm' + (SHOP.dailyReady() ? ' gold' : ''), SHOP.dailyReady() ? '🎁 Nhận quà hôm nay' : '🎁 Đã nhận quà');
     gift.onclick = () => { SHOP.claimDaily(); closeModal(); openOffer(tab); };
-    const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); };
+    const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); }; if (!SHOP.payOpen) top.hidden = true;
     bar.append(gift, top); b.append(bar);
     const tabs = el('div', 'tabs'), list = el('div', 'list');
-    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['cushion', '💺 Đệm ngồi'], ['merit', '💝 Hòm công đức']].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
+    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['cushion', '💺 Đệm ngồi'], ...(SHOP.payOpen ? [['merit', '💝 Hòm công đức']] : [])].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
     b.append(tabs, list);
     if (tab === 'free') {
       OFFERS.forEach(o => {
@@ -1513,7 +1513,7 @@ function openSettings() {
     b.append(tst, res);
     ACC.section(b);
     b.append(el('h3', '', '🪷 Hoa sen & nạp'));
-    { const r = el('div', 'row'); const t1 = el('button', 'btn', '➕ Nạp hoa sen'); t1.onclick = () => { closeModal(); SHOP.openTopup(); };
+    { const r = el('div', 'row'); const t1 = el('button', 'btn', '➕ Nạp hoa sen'); t1.onclick = () => { closeModal(); SHOP.openTopup(); }; if (!SHOP.payOpen) t1.hidden = true;
       const t2 = el('button', 'btn', SHOP.isAdmin ? '🛡 Bảng duyệt nạp' : '🛡 Đăng nhập quản trị'); t2.onclick = () => { closeModal(); SHOP.openAdmin(); };
       r.append(t1, t2); b.append(el('p', 'note', `Mã nhân vật: ${P.id} · Số dư: 🪷 ${fmt(P.lotus || 0)} · Chế độ: ${SHOP.mode === 'firebase' ? 'Firebase' : 'thử (chưa cấu hình Firebase)'}`), r); }
     if (!isStandalone()) { b.append(el('h3', '', '📲 Cài game về máy')); const ib = el('button', 'btn', '📲 Cài game'); ib.onclick = () => { closeModal(); installApp(); }; b.append(el('p', 'note', 'Đưa Chùa Bình An ra màn hình chính điện thoại (hoặc máy tính) để mở nhanh, toàn màn hình như ứng dụng.'), ib); }

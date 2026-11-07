@@ -5,7 +5,7 @@
 window.CBA = window.CBA || {};
 CBA.shop = {
   // bật/tắt chức năng nạp tiền thật (cửa hàng & quà hằng ngày vẫn chạy khi tắt)
-  topupEnabled: true,
+  topupEnabled: false,   // TẠM ẨN nạp hoa sen & hòm công đức (không hiện số tài khoản) trong thời gian game miễn phí · đổi thành true để mở lại
 
   // tỉ lệ: 10.000đ = 200 hoa sen  →  1 hoa sen = 50đ
   vndPerLotus: 50,
