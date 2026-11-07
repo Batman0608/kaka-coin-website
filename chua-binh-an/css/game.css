@@ -722,3 +722,4 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 .ntck { display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: .85; margin-bottom: 8px; cursor: pointer; }
 .modal.notice .row .btn { flex: 1; text-align: center; text-decoration: none; }
 .ntck input { width: 18px !important; height: 18px; min-height: 0; flex: none; margin: 0; }
+.verline b { color: #ffd36b; }
