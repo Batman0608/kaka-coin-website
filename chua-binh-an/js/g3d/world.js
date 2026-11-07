@@ -2,7 +2,7 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM } from '../temple3d.js';
+import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM, STONE_TILE, uvMeters } from '../temple3d.js';
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
@@ -396,7 +396,7 @@ function gateBuild(style, gw, temple, M) {
 /* ---------------- trang trí sân rộng (chùa Bình An) ---------------- */
 function yardDecor(root, L) {
   const g = new THREE.Group(); root.add(g);
-  const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
+  const flat = (w, d, m, x, z, y = 0.022) => { const o = m === pave ? new THREE.Mesh(uvMeters(new THREE.PlaneGeometry(w, d), [[w, d]]), STONE_TILE()) : new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
   const pave = mat('pave', 0xb3aea2, { roughness: 0.95 }), paveE = mat('paveEdge', 0x6f6a60);
   // lối đá lớn từ cổng vào thẳng chánh điện, viền đá sẫm hai bên
   flat(4.2, 24, pave, 0, 20); [-1, 1].forEach(s => flat(0.25, 24, paveE, s * 2.2, 20, 0.024));
@@ -512,7 +512,7 @@ const LAYOUT_OF = (L, yi) => L.__orig && L.__orig[yi];
 function haDecor(root, L) {
   const g = new THREE.Group(); root.add(g);
   const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
-  const flat = (w, d, m, x, z, y = 0.022) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
+  const flat = (w, d, m, x, z, y = 0.022) => { const o = m === pave ? new THREE.Mesh(uvMeters(new THREE.PlaneGeometry(w, d), [[w, d]]), STONE_TILE()) : new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
   const disc = (r0, r1, m, x, z, y) => { const o = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 64), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; o.userData.noCollide = true; g.add(o); return o; };
   const pave = mat('pave', 0xb3aea2, { roughness: 0.95 }), paveE = mat('paveEdge', 0x6f6a60), stone = STONE();
   const pink = mat('haPave', 0xd9b3a8, { roughness: 0.95 }), rose2 = mat('haPave2', 0xb7848a, { roughness: 0.95 });

@@ -24,7 +24,41 @@ function mesh(geo, m, x = 0, y = 0, z = 0, shadow = true) {
   const o = new THREE.Mesh(geo, m); o.position.set(x, y, z);
   o.castShadow = shadow; o.receiveShadow = true; return o;
 }
-const box = (w, h, d, m, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z);
+/* ĐÁ LÁT: nền, thềm, bậc, bệ bằng đá (STONE) được lát đá xám cũ theo kích thước thật — mỗi phiến ~50 cm, không bị kéo giãn */
+let _stoneTex = null;
+function stoneTex() {
+  if (_stoneTex) return _stoneTex;
+  const c = document.createElement('canvas'); c.width = c.height = 512; const k = c.getContext('2d');
+  k.fillStyle = '#56534c'; k.fillRect(0, 0, 512, 512);
+  const tw = 128;
+  for (let r = 0; r < 4; r++) for (let i = 0; i < 4; i++) {
+    const x = i * tw + (r % 2 ? tw / 2 : 0), y = r * tw, v = Math.random(), b0 = 150 + v * 30 | 0;
+    for (const ox of [0, -512]) {
+      const X = x + ox; k.fillStyle = `rgb(${b0 + 4},${b0 + 1},${b0 - 6})`; k.fillRect(X + 3, y + 3, tw - 6, tw - 6);
+      for (let n = 0; n < 4; n++) { const gx = X + Math.random() * tw, gy = y + Math.random() * tw, g2 = k.createRadialGradient(gx, gy, 0, gx, gy, 18 + Math.random() * 40); g2.addColorStop(0, `rgba(70,64,52,${0.1 + Math.random() * 0.14})`); g2.addColorStop(1, 'rgba(0,0,0,0)'); k.fillStyle = g2; k.fillRect(X + 3, y + 3, tw - 6, tw - 6); }
+      for (let n = 0; n < 60; n++) { k.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${Math.random() * 0.1})`; k.fillRect(X + 4 + Math.random() * (tw - 8), y + 4 + Math.random() * (tw - 8), 2, 2); }
+      if (Math.random() < 0.25) { k.strokeStyle = 'rgba(50,46,40,.5)'; k.lineWidth = 1.2; k.beginPath(); let px = X + 12 + Math.random() * (tw - 24), py = y + 4; k.moveTo(px, py); for (let s2 = 0; s2 < 5; s2++) { px += (Math.random() - 0.5) * 20; py += tw / 5; k.lineTo(px, Math.min(py, y + tw - 4)); } k.stroke(); }
+      k.fillStyle = 'rgba(255,255,255,.06)'; k.fillRect(X + 3, y + 3, tw - 6, 3);
+    }
+  }
+  for (let n = 0; n < 40; n++) { const onV = Math.random() < 0.5, q = Math.random() * 512, p2 = (Math.random() * 4 | 0) * tw; k.fillStyle = `rgba(78,108,56,${0.3 + Math.random() * 0.3})`; if (onV) k.fillRect(p2 - 2 + (Math.random() < 0.5 ? tw / 2 : 0), q, 4, 5 + Math.random() * 12); else k.fillRect(q, p2 - 2, 5 + Math.random() * 12, 4); }
+  _stoneTex = new THREE.CanvasTexture(c); _stoneTex.colorSpace = THREE.SRGBColorSpace; _stoneTex.wrapS = _stoneTex.wrapT = THREE.RepeatWrapping; _stoneTex.anisotropy = 4;
+  return _stoneTex;
+}
+const STONE_TILE = () => mat('stoneTile', 0xffffff, { map: stoneTex(), roughness: 0.92 });
+function uvMeters(geo, dims) {   // nhân UV mỗi mặt theo kích thước thật (2 m / 1 lần lặp ảnh)
+  const uv = geo.attributes.uv, per = uv.count / dims.length;
+  for (let f = 0; f < dims.length; f++) for (let i = 0; i < per; i++) { const j = f * per + i; uv.setXY(j, uv.getX(j) * dims[f][0] / 2, uv.getY(j) * dims[f][1] / 2); }
+  uv.needsUpdate = true; return geo;
+}
+const box = (w, h, d, m, x, y, z) => {
+  if (m && m === M.stone && Math.max(w, d) >= 1.2) {
+    const ge = uvMeters(new THREE.BoxGeometry(w, h, d), [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]]);
+    return mesh(ge, STONE_TILE(), x, y, z);
+  }
+  return mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z);
+};
+function stonePlane(w, d) { return mesh(uvMeters(new THREE.PlaneGeometry(w, d), [[w, d]]), STONE_TILE(), 0, 0, 0, false); }
 const cyl = (rt, rb, h, seg, m, x, y, z) => mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y, z);
 
 /* ---------------- kiến trúc ---------------- */
@@ -828,7 +862,7 @@ function bats(g, n, center, r) {
 }
 let NO_GROUND = false;
 function ground(g, size = 120, color = null) { if (NO_GROUND) return; const o = mesh(new THREE.PlaneGeometry(size, size), color ? mat('gr' + color, color) : GRASS(), 0, 0, 0, false); o.rotation.x = -Math.PI / 2; g.add(o); }
-function courtyard(g, w, d, z = 4) { const o = mesh(new THREE.PlaneGeometry(w, d), mat('court', 0x9a958a, { roughness: 0.95 }), 0, 0.02, z, false); o.rotation.x = -Math.PI / 2; o.userData.court = true; g.add(o); }
+function courtyard(g, w, d, z = 4) { const o = stonePlane(w, d); o.position.set(0, 0.02, z); o.rotation.x = -Math.PI / 2; o.userData.court = true; g.add(o); }
 function burner(x, z) { const g = new THREE.Group(); g.position.set(x, 0, z); g.userData.burner = true; g.add(cyl(0.6, 0.45, 0.7, 12, BRONZE(), 0, 0.75, 0)); g.add(cyl(0.12, 0.12, 0.4, 8, BRONZE(), 0, 0.2, 0)); g.add(cyl(0.7, 0.6, 0.1, 12, BRONZE(), 0, 1.1, 0)); return g; }
 
 /* ---------------- cảnh của từng chùa ---------------- */
@@ -922,7 +956,7 @@ const SCENES = {
     // Cấp 2 (y2.3): nền rộng + Điện Pháp Chủ (đóng), sân trước điện thoáng
     terr(30, (z2f + z3f) / 2, z2f - z3f, 2.3);
     closedHall(zP, 2.3, 8.5, 5, 3.2, 'ĐIỆN PHÁP CHỦ');
-    { const c2 = mesh(new THREE.PlaneGeometry(18, z2f - zP - 4), mat('court', 0x9a958a, { roughness: 0.95 }), 0, 2.32, (z2f + zP + 4) / 2, false); c2.rotation.x = -Math.PI / 2; c2.userData.court = true; g.add(c2); const bz = burner(0, (z2f + zP) / 2 + 2); bz.position.y = 2.3; g.add(bz); }   // (trước đây lỡ nâng cả cảnh lên 2,3 m → người chơi như đi dưới đất)
+    { const c2 = stonePlane(18, z2f - zP - 4); c2.position.set(0, 2.32, (z2f + zP + 4) / 2); c2.rotation.x = -Math.PI / 2; c2.userData.court = true; g.add(c2); const bz = burner(0, (z2f + zP) / 2 + 2); bz.position.y = 2.3; g.add(bz); }   // (trước đây lỡ nâng cả cảnh lên 2,3 m → người chơi như đi dưới đất)
     flank(z3f + 5.5, z3f, 2.1, 2.3);                       // bậc hai bên lên cấp 3 (y2.3 -> y4.4)
     // Cấp 3 (y4.4): CHÁNH ĐIỆN TAM THẾ — vào lễ bình thường, có sân rộng phía trước
     const h = hall({ w: 16, d: 8, h: 4.6, tiers: 3 }); const thd = h.userData.mainHall ? h.userData.mainHall.d : 8, thw = h.userData.mainHall ? h.userData.mainHall.w : 16, hzc = z3f - 0.6 - thd / 2 - 3.4 - 8;
@@ -1137,5 +1171,5 @@ export function buildLandmark(g, model, opts = {}) {
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; STYLE = null; }
 }
 export function interiorHall(opts, set, altar, bg, style) { INTERIOR = { set, altar, bg }; STYLE = style ? STYLES[style] || null : null; try { return hall(opts); } finally { INTERIOR = null; STYLE = null; } }
-export { guardian, STYLES, THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
+export { stonePlane, STONE_TILE, uvMeters, guardian, STYLES, THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
   RED, DRED, WALL, YWALL, ROOF, STONE, GOLD, WHITE, BRONZE, WOOD, LEAF, LEAF2, GRASS, DARK, WATER };
