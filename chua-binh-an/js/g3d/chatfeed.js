@@ -4,7 +4,7 @@
  *  · Lúc vắng người chơi thật, các Phật tử trong chùa (nhân vật có sẵn) thỉnh thoảng
  *    trò chuyện vài câu cho sân chùa thêm vui; ai nhắn khi vắng sẽ có người chào lại.
  * ========================================================================= */
-const MAX = 4, LIFE = 45000, CUT = 70;
+const MAX = 4, LIFE = 45000, CUT = 36, NAMECUT = 10;   // giới hạn chữ: tin tối đa ~36 ký tự, tên ~10 ký tự
 const PROVS = ['Hà Nội', 'Huế', 'Đà Nẵng', 'Sài Gòn', 'Cần Thơ', 'Hải Phòng', 'Nghệ An', 'Thanh Hóa', 'Nam Định', 'Bắc Ninh', 'Đà Lạt', 'Quảng Ninh', 'Bình Dương', 'Đồng Nai'];
 const SAY = [
   'Nam mô A Di Đà Phật 🙏', 'Chúc cả nhà một ngày an lành', 'Chùa {T} đẹp quá mọi người ơi', 'Ai tụng kinh cùng mình không?',
@@ -31,6 +31,7 @@ export function initChatFeed({ el, NET, getNpcs, chatBubble, getTemple, me }) {
   function add(name, text, kind) {
     text = String(text || '').replace(/\s+/g, ' ').trim(); if (!text) return;
     if (text.length > CUT) text = text.slice(0, CUT - 1) + '…';
+    if (name.length > NAMECUT) name = name.split(' ').pop().slice(0, NAMECUT);   // tên dài: lấy tên gọi
     const r = el('div', 'cfl ' + (kind || '')), n = el('b', '', name + ': '); n.style.color = kind === 'me' ? '#ffe08a' : colorOf(name);
     r.append(n, document.createTextNode(text)); box.append(r);
     while (box.children.length > MAX) box.firstChild.remove();   // tin đến trước ẩn trước
