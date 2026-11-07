@@ -803,3 +803,35 @@ body.touch .banner { top: calc(290px + env(safe-area-inset-top, 0px)); }
 body:not(.touch) .cfl { font-size: 11px; }
 @media (min-width: 1000px) { body:not(.touch) .chatfeed { height: auto; max-height: 150px; justify-content: flex-end; } }
 @media (min-width: 1000px) { body:not(.touch) .chatbtn, body:not(.touch) .chatinput { bottom: 196px; } body:not(.touch) .chatfeed { overflow: hidden; } }
+
+/* =====================================================================
+ *  v55: cột biểu tượng bên phải (dưới menu) — chia sẻ FB & vào chánh điện
+ *  dạng nút tròn + chữ nhỏ bên dưới; tin nhắn chung bỏ nền
+ * ===================================================================== */
+.cfl, .cfl.me { background: none; padding: 1px 2px; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, .8); }
+#goBtn i { font-style: normal; } #goBtn small { font: inherit; }
+body.touch #bShare, body.touch #goBtn, body:not(.touch) #bShare {
+  position: fixed; z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: 58px; height: auto; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+  animation: none; opacity: 1; max-width: none; overflow: visible; cursor: pointer; }
+body.touch #bShare, body.touch #goBtn { right: max(3px, calc(env(safe-area-inset-right, 0px) - 4px)); }
+body.touch #bShare { top: calc(108px + env(safe-area-inset-top, 0px)); }
+body.touch #goBtn { top: calc(170px + env(safe-area-inset-top, 0px)); }
+body.touch .side { top: calc(108px + env(safe-area-inset-top, 0px)); z-index: 9; }
+/* nút tròn */
+body.touch #bShare i, body:not(.touch) #bShare i, body.touch #goBtn i {
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; box-sizing: border-box; font-style: normal; }
+body.touch #bShare i, body:not(.touch) #bShare i { background: linear-gradient(180deg, #2d86ff, #1460d8); color: #fff; border: 2px solid #fff; font: 900 24px/1 Arial, sans-serif; box-shadow: 0 3px 10px rgba(0, 0, 0, .45); }
+body.touch #goBtn i { background: rgba(42, 16, 8, .9); border: 1px solid rgba(240, 192, 80, .6); font-size: 21px; box-shadow: 0 3px 10px rgba(0, 0, 0, .45); }
+/* chữ nhỏ dưới nút */
+body.touch #bShare span, body:not(.touch) #bShare span { display: block; text-align: center; }
+body.touch #bShare b, body:not(.touch) #bShare b { display: none; }
+body.touch #bShare small, body:not(.touch) #bShare small, body.touch #goBtn small {
+  display: block; font: 700 9.5px/1.15 var(--sans); color: #fff3dc; text-align: center; white-space: nowrap; text-shadow: 0 0 3px #000, 0 1px 2px #000; }
+body.touch #bShare:not(.got) small, body:not(.touch) #bShare:not(.got) small { color: #ffe08a; }
+body.touch #bShare:not(.got) i, body:not(.touch) #bShare:not(.got) i { animation: shPulse 2.6s ease-in-out infinite; }
+/* máy tính: nút chia sẻ ở góc phải dưới, ngay dưới cột chức năng */
+body:not(.touch) #bShare { right: 20px; bottom: 34px; width: 70px; }
+body:not(.touch) #bShare i { width: 48px; height: 48px; font-size: 27px; }
+body:not(.touch) #bShare small { font-size: 11px; }
+body.focus #bShare { display: none !important; }

@@ -1727,7 +1727,7 @@ $('goBtn').onclick = () => {   // ra sân ngắm cảnh ↔ vào chánh điện
     updGo();
   });
 };
-function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; const sm = document.body.classList.contains('touch'); $('goBtn').textContent = inHall ? (sm ? '🌳 Ra sân' : '🌳 Ra sân ngắm cảnh') : (sm ? '🛕 Vào điện' : '🛕 Vào chánh điện'); }
+function updGo() { const h = W && W.halls[0]; const inHall = h && Math.hypot(me.pos.x - h.altar.x, me.pos.z - h.altar.z) < 7; const sm = document.body.classList.contains('touch'); const [ic, lb] = inHall ? ['🌳', sm ? 'Ra sân' : 'Ra sân ngắm cảnh'] : ['🛕', sm ? 'Vào điện' : 'Vào chánh điện']; const g = $('goBtn'); if (g.dataset.k !== lb) { g.dataset.k = lb; g.innerHTML = `<i>${ic}</i><small>${lb}</small>`; g.title = lb; } }
 setInterval(() => { if (W) { updGo(); $('online').textContent = NET.online ? `👥 ${NET.count} người chơi thật · Kênh ${NET.ch}` : `${1 + npcs.length} đang tu tập`; } }, 1000);
 /* dòng tin chạy */
 function ticker(t) { const e = $('tickerText'); e.textContent = t; e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
