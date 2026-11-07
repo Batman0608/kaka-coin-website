@@ -1,10 +1,10 @@
 /* Service worker: cho phép cài game về điện thoại và chơi được khi mạng yếu.
    Đổi VER mỗi lần cập nhật lớn để máy người chơi tải bản mới. */
-const VER = 'cba-v52';
+const VER = 'cba-v53';
 const CORE = [
   'game.html', 'manifest.webmanifest', 'css/game.css',
   'js/config.js', 'js/content.js', 'js/lunar.js', 'js/stories.js', 'js/temples.js', 'js/audio.js', 'js/shop-config.js', 'js/kinh-config.js', 'js/cau-hinh-rieng.js', 'js/temple3d.js',
-  'js/g3d/main.js', 'js/g3d/world.js', 'js/g3d/avatar.js', 'js/g3d/shop.js', 'js/g3d/account.js', 'js/g3d/fb.js', 'js/g3d/net.js', 'js/g3d/tuhanh.js', 'js/g3d/duyen.js', 'js/g3d/share.js', 'js/g3d/quiz.js', 'js/g3d/sweep.js', 'js/g3d/giapha.js', 'js/g3d/boat.js',
+  'js/g3d/main.js', 'js/g3d/world.js', 'js/g3d/avatar.js', 'js/g3d/shop.js', 'js/g3d/account.js', 'js/g3d/fb.js', 'js/g3d/net.js', 'js/g3d/tuhanh.js', 'js/g3d/duyen.js', 'js/g3d/share.js', 'js/g3d/quiz.js', 'js/g3d/sweep.js', 'js/g3d/giapha.js', 'js/g3d/boat.js', 'js/g3d/chatfeed.js',
   'vendor/three/three.module.min.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png'
 ];

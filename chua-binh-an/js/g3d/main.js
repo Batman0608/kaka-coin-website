@@ -13,10 +13,12 @@ import { initQuiz } from './quiz.js';
 import { initSweep } from './sweep.js';
 import { initGiaPha } from './giapha.js';
 import { initBoat } from './boat.js';
+import { initChatFeed } from './chatfeed.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 let DY = null;   // cầu duyên (chùa Hà)
 let SH = null;   // kêu gọi chia sẻ game lên Facebook
-let BT = null;   // thuyền rồng tham quan sông, hồ
+let BT = null;
+let FEED = null;   // khung 4 tin trò chuyện cạnh nút 💬
 let GP = null;   // ông giữ gia phả
 let SW = null;   // quét sân chùa tích công đức
 let QZ = null;   // câu hỏi khi tham quan khuôn viên chùa
@@ -117,7 +119,7 @@ const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 v
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
-  festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
+  festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (FEED) FEED.clear(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -189,21 +191,21 @@ function spawnNpcs() {
       const { h, av } = mkAv(n), c = free[i]; c.taken = true;
       av.root.position.set(c.x, c.y, c.z); av.root.rotation.y = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); av.setPose('kneel');
       scene.add(av.root); av.root.userData.tmp = true;
-      npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: 8 + Math.random() * 18, sit: c, hall: true });
+      npcs.push({ av, ...(nm => ({ name: nm, label: label(nm, 'npc') }))(pickName(h)), target: null, wait: 8 + Math.random() * 18, sit: c, hall: true });
     }
   }
   // vài Phật tử đi lại ngoài sân
   for (let j = 0; j < 3; j++, n++) {
     const { h, av } = mkAv(n), L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
-    npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: Math.random() * 4, sit: null, hall: false });
+    npcs.push({ av, ...(nm => ({ name: nm, label: label(nm, 'npc') }))(pickName(h)), target: null, wait: Math.random() * 4, sit: null, hall: false });
   }
   // chùa Hà: khách thập phương đứng quanh Cây tình duyên ngắm dải lụa, khấn nguyện
   const T = W.duyenTree;
   if (T) for (let j = 0; j < 10; j++, n++) {
     const { h, av } = mkAv(n), a = j / 10 * Math.PI * 2 + 0.3, r = 6.6 + (j % 3) * 1.2, x = T.center.x + Math.cos(a) * r, z = T.center.z + Math.sin(a) * r;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); av.root.rotation.y = Math.atan2(T.center.x - x, T.center.z - z); scene.add(av.root); av.root.userData.tmp = true;
-    npcs.push({ av, label: label(pickName(h), 'npc'), target: null, wait: 4 + Math.random() * 14, sit: null, hall: false, tree: T });
+    npcs.push({ av, ...(nm => ({ name: nm, label: label(nm, 'npc') }))(pickName(h)), target: null, wait: 4 + Math.random() * 14, sit: null, hall: false, tree: T });
   }
 }
 function npcThink(n, dt) {
@@ -1595,6 +1597,7 @@ TH = initTuHanh({ P, save, modal, closeModal, el, $, toast, banner, ticker, A, f
   getW: () => W, getTemple: () => temple, petalShower: (k) => petalShower(k), releaseLantern: (t) => releaseLantern(t), walkTo: (p, d) => walkTo(p, d), openMala: () => openMala(),
   meditate: (m, g) => meditate(m, g), fade: (f) => fade(f), loadTemple: (id) => loadTemple(id) });
 if (W && temple) TH.onTemple();
+FEED = initChatFeed({ el, NET, getNpcs: () => npcs, chatBubble, getTemple: () => temple, me });
 BT = initBoat({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, NET, spend: (n) => SHOP.spend(n), fade, el });
 GP = initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, NET, P, el, modal, closeModal, toast, A, getTemple: () => temple });
 SW = initSweep({ THREE, scene, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, addMerit, addBeads, meritTxt });
@@ -1606,6 +1609,7 @@ if (W && temple) { DY.onTemple(); SW.onTemple(); GP.onTemple(); BT.onTemple(); }
 const chatBubbles = [];
 function chatBubble(root, text, name, h, dur = 3) {
   if (!root) return;
+  if (FEED && name) FEED.onBubble(root, text, name);
   let b = chatBubbles.find(x => x.root === root);
   if (!b) { b = { root, el: label('', 'chatbub'), h: h || 2 }; chatBubbles.push(b); }
   b.el.textContent = text; b.el.style.display = ''; if (h) b.h = h;
@@ -2046,7 +2050,7 @@ function loop() {
     sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt);
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);

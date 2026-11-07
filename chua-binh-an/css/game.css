@@ -723,3 +723,11 @@ body.touch .dchat { right: 8px; left: 8px; width: auto; bottom: 8px; top: calc(6
 .modal.notice .row .btn { flex: 1; text-align: center; text-decoration: none; }
 .ntck input { width: 18px !important; height: 18px; min-height: 0; flex: none; margin: 0; }
 .verline b { color: #ffd36b; }
+/* khung 4 tin trò chuyện cạnh nút 💬 */
+.chatfeed { position: fixed; z-index: 6; left: calc(max(10px, env(safe-area-inset-left, 0px)) + 66px); top: calc(50% - 26px); width: min(58vw, 270px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.cfl { font-size: 13px; line-height: 1.3; color: #fff3dc; background: rgba(26, 10, 4, .62); border-radius: 10px; padding: 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, .8); animation: cfIn .3s ease-out; transition: opacity .5s, transform .5s; backdrop-filter: blur(2px); }
+.cfl b { font-weight: 800; } .cfl.me { background: rgba(90, 40, 8, .7); }
+.cfl.out { opacity: 0; transform: translateX(-12px); }
+@keyframes cfIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+body:not(.touch) .chatfeed { top: auto; bottom: 96px; left: 16px; width: 360px; }
+body:not(.touch) .cfl { font-size: 14px; }
