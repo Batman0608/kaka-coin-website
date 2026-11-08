@@ -162,7 +162,20 @@ export function initSuKien(X) {
   }, 20000);
 
   /* ---------------- bảng tuần cho HUD ---------------- */
-  const rows = () => (top && top.list ? top : null);
+  // Phật tử ảo trên bảng tuần (tạo không khí thi đua) · công đức tăng dần theo ngày trong tuần · thưởng chỉ tính cho người chơi thật
+  const BOTW = [['Diệu Hạnh', 4300], ['Minh Tuệ', 3700], ['Thanh Tịnh', 3200], ['Quảng Đức', 2800], ['An Nhiên', 2450], ['Tâm Nguyện', 2100], ['Thiện Tâm', 1800], ['Phúc An', 1500], ['Hoa Sen', 1250], ['Bình Yên', 1000], ['Như Ý', 780], ['Minh Châu', 560]];
+  function botRows() {
+    const d = vn(), dow = (d.getDay() + 6) % 7, f = Math.min(1, (dow * 1440 + d.getHours() * 60 + d.getMinutes()) / (7 * 1440)) * 0.97 + 0.03;
+    const wk = Math.floor(Date.now() / (7 * 86400000));
+    return BOTW.map(([name, T], i) => { const jit = 0.82 + (((wk * 31 + i * 17) % 37) / 37) * 0.36; return { name, n: Math.round(T * jit * Math.pow(f, 0.92)), bot: true }; });
+  }
+  function rows() {
+    if (!top || !top.list) return null;
+    const real = top.list.map(x => ({ ...x })); if (top.mine && !real.some(x => x.me)) real.push({ name: P.name, n: top.mine.n, me: true });
+    const all = real.concat(botRows()).sort((a, b) => b.n - a.n); all.forEach((x, i) => { x.r = i + 1; });
+    const me = all.find(x => x.me);
+    return { ...top, list: all.slice(0, 10), mine: me ? { r: me.r, n: me.n } : null };
+  }
 
   /* ---------------- thi ảnh góc chùa ---------------- */
   function sendPhoto(note) {
@@ -194,14 +207,15 @@ export function initSuKien(X) {
     });
     b.append(list);
     // bảng tuần
-    b.append(el('h3', '', '🏆 Công Đức Tuần (người thật)'));
+    b.append(el('h3', '', '🏆 Công Đức Tuần'));
     const tb = el('div', 'evtop');
+    const top = rows();
     if (!top) tb.append(el('p', 'note', NET.online ? 'Đang tải…' : 'Cần kết nối máy chủ để xem bảng tuần.'));
     else {
       const ol = el('ol', 'evrank'); (top.list || []).forEach(x => { const li = el('li', x.me ? 'me' : ''); li.append(el('b', '', String(x.r)), el('span', '', x.name), el('em', '', fmtN(x.n))); ol.append(li); });
       if (!top.list.length) tb.append(el('p', 'note', 'Tuần này chưa có ai · hãy là người đầu tiên!')); else tb.append(ol);
       if (top.mine && top.mine.r > 10) tb.append(el('p', 'note', `Bạn: hạng ${top.mine.r} · ${fmtN(top.mine.n)} công đức`));
-      tb.append(el('p', 'note', `Thưởng cuối tuần (thứ Hai nhận): 🥇 100 🪷 · 🥈 60 🪷 · 🥉 30 🪷. ${top.last && top.last.length ? 'Tuần trước: ' + top.last.map(x => `${x.r}. ${x.name}`).join(' · ') : ''}`));
+      tb.append(el('p', 'note', `Thưởng cuối tuần cho 3 người chơi thật cao nhất (thứ Hai nhận): 🥇 100 🪷 · 🥈 60 🪷 · 🥉 30 🪷. ${top.last && top.last.length ? 'Tuần trước: ' + top.last.map(x => `${x.r}. ${x.name}`).join(' · ') : ''}`));
     }
     b.append(tb);
     // lời nguyện hay

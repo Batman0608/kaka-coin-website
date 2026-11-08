@@ -968,3 +968,15 @@ body.touch #kinhBar { top: calc(236px + env(safe-area-inset-top, 0px)); right: m
 .evpic small { font-size: 11px; color: #7a5a32; } .evpic .btn { justify-self: start; padding: 3px 10px; }
 .wishlbl.mine { background: rgba(255, 210, 110, .92); color: #3a1406; font-weight: 800; }
 .mqstreak, .mqstreak * { font-family: var(--sans); }
+
+/* v63: chữ gọn hơn — tắt tự phóng chữ của iPhone (làm tên & chat to bất thường), thu nhỏ tên nhân vật và khung chat */
+html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.nlabel { padding: 1px 6px; border-radius: 8px; font-size: 10.5px; line-height: 1.25; }
+.nlabel[data-title]:not([data-title=""])::after { font-size: 8.5px; line-height: 1.15; }
+body.touch .nlabel { font-size: 9.5px; padding: 1px 5px; }
+body.touch .nlabel[data-title]:not([data-title=""])::after { font-size: 8px; }
+.nlabel.npc { font-size: 9px; }
+.nlabel.wishlbl { font-size: 11px; max-width: 180px; }
+.chatfeed { gap: 1px; }
+.cfl { font-size: 9.5px; line-height: 1.18; padding: 0 2px; }
+body:not(.touch) .cfl { font-size: 10.5px; line-height: 1.2; }

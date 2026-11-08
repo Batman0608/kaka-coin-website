@@ -10,6 +10,7 @@
  *  An toàn: chặn & báo cáo; số điện thoại / đường link trong hồ sơ công khai bị che.
  * ========================================================================= */
 import { heartMesh } from './world.js';
+import { portrait } from './chandung.js';
 
 const PROVS = ['Hà Nội', 'Huế', 'Lai Châu', 'Điện Biên', 'Sơn La', 'Lạng Sơn', 'Quảng Ninh', 'Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Cao Bằng', 'Tuyên Quang', 'Lào Cai', 'Thái Nguyên', 'Phú Thọ', 'Bắc Ninh', 'Hưng Yên', 'Hải Phòng', 'Ninh Bình', 'Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Gia Lai', 'Khánh Hòa', 'Lâm Đồng', 'Đắk Lắk', 'TP. Hồ Chí Minh', 'Đồng Nai', 'Tây Ninh', 'Cần Thơ', 'Vĩnh Long', 'Đồng Tháp', 'Cà Mau', 'An Giang'];
 const INTS = ['Du lịch', 'Nấu ăn', 'Đọc sách', 'Âm nhạc', 'Thiền · Yoga', 'Thể thao', 'Phim ảnh', 'Cà phê', 'Làm vườn', 'Chụp ảnh', 'Hành hương', 'Thú cưng', 'Công nghệ', 'Kinh doanh', 'Ăn chay', 'Tình nguyện'];
@@ -20,6 +21,10 @@ export function initDuyen(X) {
   let st = { prof: null, pairs: [], matches: [] }, tree = [], bots = [], saves = 0, myPid = '', unread = {}, chatOpen = null, view = null;
   const year = () => new Date(Date.now() + 7 * 3600000).getUTCFullYear();
   const photoUrl = (id) => `${NET.httpBase()}/duyen/anh/${id}.jpg`;
+  // ảnh chân dung của bạn đồng hành ảo: vẽ từ nhân vật 3D trong game (không dùng ảnh người thật)
+  const ROBE_K = ['hong', 'ngoc', 'tim', 'lam', 'nau', 'kim', 'trang', 'reu', 'dat', 'xam'];
+  function botPic(c) { let n = 7; for (const ch of String(c.nick) + c.age) n = (n * 31 + ch.charCodeAt(0)) % 100003; return portrait('bot' + c.nick + c.age, { g: c.g, hair: c.g === 'nam' ? 'ngan' : ['dai', 'bui', 'dai'][n % 3], robe: ROBE_K[(n * 7) % ROBE_K.length] }, n * 13 + 3); }
+  const avImg = (c) => { const u = c.bot ? botPic(c) : (c.photos && c.photos[0] ? photoUrl(c.photos[0]) : ''); if (!u) return null; const im = new Image(); im.src = u; im.alt = c.nick || ''; im.loading = 'lazy'; return im; };
   const btn = (t, cls, fn) => { const b = el('button', 'btn' + (cls ? ' ' + cls : ''), t); b.onclick = fn; return b; };
   const gIcon = (g) => (g === 'nam' ? '👨' : '👩');
   const badge = () => { const b = $('duyenBadge'); if (!b) return; const n = st.pairs.filter(p => !p.mine).length + Object.values(unread).reduce((a, b) => a + b, 0); b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n || '!'); };
@@ -64,6 +69,7 @@ export function initDuyen(X) {
   function cardView(c, box, opts = {}) {
     const wrap = el('div', 'dcard');
     if (c.photos && c.photos.length) { const ph = el('div', 'dphotos'); c.photos.forEach(id => { const im = new Image(); im.src = photoUrl(id); im.alt = c.nick; im.loading = 'lazy'; im.onclick = () => zoom(im.src); ph.append(im); }); wrap.append(ph); }
+    else if (c.bot && botPic(c)) { const ph = el('div', 'dphotos'); const im = avImg(c); im.onclick = () => zoom(im.src); ph.append(im); wrap.append(ph); }
     else wrap.append(el('div', 'dnophoto', gIcon(c.g)));
     if (c.bot) wrap.append(el('p', 'dbot', '🤖 Bạn đồng hành ảo · không phải người thật — trò chuyện cho vui trong lúc Cây tình duyên tìm người thật hợp với bạn'));
     wrap.append(el('h3', '', `${gIcon(c.g)} ${c.nick} · ${c.age} tuổi`), el('p', 'dloc', `📍 ${c.prov}${c.ward ? ' · ' + c.ward : ''}`));
@@ -124,8 +130,8 @@ export function initDuyen(X) {
       if (!tree.length && !bots.length) { b.append(el('p', 'note', 'Cây tình duyên chưa có hồ sơ nào. Hãy là người đầu tiên treo lời nguyện!')); return; }
       const f = el('select'); [['', 'Tất cả tỉnh thành'], ...PROVS.map(x => [x, x])].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; f.append(o); }); if (st.prof) f.value = st.prof.prov;
       const grid = el('div', 'dgrid'); b.append(f, grid);
-      const draw = () => { grid.innerHTML = ''; [...tree, ...bots].filter(c => !f.value || c.prov === f.value).forEach(c => { const it = el('button', 'ditem' + (c.pid === myPid ? ' me' : '') + (c.bot ? ' bot' : '')); if (c.photos && c.photos[0]) { const im = new Image(); im.src = photoUrl(c.photos[0]); im.loading = 'lazy'; it.append(im); } else it.append(el('i', '', gIcon(c.g)));
-        it.append(el('b', '', `${c.bot ? '🤖 ' : ''}${c.nick}, ${c.age}`), el('small', '', c.bot ? 'bạn đồng hành ảo' : c.prov)); it.onclick = () => showCard(c); grid.append(it); }); if (!grid.children.length) grid.append(el('p', 'note', 'Chưa có hồ sơ ở tỉnh này.')); };
+      const draw = () => { grid.innerHTML = ''; [...tree, ...bots].filter(c => !f.value || c.prov === f.value).forEach(c => { const it = el('button', 'ditem' + (c.pid === myPid ? ' me' : '') + (c.bot ? ' bot' : '')); { const im = avImg(c); if (im) it.append(im); else it.append(el('i', '', gIcon(c.g))); }
+        it.append(el('b', '', `${c.bot ? '🤖 ' : ''}${c.nick}, ${c.age}`), el('small', '', c.bot ? `${c.prov} · bạn đồng hành ảo` : c.prov)); it.onclick = () => showCard(c); grid.append(it); }); if (!grid.children.length) grid.append(el('p', 'note', 'Chưa có hồ sơ ở tỉnh này.')); };
       f.onchange = draw; draw();
     },
     se(b) {
@@ -140,7 +146,7 @@ export function initDuyen(X) {
     },
     chat(b) {
       if (!st.matches.length) { b.append(el('p', 'note', 'Khi cả hai cùng bấm "Đồng ý", khung trò chuyện riêng sẽ mở ở đây.')); return; }
-      st.matches.forEach(m => { const it = el('button', 'ditem wide'); if (m.other.photos && m.other.photos[0]) { const im = new Image(); im.src = photoUrl(m.other.photos[0]); it.append(im); } else it.append(el('i', '', gIcon(m.other.g)));
+      st.matches.forEach(m => { const it = el('button', 'ditem wide'); { const im = avImg(m.other); if (im) it.append(im); else it.append(el('i', '', gIcon(m.other.g))); }
         it.append(el('b', '', `${m.other.bot ? '🤖 ' : ''}${m.other.nick}${unread[m.id] ? ` · ${unread[m.id]} tin mới` : ''}`), el('small', '', m.msgs.length ? m.msgs[m.msgs.length - 1].x.slice(0, 40) : 'Hãy gửi lời chào 🙏')); it.onclick = () => { closeModal(); openChat(m.id); }; b.append(it); });
     }
   };
@@ -218,7 +224,7 @@ export function initDuyen(X) {
     const m = st.matches.find(x => x.id === id); if (!m) return; chatOpen = id; unread[id] = 0; badge();
     if (!chatEl) { chatEl = el('div', 'dchat'); document.body.append(chatEl); }
     chatEl.hidden = false; chatEl.innerHTML = '';
-    const head = el('div', 'dch-h'); const av = m.other.photos && m.other.photos[0] ? Object.assign(new Image(), { src: photoUrl(m.other.photos[0]) }) : el('i', '', gIcon(m.other.g)); av.onclick = () => showCard(m.other);
+    const head = el('div', 'dch-h'); const av = avImg(m.other) || el('i', '', gIcon(m.other.g)); av.onclick = () => showCard(m.other);
     const tt = el('div', 'dch-t'); tt.append(el('b', '', (m.other.bot ? '🤖 ' : '') + (m.other.nick || 'Người ấy')), el('small', '', m.other.bot ? 'Bạn đồng hành ảo · không phải người thật' : `${m.other.age ? m.other.age + ' tuổi · ' : ''}${m.other.prov || ''}`));
     const menu = el('div', 'dch-m'); menu.append(btn('⋯', 'ghost', () => endMenu(m)), btn('✕', 'ghost', closeChat));
     head.append(av, tt, menu);
