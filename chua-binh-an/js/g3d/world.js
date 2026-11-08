@@ -186,6 +186,7 @@ export function buildWorld(scene, temple) {
   (Lx.pois || []).forEach(p => { if (!p[5] && !hallInfo.some(h => Math.hypot(p[1] - h.altar.x, p[2] - h.altar.z) < Math.max(h.w, h.d) / 2 + 2)) quiz.spots.push({ name: p[0], x: p[1], z: p[2], r: Math.min(p[3], 5) }); });   // điểm trong chánh điện không hỏi (đang lễ Phật)
   // mái cổng & phần cao của cổng: ẩn tạm khi che giữa camera và người chơi
   const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
+  mergeStatic(root);   // gộp cây & vật trang trí tĩnh thành vài khối lớn → điện thoại vẽ nhanh, bấm không trễ
   return { quizSpots: quiz.spots, root, conf, layout: Lx, duyenTree: root.userData.duyenTree || null, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
@@ -920,4 +921,52 @@ function landscape(root, L, col) {
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 3); const s2 = 0.7 + rnd() * 0.9; sc.set(s2, s2 * (0.8 + rnd() * 0.5), s2); M4.compose(new THREE.Vector3(x, 0, z), q, sc); inst.setMatrixAt(n++, M4); }
   inst.count = n; inst.userData.noCollide = true; inst.frustumCulled = false; root.add(inst);
   return { edge: R - 3, trees };
+}
+
+/* gộp các khối tĩnh (cây, búi cỏ…) cùng chất liệu thành một khối: hàng nghìn lệnh vẽ → vài chục */
+function mergeStatic(root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = new Map(), victims = [];
+  // vật có hoạt cảnh (ANIM đổi vị trí/xoay) thì giữ nguyên: chạy thử ANIM ở hai thời điểm, so ma trận
+  const before = new Map(); root.traverse(o => { if (o.isMesh) before.set(o, o.matrixWorld.clone()); });
+  try { ANIM.forEach(f => f(3.7)); ANIM.forEach(f => f(11.3)); } catch (e) {}
+  root.updateMatrixWorld(true); const moving = new Set(); before.forEach((m0, o) => { if (!o.matrixWorld.equals(m0)) moving.add(o); });
+  const OK = new Set(['noCollide', 'camSkip', 'floor', 'merged', 'builderTree', 'court', 'mesa', 'mountain', 'tree']);
+  const keep = new Set(['lantern', 'paperLamp', 'stoneLamp'].map(k => mat(k, 0xffffff)));
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || !o.visible || moving.has(o) || o.userData.merged) return;
+    for (let p = o; p && p !== root; p = p.parent) { if (!p.visible) return; for (const k in p.userData) if (!OK.has(k)) return; }
+    const m = o.material; if (Array.isArray(m) || m.transparent || keep.has(m) || o.isSkinnedMesh || m.vertexColors || m.isShaderMaterial) return;
+    const g = o.geometry; if (!g.attributes.position || !g.attributes.normal || (m.map && !g.attributes.uv)) return;
+    const mx = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    if (!groups.has(m)) groups.set(m, []); groups.get(m).push([g, mx, o.castShadow, o.receiveShadow]); victims.push(o);
+  });
+  groups.forEach((list, m) => { root.add(mergeList(list, m)); });
+  victims.forEach(o => { o.parent.remove(o); });
+  // bên trong từng chánh điện: gộp vào chính nhóm điện, chừa đệm, cột hiên/mái (ẩn hiện khi vào điện), đèn, vật có hoạt cảnh
+  const HOK = new Set([...OK, 'mainHall', 'hallSteps']);
+  root.traverse(h => {
+    const MH = h.userData.mainHall; if (!MH) return;
+    const skipSet = new Set(); [...(MH.front || []), ...(MH.roofs || [])].forEach(x => x && x.traverse && x.traverse(c => skipSet.add(c)));
+    h.updateMatrixWorld(true); const hinv = new THREE.Matrix4().copy(h.matrixWorld).invert(), hg = new Map(), hv = [];
+    h.traverse(o => {
+      if (!o.isMesh || o.isInstancedMesh || !o.visible || moving.has(o) || skipSet.has(o) || o.userData.merged) return;
+      for (let p = o; p && p !== h; p = p.parent) { if (!p.visible) return; for (const k in p.userData) if (!HOK.has(k)) return; }
+      const m = o.material; if (Array.isArray(m) || m.transparent || keep.has(m) || m.isShaderMaterial || m.vertexColors) return;
+      const g = o.geometry; if (!g.attributes.position || !g.attributes.normal || (m.map && !g.attributes.uv)) return;
+      if (!hg.has(m)) hg.set(m, []); hg.get(m).push([g, new THREE.Matrix4().multiplyMatrices(hinv, o.matrixWorld), o.castShadow]); hv.push(o);
+    });
+    hg.forEach((list, m) => { const big = mergeList(list, m); big.position.set(0, 0, 0); h.add(big); });
+    hv.forEach(o => o.parent.remove(o));
+  });
+  // xóa các nhóm cây đã rỗng
+  const empty = []; root.traverse(o => { if (o.userData.tree && !o.children.length) empty.push(o); }); empty.forEach(o => o.parent && o.parent.remove(o));
+}
+
+function mergeList(list, m) {
+  let n = 0; const useUV = !!m.map; const parts = list.map(([g, mx]) => { const q = (g.index ? g.toNonIndexed() : g.clone()).applyMatrix4(mx); n += q.attributes.position.count; return q; });
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), UV = useUV ? new Float32Array(n * 2) : null; let k = 0;
+  parts.forEach(q => { P.set(q.attributes.position.array, k * 3); N.set(q.attributes.normal.array, k * 3); if (UV) UV.set(q.attributes.uv.array, k * 2); k += q.attributes.position.count; q.dispose(); });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(N, 3)); if (UV) geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2)); geo.computeBoundingSphere();
+  const big = new THREE.Mesh(geo, m); big.castShadow = list.some(x => x[2]); big.receiveShadow = true; big.userData.noCollide = true; big.userData.merged = true; return big;
 }

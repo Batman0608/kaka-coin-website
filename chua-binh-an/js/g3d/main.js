@@ -124,6 +124,7 @@ const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 v
 let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
+  ferryFolk.forEach(f => { scene.remove(f.root); f.label.remove(); }); ferryFolk = [];
   festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (FEED) FEED.clear(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
@@ -153,6 +154,7 @@ function loadTemple(id) {
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
   abbot = { av: ab, label: label('Sư trụ trì ' + sangha().tru, 'abbot') }; abbot.av.root.userData.tmp = true;
+  ferrySetup();
   setupAbbot(); spawnResMonk();
   if (W.merit && SHOP.payOpen) meritLbl = label('💝 Hòm công đức', 'merit');
   // Phật tử khác (mô phỏng, không phát âm thanh)
@@ -297,6 +299,7 @@ const near = (p, r) => Math.hypot(me.pos.x - p.x, me.pos.z - p.z) < r && Math.ab
 function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
   if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
+  { const F = W.layout.ferry; if (F) { if (near({ x: F.from[0], z: F.from[1], y: me.y }, 4.2)) return { label: '⛵ Đi đò sang chùa', fn: () => ferry(false) }; if (near({ x: F.to[0], z: F.to[1], y: me.y }, 4.2)) return { label: '⛵ Đi đò về bến Đục', fn: () => ferry(true) }; } }
   { const c = (BT && BT.context()) || (GP && GP.context()) || (SW && SW.context()) || (DY && DY.context()) || (TH && TH.context()); if (c) return c; }
   if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
   if (W.merit && SHOP.payOpen && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
@@ -307,7 +310,7 @@ function findContext() {
     if (n && !(greeted[n.name] > Date.now() - 600000)) return { label: `🙏 Chào ${n.name}`, fn: () => greetNpc(n) }; }
   const bur = W.burners.find(b => near(b, 2.6)); if (bur) return { label: '🕯️ Thắp hương', fn: () => offerIncense(bur) };
   for (const p of W.layout.pois) if (p[5] && near({ x: p[1], z: p[2], y: me.y }, p[3])) {
-    if (p[5] === 'ferry') return { label: '⛵ Lên thuyền', fn: ferry };
+    if (p[5] === 'ferry') return { label: '⛵ Đi đò sang chùa', fn: () => ferry(false) };
     if (p[5] === 'bell') return { label: '🔔 Thỉnh chuông', fn: ringBell };
   }
   if (hall) return { label: '🙏 Lạy Phật', fn: doBow };
@@ -435,10 +438,31 @@ function offerIncense(bur) {
 }
 let smokeBoost = 0;
 function ringBell() { if (Date.now() - (ringBell.t || 0) < 20000) return toast('Tiếng chuông còn đang ngân…'); ringBell.t = Date.now(); A.bigBell(); me.av.bow(); NET.act('bell'); addBeads(9); toast('🔔 Một hồi chuông vang xa · nguyện chúng sanh thức tỉnh'); }
-function ferry() {
-  const F = W.layout.ferry; fade(() => { me.pos.set(F.to[0], 0, F.to[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; toast('⛵ Thuyền đã cập bến · đi qua cổng tam quan, leo bậc đá lên động'); });
+function ferry(back) {   // đò ngang qua suối: đi được cả hai chiều, miễn phí
+  const F = W.layout.ferry, to = back ? F.from : F.to;
+  fade(() => { me.pos.set(to[0], 0, to[1] + (back ? 1.2 : -0.6)); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; me.yaw = back ? 0 : Math.PI; cam.yaw = me.yaw + Math.PI;
+    toast(back ? '⛵ Đò đã đưa bạn về bến Đục' : '⛵ Đò đã cập bến · đi qua cổng tam quan, leo bậc đá lên chùa'); A.khanh && A.khanh(); });
 }
-function fade(fn) { const f = $('fade'); f.classList.add('on'); setTimeout(() => { fn(); f.classList.remove('on'); }, 700); }
+/* người chèo đò & con đò đậu ở mỗi bờ */
+let ferryFolk = [];
+function ferrySetup() {
+  ferryFolk.forEach(f => { scene.remove(f.root); f.label.remove(); }); ferryFolk = [];
+  const F = W.layout.ferry; if (!F) return;
+  [[F.from, 1, 'Đò sang chùa · miễn phí'], [F.to, -1, 'Đò về bến Đục · miễn phí']].forEach(([p, side, txt], i) => {
+    const root = new THREE.Group(); root.userData.tmp = true; scene.add(root);
+    const x = p[0] + 2.4, z = p[1] - side * 0.4, y = W.col.heightAt(x, z, 50) ?? 0;
+    const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau' }, seed: 61 + i }); av.root.position.set(x, y, z); av.root.rotation.y = side > 0 ? Math.PI : 0; root.add(av.root);
+    // con đò nhỏ đậu sát bờ
+    const M2 = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }), boat = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 3.6), M2(0x7a5230)); hull.position.y = 0.1; boat.add(hull);
+    [-1, 1].forEach(e => { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.9, 4), M2(0x7a5230)); tip.rotation.x = e * Math.PI / 2; tip.rotation.y = Math.PI / 4; tip.scale.set(1, 1, 0.45); tip.position.set(0, 0.1, e * 2.2); boat.add(tip); });
+    const cov = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.4, 10, 1, true, 0, Math.PI), M2(0x8a7a50)); cov.material.side = THREE.DoubleSide; cov.rotation.x = Math.PI / 2; cov.position.y = 0.28; boat.add(cov);
+    boat.position.set(p[0] - 2.2, 0.05, p[1] - side * 2.4); root.add(boat);
+    ferryFolk.push({ root, av, boat, label: label('⛵ ' + txt, 'abbot') });
+  });
+}
+function ferryStep(dt, t) { ferryFolk.forEach((f, i) => { f.av.update(dt, false); placeLabel(f.label, f.av.root.position, f.av.height + 0.15); f.boat.position.y = 0.05 + Math.sin(t * 1.4 + i) * 0.04; f.boat.rotation.z = Math.sin(t * 1.1 + i) * 0.03; }); }
+function fade(fn) { const f = $('fade'); f.classList.add('on'); setTimeout(() => { fn(); f.classList.remove('on'); }, 320); }
 
 /* Tràng hạt: chuỗi hạt gỗ hiện ngay trên màn chơi, nhân vật tự về đệm ngồi */
 let malaOn = false, malaAnim = 0;
@@ -2177,6 +2201,7 @@ function loop() {
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
     NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); if (SK) SK.step(dt); sysTick();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
+    ferryStep(dt, t);
     stepResMonk(dt);
     placeLabel(me.label, me.av.root.position, me.av.height + 0.15);
     chatStep(); stepMeCushion(t);
