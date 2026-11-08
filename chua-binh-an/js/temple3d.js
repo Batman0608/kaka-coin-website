@@ -17,7 +17,7 @@ const RED = () => mat('red', 0x9c2a1a), DRED = () => mat('dred', 0x5a160c), WALL
 const YWALL = () => mat('ywall', 0xe6c56a), ROOF = () => mat('roof', 0x4a2c22, { roughness: 0.9 }), STONE = () => mat('stone', 0xb9b2a4);
 const GOLD = () => mat('gold', 0xd9a83a, { metalness: 0.75, roughness: 0.3 }), WHITE = () => mat('white', 0xf3f0e8, { roughness: 0.55 });
 const BRONZE = () => mat('bronze', 0x9a6a2a, { metalness: 0.8, roughness: 0.35 }), WOOD = () => mat('wood', 0x5a3a22);
-const LEAF = () => mat('leaf', 0x3f7a3a, { flatShading: true }), LEAF2 = () => mat('leaf2', 0x2f5f2f, { flatShading: true });
+const LEAF = () => mat('leaf', 0x3f7a3a, { flatShading: true }), LEAF2 = () => mat('leaf2', 0x2f5f2f, { flatShading: true }), LEAF3 = () => mat('leaf3', 0x5a9a42, { flatShading: true });
 const GRASS = () => mat('grass', 0x5f8a45), DARK = () => mat('dark', 0x1a0f0a), WATER = () => mat('water', 0x3c7f9a, { roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.88 });
 
 function mesh(geo, m, x = 0, y = 0, z = 0, shadow = true) {
@@ -759,7 +759,11 @@ function tree(h, m = LEAF(), x = 0, z = 0, kind = 'round') {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.userData.tree = h;
   g.add(cyl(h * 0.05, h * 0.08, h * 0.5, 8, WOOD(), 0, h * 0.25, 0));
   if (kind === 'pine') { for (let i = 0; i < 3; i++) g.add(mesh(new THREE.ConeGeometry(h * (0.32 - i * 0.07), h * 0.38, 8), LEAF2(), 0, h * (0.5 + i * 0.2), 0)); }
-  else { for (let i = 0; i < 4; i++) { const s = mesh(new THREE.IcosahedronGeometry(h * (0.28 - i * 0.03), 0), m, (Math.random() - 0.5) * h * 0.35, h * (0.62 + i * 0.1), (Math.random() - 0.5) * h * 0.35); g.add(s); } }
+  else {   // tán tròn xum xuê: vài cành chĩa lên, 8 chùm lá to nhỏ, ba sắc lá
+    [[-1, 0.5], [1, -0.4], [0.3, 1]].forEach(([bx, bz]) => { const b = cyl(h * 0.025, h * 0.04, h * 0.32, 6, WOOD(), bx * h * 0.07, h * 0.56, bz * h * 0.07); b.rotation.set(bz * 0.5, 0, -bx * 0.5); b.userData.noCollide = true; g.add(b); });
+    const shades = [m, m === LEAF() ? LEAF2() : LEAF(), LEAF3()];
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.random() * 0.5, rr = i === 7 ? 0 : h * (0.16 + Math.random() * 0.1), sz = h * (i === 7 ? 0.3 : 0.2 + Math.random() * 0.07);
+      const s = mesh(new THREE.IcosahedronGeometry(sz, 1), shades[i === 7 ? 0 : (i + (Math.random() * 3 | 0)) % 3], Math.cos(a) * rr, h * (i === 7 ? 0.86 : 0.66 + Math.random() * 0.16), Math.sin(a) * rr); s.scale.y = 0.82; g.add(s); } }
   return g;
 }
 function mountain(r, h, color = 0x4f7a3f, seed = 1, x = 0, z = 0, top = 0) {

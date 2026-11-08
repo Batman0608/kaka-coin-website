@@ -108,7 +108,7 @@ renderer.shadowMap.enabled = !S.low; renderer.shadowMap.type = THREE.PCFSoftShad
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 $('view').append(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 900);
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.fov = w < h ? 70 : 58; camera.updateProjectionMatrix(); }   // màn dọc điện thoại: góc nhìn rộng hơn
 addEventListener('resize', resize); resize();
 const hemi = new THREE.HemisphereLight(0xfff4dd, 0x5a4a3a, 0.95); scene.add(hemi);

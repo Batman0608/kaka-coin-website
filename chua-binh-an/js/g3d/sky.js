@@ -42,7 +42,7 @@ function glowTex() {
 export function initSky(scene, hemi, sun) {
   /* ---- vòm trời ---- */
   const U = { top: { value: C3(0x3d7fd9) }, hor: { value: C3(0xa9d1f2) }, low: { value: C3(0x6a7a6a) }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: C3(0xfff1c8) }, night: { value: 0 }, glow: { value: 0.6 } };
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(420, 40, 20), new THREE.ShaderMaterial({
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(780, 40, 20), new THREE.ShaderMaterial({
     uniforms: U, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `uniform vec3 top, hor, low, sunCol, sunDir; uniform float night, glow; varying vec3 vD;
@@ -60,14 +60,14 @@ export function initSky(scene, hemi, sun) {
   const ct = cloudTex(), cloudsArr = [];
   for (let i = 0; i < 22; i++) {
     const m = new THREE.SpriteMaterial({ map: ct, transparent: true, depthWrite: false, fog: false, opacity: 0.85 });
-    const sp = new THREE.Sprite(m), a = i / 22 * Math.PI * 2 + Math.random() * 0.2, r = 170 + Math.random() * 140, w = 70 + Math.random() * 70;
-    sp.scale.set(w, w * 0.42, 1); sp.userData = { a, r, y: 55 + Math.random() * 70, sp: 0.004 + Math.random() * 0.004 }; sp.renderOrder = -9; scene.add(sp); cloudsArr.push(sp);
+    const sp = new THREE.Sprite(m), a = i / 22 * Math.PI * 2 + Math.random() * 0.2, r = 240 + Math.random() * 260, w = 110 + Math.random() * 110;
+    sp.scale.set(w, w * 0.42, 1); sp.userData = { a, r, y: 110 + Math.random() * 120, sp: 0.004 + Math.random() * 0.004 }; sp.renderOrder = -9; scene.add(sp); cloudsArr.push(sp);
   }
   /* ---- mặt trời / mặt trăng ---- */
   const gt = glowTex();
-  const sunSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0xfff1c0, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); sunSp.scale.set(70, 70, 1); sunSp.renderOrder = -9; scene.add(sunSp);
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(7, 32), new THREE.MeshBasicMaterial({ color: 0xf4f1e2, fog: false, transparent: true }));
-  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0x9fb4ff, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.6 })); moonGlow.scale.set(60, 60, 1);
+  const sunSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0xfff1c0, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); sunSp.scale.set(120, 120, 1); sunSp.renderOrder = -9; scene.add(sunSp);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(13, 32), new THREE.MeshBasicMaterial({ color: 0xf4f1e2, fog: false, transparent: true }));
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0x9fb4ff, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.6 })); moonGlow.scale.set(110, 110, 1);
   scene.add(moon, moonGlow); moon.renderOrder = moonGlow.renderOrder = -9;
 
   /* ---- đèn đêm: vài đèn điểm dùng chung (gán cho đèn lồng gần người chơi nhất) + 2 đèn pha rọi chánh điện ---- */
@@ -114,9 +114,9 @@ export function initSky(scene, hemi, sun) {
     U.sunDir.value.copy(sd); U.sunCol.value.copy(mix(C3(0xff8a3a), C3(0xfff1c8), smooth(0, 25, alt))); U.glow.value = 0.4 + dusk;
     const cp = camera.position;
     dome.position.copy(cp);
-    sunSp.position.copy(cp).addScaledVector(sd, 380); sunSp.visible = alt > -3; sunSp.material.color.copy(U.sunCol.value);
+    sunSp.position.copy(cp).addScaledVector(sd, 700); sunSp.visible = alt > -3; sunSp.material.color.copy(U.sunCol.value);
     const md = new THREE.Vector3(0.35, Math.max(0.25, Math.sin(Math.PI * nightK * 0.9)), -0.6).normalize();
-    moon.position.copy(cp).addScaledVector(md, 370); moon.lookAt(cp); moonGlow.position.copy(moon.position);
+    moon.position.copy(cp).addScaledVector(md, 690); moon.lookAt(cp); moonGlow.position.copy(moon.position);
     moon.material.opacity = moonGlow.material.opacity = smooth(0.2, 0.7, nightK); moon.visible = moonGlow.visible = nightK > 0.15;
     // mây: trắng ban ngày, ửng hồng chạng vạng, xám mờ ban đêm
     const cc = mix(mix(C3(0x3a4152), C3(0xffb38a), smooth(-10, 0, alt)), C3(0xffffff), day);
@@ -124,7 +124,7 @@ export function initSky(scene, hemi, sun) {
     // ánh sáng chung
     hemi.intensity = 0.16 + 0.82 * day; hemi.color.copy(mix(C3(0x5a6a9a), C3(0xfff4dd), day)); hemi.groundColor.copy(mix(C3(0x14121a), C3(0x5a4a3a), day));
     sun.intensity = 1.55 * day + 0.22 * nightK; sun.color.copy(nightK > 0.5 ? C3(0x8fa6d8) : mix(C3(0xff9a50), C3(0xffe2b0), smooth(0, 20, alt)));
-    if (scene.fog) { scene.fog.color.copy(U.hor.value); scene.fog.near = 50 - 25 * nightK; scene.fog.far = 190 - 70 * nightK; }
+    if (scene.fog) { scene.fog.color.copy(U.hor.value); scene.fog.near = 140 - 110 * nightK; scene.fog.far = 640 - 380 * nightK; }   // ngày: núi xa mờ sương; đêm: tối nhanh
     scene.background = null;
     // đèn lồng & đèn pha ban đêm
     const lit = smooth(0.25, 0.75, nightK);
