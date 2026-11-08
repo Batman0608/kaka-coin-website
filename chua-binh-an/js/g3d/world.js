@@ -3,6 +3,7 @@
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
 import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM, STONE_TILE, uvMeters } from '../temple3d.js';
+import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
 /* bố cục từng chùa: chỗ xuất hiện, địa danh [tên, x, z, bán kính, lời giới thiệu, hành động?], công trình thêm */
 export const LAYOUT = {
@@ -920,6 +921,16 @@ function landscape(root, L, col) {
     if (inYard(x, z, 0.5) || !flat(x, z) || !clear(x, z, 0.6)) continue;
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 3); const s2 = 0.7 + rnd() * 0.9; sc.set(s2, s2 * (0.8 + rnd() * 0.5), s2); M4.compose(new THREE.Vector3(x, 0, z), q, sc); inst.setMatrixAt(n++, M4); }
   inst.count = n; inst.userData.noCollide = true; inst.frustumCulled = false; root.add(inst);
+  // ĐẠI TƯỢNG PHẬT trên đồi sau chùa Bình An (bản quét 3D tượng Thiên Đàn — Miguel Bandera, CC BY 4.0)
+  if (L.decor === 'binh-an') {
+    const ang = -Math.PI / 2 - 0.42, r = R + 48, i = Math.round(((ang + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * NA) % NA, j = rs.findIndex(x => x >= r);
+    let y = 1e9; for (let dj = -2; dj <= 2; dj++) for (let di = -3; di <= 3; di++) { const jj = j + dj, ii = (i + di + NA) % NA; if (jj >= 0 && jj < rs.length) y = Math.min(y, pos[(jj * (NA + 1) + ii) * 3 + 1]); }
+    const holder = new THREE.Group(); holder.position.set(Math.cos(ang) * r, y - 1.2, Math.sin(ang) * r); holder.userData.noCollide = true; holder.userData.bigStatue = true; root.add(holder);
+    new GLTFLoader().loadAsync('assets/buddha3d/daitong.glb').then(gl => {
+      const m = gl.scene; m.rotation.y = -ang - Math.PI / 2; m.traverse(o => { if (o.isMesh) { o.material = new THREE.MeshLambertMaterial({ map: o.material.map }); o.userData.noCollide = true; o.castShadow = false; } });
+      const bb = new THREE.Box3().setFromObject(m), k = 62 / (bb.max.y - bb.min.y); m.scale.setScalar(k); m.position.y = -bb.min.y * k; holder.add(m);
+    }).catch(() => {});
+  }
   return { edge: R - 3, trees };
 }
 
