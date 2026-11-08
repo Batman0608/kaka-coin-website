@@ -986,3 +986,18 @@ button, .act, .ctx, a, [role=button] { touch-action: manipulation; -webkit-tap-h
 
 /* khung tin nhắn chung trên điện thoại: hạ thấp hơn, vẫn nằm trên joystick */
 body.touch .chatfeed { top: min(calc(50% + 78px), calc(100% - 212px - env(safe-area-inset-bottom, 0px))); }
+/* cụ đồ xem quẻ */
+.xq-topics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.xq-topic { display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border-radius: 12px; border: 1px solid #6a3a1a; background: #3a1a0c; color: var(--fg); cursor: pointer; font: 700 13px var(--sans); }
+.xq-topic span { font-size: 22px; } .xq-topic small { color: var(--mut); font-weight: 600; font-size: 10px; } .xq-topic:hover { border-color: var(--gold); }
+.xq-stage { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 12px 0; }
+.xq-coins { display: flex; gap: 8px; }
+.xq-coin { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle, #2a1406 0 22%, #e9b949 24% 70%, #a8741c 72%); border: 2px solid #ffe08a; display: block; }
+.xq-coin.spin { animation: xqspin .38s linear infinite; } .xq-coin.dn { filter: brightness(.6) sepia(.4); }
+@keyframes xqspin { 0% { transform: translateY(0) rotateX(0); } 50% { transform: translateY(-16px) rotateX(180deg); } 100% { transform: translateY(0) rotateX(360deg); } }
+.xq-hex { width: 74px; height: 82px; display: block; }
+.xq-hexbox { min-width: 74px; min-height: 82px; }
+.xq-top { display: flex; gap: 14px; align-items: center; }
+.xq-rank { color: #ffcf80; font-weight: 800; font-size: 13px; }
+.xq-verse { font: italic 600 15px var(--serif); color: #ffe6a8; border-left: 3px solid var(--gold); padding-left: 10px; }
+.xq-dharma { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(233, 185, 73, .12); border: 1px solid #c98a1c; font: 600 14px var(--serif); color: #ffe6a8; }

@@ -16,12 +16,13 @@ import { initQuiz } from './quiz.js';
 import { initSweep } from './sweep.js';
 import { initGiaPha } from './giapha.js';
 import { initBoat } from './boat.js';
+import { initThayQue } from './thayque.js';
 import { initChatFeed } from './chatfeed.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 let DY = null;   // cầu duyên (chùa Hà)
 let MQ = null, SK = null;   // nhiệm vụ hằng ngày (bảng bên phải)
 let SH = null;   // kêu gọi chia sẻ game lên Facebook
-let BT = null;
+let BT = null, XQ = null;
 let FEED = null;   // khung 4 tin trò chuyện cạnh nút 💬
 let GP = null;   // ông giữ gia phả
 let SW = null;   // quét sân chùa tích công đức
@@ -125,7 +126,7 @@ let meritLbl = null;
 function disposeWorld() {
   if (!W) return;
   ferryFolk.forEach(f => { scene.remove(f.root); f.label.remove(); }); ferryFolk = [];
-  festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (FEED) FEED.clear(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
+  festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (XQ) XQ.dispose(); if (FEED) FEED.clear(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
   [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
@@ -171,6 +172,7 @@ function loadTemple(id) {
   if (SW) SW.onTemple();
   if (GP) GP.onTemple();
   if (BT) BT.onTemple();
+  if (XQ) XQ.onTemple();
   if (SK) SK.onTemple();
   try { const f = CBA.Lunar && CBA.Lunar.today(); if (f && f.feast && f.mult > 1 && feastShown !== f.feast.name) { feastShown = f.feast.name; setTimeout(() => banner('🪷 ' + f.feast.name, 'Hôm nay lên chùa được nhân phúc', `Công đức và hạt ×${f.mult}`), 2000); } } catch (e) {}
 }
@@ -300,7 +302,7 @@ function findContext() {
   if (me.seated) return { label: '🧍 Đứng dậy', fn: standUp };
   if (me.bearing) return { label: '🙌 Rời kiệu', fn: () => festLeave() };
   { const F = W.layout.ferry; if (F) { if (near({ x: F.from[0], z: F.from[1], y: me.y }, 4.2)) return { label: '⛵ Đi đò sang chùa', fn: () => ferry(false) }; if (near({ x: F.to[0], z: F.to[1], y: me.y }, 4.2)) return { label: '⛵ Đi đò về bến Đục', fn: () => ferry(true) }; } }
-  { const c = (BT && BT.context()) || (GP && GP.context()) || (SW && SW.context()) || (DY && DY.context()) || (TH && TH.context()); if (c) return c; }
+  { const c = (BT && BT.context()) || (XQ && XQ.context()) || (GP && GP.context()) || (SW && SW.context()) || (DY && DY.context()) || (TH && TH.context()); if (c) return c; }
   if (fest && near(fest.kieu.position, 3.2)) return { label: '🙌 Khiêng kiệu', fn: festJoin };
   if (W.merit && SHOP.payOpen && near(W.merit, 1.7)) return { label: '💝 Hòm công đức', fn: () => SHOP.openDonate(temple) };
   const hall = W.halls.find(h => near(h.altar, 7));
@@ -1585,7 +1587,7 @@ function openSettings() {
     { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/share/19u9bTRswX/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); const sh = el('button', 'btn gold', '📣 Chia sẻ game lên Facebook'); sh.onclick = () => { closeModal(); setTimeout(() => SH && SH.open('time'), 80); }; cr.append(sh); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
-    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Mô hình tượng 3D: “Golden Buddha Statue” — Triative (Sketchfab); “First Photogrammetry with Buddha” — milanautica (Sketchfab, CC BY 4.0). Ảnh chùa: Wikimedia Commons.'));
+    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Dữ liệu quẻ Kinh Dịch của cụ đồ xem quẻ: dự án “Tử Vi Phát Đạt” — Kent Juno & BEAR DEV (giấy phép MIT).')); b.append(el('p', 'note', 'Mô hình tượng 3D: “Golden Buddha Statue” — Triative (Sketchfab); “First Photogrammetry with Buddha” — milanautica (Sketchfab, CC BY 4.0). Ảnh chùa: Wikimedia Commons.'));
       // bản đang lưu trong bộ nhớ máy (service worker) — lệch với bản trên máy chủ thì nhắc làm mới
       if (window.caches) caches.keys().then(ks => { const k = ks.filter(x => /^cba-v\d+/.test(x)).sort().pop(); if (!k) return; const sv = 'v' + k.replace('cba-v', ''); cs.textContent = ` · bộ nhớ máy: ${sv}` + (V.so && sv !== V.so ? ' — hãy tải lại trang (Ctrl + F5) để lên bản mới' : ' ✓'); }).catch(() => {});
       b.append(el('p', 'note', 'Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).')); }
@@ -1645,6 +1647,7 @@ TH = initTuHanh({ waterCtx: () => SK && SK.waterCtx(), eventsView: (b) => SK && 
 if (W && temple) TH.onTemple();
 FEED = initChatFeed({ el, NET, getNpcs: () => npcs, chatBubble, getTemple: () => temple, me });
 BT = initBoat({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, NET, spend: (n) => SHOP.spend(n), fade, el });
+XQ = initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, modal, closeModal, el, spend: (n) => SHOP.spend(n), A, chatBubble }); window.__XQ = XQ;   // hỗ trợ kiểm thử
 GP = initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, NET, P, el, modal, closeModal, toast, A, getTemple: () => temple });
 SW = initSweep({ THREE, scene, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, addMerit, addBeads, meritTxt });
 QZ = initQuiz({ P, save, el, toast, A, addBeads, me, getW: () => W, getTemple: () => temple, TEMPLES, isBusy: () => !$('veil').hidden });
@@ -1677,7 +1680,7 @@ SH = initShare({ P, save, modal, closeModal, el, toast, addBeads, addMerit: (n) 
     isPracticing: () => chanting || !$('med').hidden || malaOn, snap: () => { renderer.render(scene, camera); return renderer.domElement; } });
 }
 DY = initDuyen({ share: (r) => SH && SH.share(r), P, save, modal, closeModal, el, $, toast, banner, ticker, A, NET, scene, me, camera, canvas: renderer.domElement, THREE, getW: () => W, getTemple: () => temple, addBeads, fade: (f) => fade(f), loadTemple: (id) => loadTemple(id), walkTo: (p, d) => walkTo(p, d) });
-if (W && temple) { DY.onTemple(); SW.onTemple(); GP.onTemple(); BT.onTemple(); SK.onTemple(); }
+if (W && temple) { DY.onTemple(); SW.onTemple(); GP.onTemple(); BT.onTemple(); XQ.onTemple(); SK.onTemple(); }
 /* ---------------- thông báo hệ thống → khung tin nhắn (lặp lại định kỳ khi còn diễn ra) ---------------- */
 const sysSeen = {}; let sysT = 0;
 function sysTick() {
@@ -2199,7 +2202,7 @@ function loop() {
     { const sd = SKY.update(dt, camera, me, t), up = Math.max(0.35, Math.sin(THREE.MathUtils.degToRad(Math.max(8, sd.alt)))); sun.position.set(me.pos.x + 25, 15 + 30 * up, me.pos.z + 20); } sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
-    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); if (SK) SK.step(dt); sysTick();
+    NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (XQ) XQ.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); if (SK) SK.step(dt); sysTick();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     ferryStep(dt, t);
     stepResMonk(dt);
