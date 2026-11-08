@@ -279,7 +279,7 @@ function muralTex(kind, W, H) {
 /* khám thờ 3D: vách chạm vàng phủ tường sau + khung khám lõm + bửu cái + cột rồng,
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
 /* tượng Phật 3D thật (glTF, đã nén): Thích Ca đồng thếp vàng, A Di Đà (bản quét tượng đá, phủ thếp vàng khi dựng) */
-const STATUE3D = { thichca: { url: 'assets/buddha3d/thichca.glb' }, adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 } };
+const STATUE3D = { adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 } };
 const _statues = {};
 function loadStatue(key) {
   if (_statues[key]) return _statues[key];
