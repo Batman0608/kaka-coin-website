@@ -983,3 +983,6 @@ body:not(.touch) .cfl { font-size: 10.5px; line-height: 1.2; }
 
 /* chạm phản hồi ngay, không trễ do nhận diện chạm đúp / phóng to */
 button, .act, .ctx, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* khung tin nhắn chung trên điện thoại: hạ thấp hơn, vẫn nằm trên joystick */
+body.touch .chatfeed { top: min(calc(50% + 78px), calc(100% - 212px - env(safe-area-inset-bottom, 0px))); }

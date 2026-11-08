@@ -74,12 +74,20 @@ export function initSky(scene, hemi, sun) {
   const POOL = 8, pool = [];
   for (let i = 0; i < POOL; i++) { const pl = new THREE.PointLight(0xffb060, 0, 12, 1.5); scene.add(pl); pool.push(pl); }
   const spots = [0, 1].map(() => { const s = new THREE.SpotLight(0xffd9a0, 0, 40, 0.5, 0.6, 1.2); scene.add(s); scene.add(s.target); return s; });
+  // đèn chiếu sáng chung cả sân chùa ban đêm (mỗi sân 1–2 đèn lớn treo cao) + đèn trong chánh điện sáng mạnh hơn
+  const yardLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xffdcae, 0, 40, 1); scene.add(l); return l; });
+  let hallLights = [];
   let lamps = [], glows = [], world = null, nightK = 0, lastAssign = 0;
 
   function setWorld(W) {
     world = W; glows.forEach(g => g.parent && g.parent.remove(g)); glows = []; lamps = [];
+    yardLights.forEach(l => { l.userData.on = false; }); hallLights = [];
     if (!W) return;
     W.root.updateMatrixWorld(true);
+    { const spots = []; (W.layout.yard || []).forEach(Y => { const [x0, z0, x1, z1] = Y.r, w = x1 - x0, d = z1 - z0, y = (Y.y || 0) + 7.5, n = Math.max(w, d) > 34 ? 2 : 1;
+        for (let i = 0; i < n; i++) { const k = (i + 0.5) / n; spots.push({ x: w > d ? x0 + w * k : (x0 + x1) / 2, z: w > d ? (z0 + z1) / 2 : z0 + d * k, y, r: Math.hypot(w / n, d) * 0.75 + 6 }); } });
+      spots.slice(0, yardLights.length).forEach((p, i) => { const l = yardLights[i]; l.position.set(p.x, p.y, p.z); l.distance = p.r; l.userData.on = true; }); }
+    W.halls.forEach(h => h.group && h.group.traverse(o => { if (o.isPointLight) hallLights.push({ l: o, base: o.intensity }); }));
     const v = new THREE.Vector3();
     W.root.traverse(o => {
       if (!o.isMesh) return;
@@ -122,7 +130,7 @@ export function initSky(scene, hemi, sun) {
     const cc = mix(mix(C3(0x3a4152), C3(0xffb38a), smooth(-10, 0, alt)), C3(0xffffff), day);
     cloudsArr.forEach(c => { const u = c.userData; u.a += u.sp * dt * 0.1; c.position.set(cp.x + Math.cos(u.a) * u.r, u.y, cp.z + Math.sin(u.a) * u.r); c.material.color.copy(cc); c.material.opacity = 0.35 + 0.5 * (1 - nightK * 0.6); });
     // ánh sáng chung
-    hemi.intensity = 0.16 + 0.82 * day; hemi.color.copy(mix(C3(0x5a6a9a), C3(0xfff4dd), day)); hemi.groundColor.copy(mix(C3(0x14121a), C3(0x5a4a3a), day));
+    hemi.intensity = 0.22 + 0.76 * day; hemi.color.copy(mix(C3(0x5a6a9a), C3(0xfff4dd), day)); hemi.groundColor.copy(mix(C3(0x14121a), C3(0x5a4a3a), day));
     sun.intensity = 1.55 * day + 0.22 * nightK; sun.color.copy(nightK > 0.5 ? C3(0x8fa6d8) : mix(C3(0xff9a50), C3(0xffe2b0), smooth(0, 20, alt)));
     if (scene.fog) { scene.fog.color.copy(U.hor.value); scene.fog.near = 140 - 110 * nightK; scene.fog.far = 640 - 380 * nightK; }   // ngày: núi xa mờ sương; đêm: tối nhanh
     scene.background = null;
@@ -132,6 +140,8 @@ export function initSky(scene, hemi, sun) {
     lm.emissiveIntensity = 0.6 + 2.2 * lit; pm.emissiveIntensity = 1.1 + 1.4 * lit; if (sm.emissive) sm.emissiveIntensity = 0.15 + 2.4 * lit;
     glows.forEach((g, i) => { g.material.opacity = 0.85 * lit * (0.9 + 0.1 * Math.sin(t * 3 + i)); g.visible = lit > 0.02; });
     spots.forEach(s => { s.intensity = 260 * lit; });
+    yardLights.forEach(l => { l.intensity = l.userData.on ? 22 * lit : 0; });
+    hallLights.forEach(h => { h.l.intensity = h.base * (1 + 2.6 * lit); });
     if (t - lastAssign > 0.8 && me && me.av) {   // gán đèn điểm cho các đèn lồng gần nhất
       lastAssign = t; const p = me.av.root.position;
       const near = lamps.slice().sort((a, b) => a.p.distanceToSquared(p) - b.p.distanceToSquared(p)).slice(0, POOL);
