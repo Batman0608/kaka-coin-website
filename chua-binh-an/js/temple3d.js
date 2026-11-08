@@ -943,7 +943,7 @@ const SCENES = {
     { const rail = mat('lakeRail', 0xd8cdb4), zr = 37.4;   // lan can đá dọc bờ hồ: không đi xuống nước
       for (let x = -84; x <= 84; x += 2.4) { if (Math.abs(x) < 2.2) continue; g.add(box(0.32, 1.15, 0.32, rail, x, 0.575, zr)); g.add(box(0.42, 0.14, 0.42, rail, x, 1.22, zr)); }
       [-1, 1].forEach(s => { const cx = s * 43.3; g.add(box(81.4, 0.14, 0.2, rail, cx, 1.02, zr)); g.add(box(81.4, 0.1, 0.16, rail, cx, 0.5, zr)); g.add(box(81.4, 0.18, 0.5, STONE(), cx, 0.09, zr)); }); }   // chừa lối xuống bến thuyền
-    dockKit(g, { x: 0, z0: 37.2, z1: 43, booth: [7.5, 35.4, 0] });
+    dockKit(g, { x: 0, z0: 37.2, z1: 43, booth: [7.5, 34.0, 0] });
     g.add(boat(-12, 46, 0.15)); g.add(boat(9, 49, -0.2)); lotusPads(g, 18, 80, 10, 0, 48);
     // núi Thất Tinh (hậu Thất Tinh) phía sau + Chùa Ngọc granit đỏ trên sườn
     g.add(mountain(24, 32, 0x3f6a35, 2, 0, -92)); g.add(mountain(18, 22, 0x4a7a3a, 6, -40, -86)); g.add(mountain(18, 20, 0x56803f, 8, 40, -88));
@@ -1067,7 +1067,7 @@ const SCENES = {
   thienmu(g) {
     ground(g, 760, 0x5a8a45); g.add(water(760, 26, 0, 26.5));   // sông Hương kéo dài, đi thuyền rồng tham quan
     riverBanks(g, 13.5, 39.5, 330, 45, 3, { gapsNear: [[6.1, 9.9]] });
-    dockKit(g, { x: 8, z0: 11.2, z1: 16.9, booth: [3.2, 11.4, 0] });
+    dockKit(g, { x: 8, z0: 11.2, z1: 16.9, booth: [3.2, 9.9, 0] });
     { // cầu sắt nhiều nhịp vòm (gợi cầu Trường Tiền) — thuyền đi qua dưới gầm
       const bm = mat('bridgeSteel', 0xd8dce0, { metalness: 0.5, roughness: 0.4 }), bx = 120, z0 = 11, z1 = 42, n = 6, sp = (z1 - z0) / n;
       g.add(box(7, 0.4, z1 - z0, mat('bridgeDeck', 0x6a6a6a), bx, 6.2, (z0 + z1) / 2));

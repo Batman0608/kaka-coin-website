@@ -8,10 +8,10 @@
  * ========================================================================= */
 const PRICE = 30, DOCK = 45, SPEED = 4.6;
 const CFG = {
-  'thien-mu': { name: 'Thuyền rồng sông Hương', scale: 1, seller: [3.2, 12.7, Math.PI], pier: [8, 15.6],
+  'thien-mu': { name: 'Thuyền rồng sông Hương', scale: 1, seller: [3.2, 11.3, Math.PI], pier: [8, 15.6],
     route: [[8, 19.6], [45, 21.5], [95, 23.9], [145, 23.9], [168, 26.5], [150, 29.1], [95, 29.1], [30, 31.5], [-50, 32], [-130, 31], [-165, 27], [-150, 22], [-90, 20.5], [-30, 19.8]],
     say: [[0.06, '🐉 Thuyền rồng rời bến Thiên Mụ, xuôi dòng sông Hương'], [0.17, '🎶 Ca Huế trên sông Hương — điệu hò mái nhì, mái đẩy mênh mang'], [0.26, '🌉 Thuyền sắp lướt qua gầm cầu sắt nhiều nhịp vòm'], [0.4, '🔄 Thuyền quay đầu ngược dòng'], [0.6, '🏯 Nhìn sang bờ bắc: tháp Phước Duyên bảy tầng soi bóng xuống sông'], [0.78, '🌾 Hai bên bờ là làng quê, rặng tre xanh mát'], [0.94, '⚓ Thuyền sắp cập bến Thiên Mụ']] },
-  'tam-chuc': { name: 'Thuyền rồng hồ Tam Chúc', scale: 1, seller: [5.4, 35.3, Math.PI], pier: [0, 41.8],
+  'tam-chuc': { name: 'Thuyền rồng hồ Tam Chúc', scale: 1, seller: [5.4, 34.1, Math.PI], pier: [0, 41.8],
     route: [[0, 45.4], [45, 45], [110, 48], [170, 58], [180, 70], [140, 79], [60, 79], [0, 78], [-60, 79], [-140, 78], [-180, 68], [-165, 53], [-100, 45.5], [-45, 45.2]],
     say: [[0.06, '🐉 Thuyền rời bến, ra giữa hồ Tam Chúc'], [0.2, '⛰ Sáu hòn đảo đá giữa hồ — "tiền Lục Nhạc"'], [0.38, '🔄 Thuyền vòng qua phía bắc hồ'], [0.5, '🏯 Nhìn về bờ: các điện chùa Tam Chúc nối tầng lên núi Thất Tinh'], [0.7, '🙏 Tượng Di Lặc trên đồi hướng mặt ra hồ'], [0.94, '⚓ Thuyền sắp cập bến']] },
   'huong': { name: 'Đò rồng suối Yến', scale: 0.8, seller: [14.6, 29.2, 0], pier: [12, 23.6],

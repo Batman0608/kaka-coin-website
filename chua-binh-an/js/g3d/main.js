@@ -1901,12 +1901,16 @@ let stuckT = 0, safeT = 0; const safe = [];
 function stuckCheck(ox, oz, dt) {
   const moved = Math.hypot(me.pos.x - ox, me.pos.z - oz) > 0.002;
   if (moved) { stuckT = 0; safeT += dt; if (safeT > 1 && W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.3) != null) { safeT = 0; safe.push([me.pos.x, me.pos.z, me.y]); if (safe.length > 30) safe.shift(); } return; }
-  stuckT += dt; if (stuckT > 2.5) { stuckT = 0; const here = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.3); if (here == null || Math.abs(here - me.y) > 0.6) unstuck(); }
+  stuckT += dt; if (stuckT > 2) { stuckT = 0; const here = W.col.heightAt(me.pos.x, me.pos.z, me.y + 0.3);
+    // kẹt thật: đứng sai độ cao, hoặc bị bao kín (8 hướng đều không bước được) → gỡ kẹt
+    let free = 0; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; if (walkH(me.pos.x + Math.sin(a) * 0.2, me.pos.z + Math.cos(a) * 0.2, Math.sin(a), Math.cos(a)) != null) free++; }
+    if (here == null || Math.abs(here - me.y) > 0.6 || free === 0) unstuck(); }
 }
 function unstuck(silent) {
   const ok = (x, z, y) => { const h = W.col.heightAt(x, z, y + 0.3); return h != null && Math.abs(h - y) < 0.5; };
   // 1) điểm trống gần nhất quanh chỗ đứng
-  for (let r = 0.6; r <= 4; r += 0.6) for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, x = me.pos.x + Math.cos(a) * r, z = me.pos.z + Math.sin(a) * r, h = W.col.heightAt(x, z, 60); if (h != null && ok(x, z, h) && Math.abs(h - me.y) < 1.2) { me.pos.x = x; me.pos.z = z; me.y = h; if (!silent) toast('🆘 Đã gỡ kẹt'); return; } }
+  const roomy = (x, z, y) => { let n = 0; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; const h = W.col.heightAt(x + Math.sin(a) * 0.4, z + Math.cos(a) * 0.4, y + 0.3); if (h != null && Math.abs(h - y) < 0.5) n++; } return n >= 6; };   // chỗ thoáng, đi tiếp được
+  for (let r = 0.6; r <= 5; r += 0.4) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = me.pos.x + Math.cos(a) * r, z = me.pos.z + Math.sin(a) * r, h = W.col.heightAt(x, z, me.y + 1.2); if (h != null && ok(x, z, h) && Math.abs(h - me.y) < 1.2 && roomy(x, z, h)) { me.pos.x = x; me.pos.z = z; me.y = h; if (!silent) toast('🆘 Đã gỡ kẹt'); return; } }
   // 2) chỗ an toàn vừa đi qua · 3) cổng chùa
   while (safe.length) { const [x, z, y] = safe.pop(); if (ok(x, z, y) && Math.hypot(x - me.pos.x, z - me.pos.z) > 0.5) { me.pos.x = x; me.pos.z = z; me.y = y; if (!silent) toast('🆘 Đã đưa về chỗ an toàn vừa đi qua'); return; } }
   const L = W.layout; me.pos.set(L.spawn[0], 0, L.spawn[1]); me.y = W.col.heightAt(me.pos.x, me.pos.z, 50) ?? 0; if (!silent) toast('🆘 Đã đưa về cổng chùa');
