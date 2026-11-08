@@ -279,7 +279,14 @@ function muralTex(kind, W, H) {
 /* khám thờ 3D: vách chạm vàng phủ tường sau + khung khám lõm + bửu cái + cột rồng,
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
 /* tượng Phật 3D thật (glTF, đã nén): Thích Ca đồng thếp vàng, A Di Đà (bản quét tượng đá, phủ thếp vàng khi dựng) */
-const STATUE3D = { adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 } };
+const STATUE3D = {
+  adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 },                      // A Di Đà — milanautica, CC BY 4.0
+  thichca_vang: { url: 'assets/buddha3d/thichca_vang.glb', metal: true },           // Thích Ca đồng thếp vàng — Korea Heritage Service, CC BY 4.0
+  thichca_go: { url: 'assets/buddha3d/thichca_go.glb', rot: Math.PI },              // Thích Ca gỗ, hào quang lá đề — Tomas Ibar, CC BY 4.0
+  thichca_da: { url: 'assets/buddha3d/thichca_da.glb' },                            // Thích Ca đá phủ rêu — AshSkag, CC BY 4.0
+};
+// mỗi chùa thờ Thích Ca một pho tượng riêng; chùa không có ở đây dùng tượng theo vị Phật (ALTAR) hoặc ảnh
+const STATUE_OF = { 'binh-an': 'thichca_vang', 'long-son': 'thichca_vang', 'thien-mu': 'thichca_go', 'yen-tu': 'thichca_da' };
 const _statues = {};
 function loadStatue(key) {
   if (_statues[key]) return _statues[key];
@@ -288,7 +295,9 @@ function loadStatue(key) {
     const o = gl.scene;
     o.traverse(c => { if (!c.isMesh) return; const m = c.material;
       if (S.gild) { c.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: S.gild, metalness: 0.4, roughness: 0.45, emissive: 0x2a1a04 }); }   // thếp vàng lên vân đá
+      else if (S.metal) { m.metalness = 0.55; m.roughness = 0.38; }
       else { m.metalness = Math.min(m.metalness ?? 0.5, 0.6); m.roughness = Math.max(m.roughness ?? 0.4, 0.38); } });
+    if (S.rot) { const w = new THREE.Group(); o.rotation.y = S.rot; w.add(o); return w; }
     return o;
   }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
 }
@@ -355,7 +364,8 @@ function altarPanel(g, w, d, base, h, set) {
                      : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
   const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img);
   // tượng 3D thật (nếu có cho vị Phật này): ngồi trong khám, trước bức tranh nền; tải xong mới thay ảnh phẳng
-  if (STATUE3D[key]) loadStatue(key).then(src3 => { if (!src3) return;
+  const skey = (INTERIOR && STATUE_OF[INTERIOR.id]) || key;
+  if (STATUE3D[skey]) loadStatue(skey).then(src3 => { if (!src3) return;
     const o = src3.clone(true), bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3()), k = ph * 0.97 / sz.y;
     o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k, base + 1.0 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
     o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
@@ -383,6 +393,29 @@ function altarPanel(g, w, d, base, h, set) {
   // 8) đèn hắt làm nổi khám
   const pl = new THREE.PointLight(0xffe0a0, 1.5, w * 1.3, 1.5); pl.position.set(0, cy + 0.3, z + 1.2); g.add(pl);
   ANIM.push((t) => { glow.material.opacity = 0.6 + 0.14 * Math.sin(t * 1.1); glow.scale.setScalar(0.98 + 0.03 * Math.sin(t * 1.1)); });
+}
+/* hàng tượng nhỏ dọc hai bên tường chánh điện (các mô hình ít chi tiết, nhìn từ xa vẫn đẹp)
+   · Lowpoly Buddhas — Loïc Norgeot (CC BY 4.0): 8 pho đá, vàng, đồng, đồng đỏ, cẩm thạch, gỗ, đất nung, nguyên bản
+   · Yoga – Buddha Bodhisattva — T.Koeniger (CC BY 4.0): Bồ Tát tư duy bằng cẩm thạch trắng, đặt cặp ở cuối hàng */
+let _side = null;
+function sideModels() {
+  if (_side) return _side;
+  const L = new GLTFLoader();
+  _side = Promise.all([L.loadAsync('assets/buddha3d/tuongnho.glb'), L.loadAsync('assets/buddha3d/botat.glb')]).then(([a, b]) => {
+    const small = []; a.scene.updateMatrixWorld(true);
+    a.scene.traverse(o => { if (o.isMesh) { const m = o.clone(); m.matrix.copy(o.matrixWorld); m.matrix.decompose(m.position, m.quaternion, m.scale);   // các pho xếp vòng tròn quay mặt vào giữa → xoay về cùng hướng +z
+      m.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.atan2(-m.position.x, -m.position.z) + Math.PI)); m.position.set(0, 0, 0); const w = new THREE.Group(); w.add(m); small.push(w); } });
+    b.scene.traverse(o => { if (o.isMesh) o.material = new THREE.MeshStandardMaterial({ color: 0xf4efe6, roughness: 0.42, metalness: 0.05 }); });
+    return { small, botat: b.scene };
+  }).catch(e => { console.warn('[Tượng hai bên]', e); return null; });
+  return _side;
+}
+function fitPlace(o, hgt, x, y, z, ry) {
+  const bb = new THREE.Box3().setFromObject(o), k = hgt / (bb.max.y - bb.min.y), c = bb.getCenter(new THREE.Vector3());
+  const w = new THREE.Group(); o.position.sub(new THREE.Vector3(c.x, bb.min.y, c.z)); w.add(o);
+  w.scale.setScalar(k); w.position.set(x, y, z); w.rotation.y = ry;
+  w.traverse(m => { m.userData.noCollide = true; if (m.isMesh) { m.castShadow = false; m.receiveShadow = true; } });
+  return w;
 }
 function altarFigures(g, w, d, base, set, h = 4.6) {
   const z = -d / 2 + 0.9;
@@ -525,6 +558,7 @@ function hallSideDecor(g, w, d, base, h, az, colM) {
   const lac = mat('lahanGold', 0xc8932e, { metalness: 0.6, roughness: 0.38 }), lac2 = mat('lahanBronze', 0x8a5a24, { metalness: 0.7, roughness: 0.4 });
   const robe = mat('lahanRobe', 0xb5651d, { metalness: 0.45, roughness: 0.45 });
   const z0 = az + 3.4, z1 = d / 2 - 2.6; if (z1 - z0 < 3) return;
+  const figs = [];
   [-1, 1].forEach(s => {
     const x = s * (w / 2 - 0.85);
     // bệ thờ dài sơn son, viền vàng
@@ -544,7 +578,7 @@ function hallSideDecor(g, w, d, base, h, az, colM) {
       else if (pose === 2) f.add(mesh(new THREE.SphereGeometry(0.11, 8, 6), GOLD(), 0, 0.3, 0.26)); // ôm bát
       else { const t = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 5), WOOD(), -0.22, 0.5, 0.12); t.rotation.z = 0.15; f.add(t); }   // cầm tích trượng
       f.add(mesh(new THREE.TorusGeometry(0.22, 0.015, 6, 20), GOLD(), 0, 0.9, -0.16));              // hào quang
-      nc(f);
+      nc(f); f.traverse(x => { x.userData.lahan = true; }); figs.push({ f, s, last: i === n - 1, i });   // lahan: không gộp khối (sẽ thay bằng tượng 3D)
       if (i < n - 1) { const lz = z + (z1 - z0) / n / 2; nc(cyl(0.05, 0.07, 0.16, 8, GOLD(), x + s * 0.2, base + 0.99, lz));
         nc(mesh(new THREE.SphereGeometry(0.06, 8, 6), mat('lotusLamp', 0xffb0c8, { emissive: 0xff6a8a, emissiveIntensity: 0.9 }), x + s * 0.2, base + 1.1, lz, false)); }
     }
@@ -571,6 +605,12 @@ function hallSideDecor(g, w, d, base, h, az, colM) {
     dl.add(cyl(0.32, 0.4, 0.15, 12, BRONZE(), 0, 0.075, 0)); dl.add(cyl(0.06, 0.08, 1.5, 8, BRONZE(), 0, 0.85, 0)); dl.add(cyl(0.26, 0.16, 0.2, 12, BRONZE(), 0, 1.65, 0));
     dl.add(mesh(new THREE.SphereGeometry(0.12, 8, 6), mat('flame', 0xffd36b, { emissive: 0xffa020, emissiveIntensity: 2 }), 0, 1.82, 0, false));
     g.add(dl);
+  });
+  // thay khối La Hán đơn giản bằng tượng 3D thật khi tải xong (giữ khối cũ nếu tải lỗi)
+  sideModels().then(M => { if (!M) return; let k = 0;
+    figs.forEach(p => { const o = p.last ? M.botat.clone() : M.small[(k++ + (p.s > 0 ? 3 : 0)) % M.small.length].clone();
+      p.f.children.forEach(c => { c.visible = false; });
+      const t = fitPlace(o, p.last ? 1.05 : 0.95, 0, 0, 0, 0); p.f.add(t); });
   });
 }
 function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null, base = 0.8 } = {}) {
@@ -1253,9 +1293,9 @@ export function plaque(title, sub = '', W = 5, H = 1) {
   return g;
 }
 export function buildLandmark(g, model, opts = {}) {
-  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh', altar: opts.altar, bg: opts.bg } : null; STYLE = opts.style ? STYLES[opts.style] || null : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
+  NO_GROUND = true; INTERIOR = opts.interior ? { set: opts.set || 'hoanh', altar: opts.altar, bg: opts.bg, id: opts.style } : null; STYLE = opts.style ? STYLES[opts.style] || null : null; HALLS.length = 0; ANIM.length = 0; BOARDS.length = 0;
   try { return (SCENES[model] || SCENES.hall)(g); } finally { NO_GROUND = false; INTERIOR = null; STYLE = null; }
 }
-export function interiorHall(opts, set, altar, bg, style) { INTERIOR = { set, altar, bg }; STYLE = style ? STYLES[style] || null : null; try { return hall(opts); } finally { INTERIOR = null; STYLE = null; } }
+export function interiorHall(opts, set, altar, bg, style) { INTERIOR = { set, altar, bg, id: style, extra: true }; STYLE = style ? STYLES[style] || null : null; try { return hall(opts); } finally { INTERIOR = null; STYLE = null; } }
 export { stonePlane, STONE_TILE, uvMeters, guardian, STYLES, THREE, mat, mesh, box, cyl, roof, hall, tower, stairs, lotusBase, seatedBuddha, standingGuanyin, maitreya, tree, mountain, water, lotusPads, clouds, burner,
   RED, DRED, WALL, YWALL, ROOF, STONE, GOLD, WHITE, BRONZE, WOOD, LEAF, LEAF2, GRASS, DARK, WATER };
