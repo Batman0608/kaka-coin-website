@@ -1587,7 +1587,7 @@ function openSettings() {
     { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/share/19u9bTRswX/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); const sh = el('button', 'btn gold', '📣 Chia sẻ game lên Facebook'); sh.onclick = () => { closeModal(); setTimeout(() => SH && SH.open('time'), 80); }; cr.append(sh); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
-    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Dữ liệu quẻ Kinh Dịch của cụ đồ xem quẻ: dự án “Tử Vi Phát Đạt” — Kent Juno & BEAR DEV (giấy phép MIT).')); b.append(el('p', 'note', 'Mô hình tượng 3D: “First Photogrammetry with Buddha” — milanautica; “Tian Tan Buddha videogrammetry scan” — Miguel Bandera (Sketchfab, CC BY 4.0). Ảnh chùa: Wikimedia Commons.'));
+    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Dữ liệu quẻ Kinh Dịch của cụ đồ xem quẻ: dự án “Tử Vi Phát Đạt” — Kent Juno & BEAR DEV (giấy phép MIT).')); b.append(el('p', 'note', 'Mô hình tượng 3D: “First Photogrammetry with Buddha” — milanautica; “Tian Tan Buddha videogrammetry scan” — Miguel Bandera; bé Thảo bán hoa: “Stylized Fantasy NPC Village Girl” — 3dUVpro (Sketchfab, CC BY 4.0). Ảnh chùa: Wikimedia Commons.'));
       // bản đang lưu trong bộ nhớ máy (service worker) — lệch với bản trên máy chủ thì nhắc làm mới
       if (window.caches) caches.keys().then(ks => { const k = ks.filter(x => /^cba-v\d+/.test(x)).sort().pop(); if (!k) return; const sv = 'v' + k.replace('cba-v', ''); cs.textContent = ` · bộ nhớ máy: ${sv}` + (V.so && sv !== V.so ? ' — hãy tải lại trang (Ctrl + F5) để lên bản mới' : ' ✓'); }).catch(() => {});
       b.append(el('p', 'note', 'Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).')); }
@@ -1647,7 +1647,7 @@ TH = initTuHanh({ waterCtx: () => SK && SK.waterCtx(), eventsView: (b) => SK && 
 if (W && temple) TH.onTemple();
 FEED = initChatFeed({ el, NET, getNpcs: () => npcs, chatBubble, getTemple: () => temple, me });
 BT = initBoat({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, NET, spend: (n) => SHOP.spend(n), fade, el });
-XQ = initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, modal, closeModal, el, spend: (n) => SHOP.spend(n), A, chatBubble }); window.__XQ = XQ;   // hỗ trợ kiểm thử
+XQ = initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, getTemple: () => temple, P, save, toast, modal, closeModal, el, spend: (n) => SHOP.spend(n), A, chatBubble, addBeads }); window.__XQ = XQ;   // hỗ trợ kiểm thử
 GP = initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW: () => W, NET, P, el, modal, closeModal, toast, A, getTemple: () => temple });
 SW = initSweep({ THREE, scene, me, getW: () => W, getTemple: () => temple, P, save, toast, banner, A, addMerit, addBeads, meritTxt });
 QZ = initQuiz({ P, save, el, toast, A, addBeads, me, getW: () => W, getTemple: () => temple, TEMPLES, isBusy: () => !$('veil').hidden });
