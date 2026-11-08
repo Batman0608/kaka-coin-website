@@ -6,6 +6,7 @@
  * ========================================================================= */
 import * as THREE from '../vendor/three/three.module.min.js';
 import { OrbitControls } from '../vendor/three/OrbitControls.js';
+import { GLTFLoader } from '../vendor/three/addons/GLTFLoader.js';
 
 /* ---------------- vật liệu ---------------- */
 const M = {};
@@ -277,6 +278,20 @@ function muralTex(kind, W, H) {
 }
 /* khám thờ 3D: vách chạm vàng phủ tường sau + khung khám lõm + bửu cái + cột rồng,
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
+/* tượng Phật 3D thật (glTF, đã nén): Thích Ca đồng thếp vàng, A Di Đà (bản quét tượng đá, phủ thếp vàng khi dựng) */
+const STATUE3D = { thichca: { url: 'assets/buddha3d/thichca.glb' }, adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 } };
+const _statues = {};
+function loadStatue(key) {
+  if (_statues[key]) return _statues[key];
+  const S = STATUE3D[key];
+  return (_statues[key] = new GLTFLoader().loadAsync(S.url).then(gl => {
+    const o = gl.scene;
+    o.traverse(c => { if (!c.isMesh) return; const m = c.material;
+      if (S.gild) { c.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: S.gild, metalness: 0.4, roughness: 0.45, emissive: 0x2a1a04 }); }   // thếp vàng lên vân đá
+      else { m.metalness = Math.min(m.metalness ?? 0.5, 0.6); m.roughness = Math.max(m.roughness ?? 0.4, 0.38); } });
+    return o;
+  }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
+}
 // [src, tỉ lệ, kiểu, cutRemoveBg] — cutRemoveBg=true là ảnh đã tách nền (hiện nền tranh riêng phía sau)
 const BUDDHA_IMG = {
   tamthe:  ['assets/buddha/tamthe.webp', 1280 / 853, 'three', false],
@@ -339,6 +354,12 @@ function altarPanel(g, w, d, base, h, set) {
   const imgMat = cut ? new THREE.MeshBasicMaterial({ map: btex, transparent: true, alphaTest: 0.04, depthWrite: false, toneMapped: false })
                      : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
   const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img);
+  // tượng 3D thật (nếu có cho vị Phật này): ngồi trong khám, trước bức tranh nền; tải xong mới thay ảnh phẳng
+  if (STATUE3D[key]) loadStatue(key).then(src3 => { if (!src3) return;
+    const o = src3.clone(true), bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3()), k = ph * 0.97 / sz.y;
+    o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k, base + 1.0 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
+    o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
+    g.add(o); img.visible = false; });
   if (!cut) frameRect(g, 0, cy, zf + 0.17, pw + 0.14, ph + 0.14, 0.09, 0.2, gold);   // ảnh có nền → khung vàng sát quanh ảnh (như tranh treo trên vách cảnh)
   // 4) khung nổi nhiều lớp (tạo chiều sâu 3D) bao quanh khám: vàng trong → đỏ ngoài, nhô dần ra
   frameRect(g, 0, cy, zf + 0.18, nw + 0.3, nh + 0.3, 0.14, 0.28, gold);
@@ -350,14 +371,13 @@ function altarPanel(g, w, d, base, h, set) {
     // 6) bửu cái (tán che) phía trên khám
     topY = cy + nh / 2 + 0.34;
     nc(box(nw + 1.1, 0.18, 0.6, red, 0, topY, zf + 0.5));
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.02, nw * 0.5, 0.3, 4), gold); canopy.rotation.y = Math.PI / 4; canopy.position.set(0, topY + 0.2, zf + 0.42); nc(canopy);
     for (let i = 0; i < 7; i++) { const ts = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), gold); ts.position.set(-nw * 0.5 + i * (nw / 6), topY - 0.11, zf + 0.72); nc(ts); }
     topY += 0.38;
   }
   // hoành phi tên điện — đặt hẳn phía trên bửu cái, nhô ra trước để không bị che
   const label = (INTERIOR && ALTAR_LABEL[INTERIOR.altar]) || 'ĐẠI HÙNG BẢO ĐIỆN', bw2 = Math.min(w * 0.46, 6.2);
   const bhh = bw2 * 174 / 1024, boardY = Math.min(base + h - 0.05 - bhh / 2, topY + 0.28 + bhh / 2);
-  const hm = new THREE.Mesh(new THREE.PlaneGeometry(bw2, bhh), new THREE.MeshBasicMaterial({ map: boardTex(label, false, 1024, 174), toneMapped: false })); hm.position.set(0, boardY, zf + 0.55); nc(hm);
+  const hm = new THREE.Mesh(new THREE.PlaneGeometry(bw2, bhh), new THREE.MeshBasicMaterial({ map: boardTex(label, false, 1024, 174), toneMapped: false })); hm.position.set(0, boardY, zf + 0.9); nc(hm);
   // 7) đài sen 3D + bàn thờ thấp trước bức Phật
   const lb = lotusBase(0.9, gold); lb.position.set(0, base + 0.2, z - 0.1); nc(lb);
   // 8) đèn hắt làm nổi khám
