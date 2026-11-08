@@ -860,6 +860,9 @@ function boat(x, z, rot = 0) {
   g.add(box(4, 0.35, 1, WOOD(), 0, 0.15, 0));
   [-1, 1].forEach(s => { const t = box(0.8, 0.3, 0.9, WOOD(), s * 2.2, 0.3, 0); t.rotation.z = s * 0.4; g.add(t); });
   const cover = mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.6, 10, 1, true, 0, Math.PI), mat('mat', 0x8a7a50)); cover.rotation.z = Math.PI / 2; cover.position.y = 0.3; g.add(cover);
+  // đèn lồng treo đầu thuyền (sáng khi trời tối)
+  const pole = cyl(0.03, 0.03, 1.4, 6, WOOD(), 1.7, 0.95, 0); pole.userData.noCollide = true; g.add(pole);
+  const lan = mesh(new THREE.SphereGeometry(0.17, 10, 8), mat('lantern', 0xd9332a, { emissive: 0xff4020, emissiveIntensity: 0.6 }), 1.7, 1.5, 0, false); lan.scale.y = 1.25; lan.userData.noCollide = true; lan.userData.nightLamp = true; g.add(lan);
   return g;
 }
 function clouds(g, n, r, y) {

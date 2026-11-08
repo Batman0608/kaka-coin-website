@@ -4,6 +4,7 @@
  *  ngồi đệm, lạy Phật, lần hạt, tụng kinh, thiền, dâng lễ, thả đèn nguyện,
  *  khám phá địa danh, nghe sư trụ trì kể sự tích, nhận ấn hành hương.
  * ========================================================================= */
+import { initSky } from './sky.js';
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar } from './avatar.js';
 import { initTuHanh } from './tuhanh.js';
@@ -113,6 +114,7 @@ addEventListener('resize', resize); resize();
 const hemi = new THREE.HemisphereLight(0xfff4dd, 0x5a4a3a, 0.95); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe2b0, 1.5); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
 Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 120 }); scene.add(sun); scene.add(sun.target);
+const SKY = initSky(scene, hemi, sun);   // bầu trời, mây, ngày đêm theo giờ VN, đèn lồng ban đêm
 
 let W = null, temple = null, smokes = [];
 const me = { av: null, pos: new THREE.Vector3(), y: 0, yaw: 0, seated: null, busy: null, label: null };
@@ -135,7 +137,7 @@ function loadTemple(id) {
   temple = TEMPLES.find(t => t.id === id) || TEMPLES[0]; P.temple = temple.id; save();
   const sky = temple.model === 'yentu' ? 0xcfe0ea : temple.model === 'khmer' ? 0xbfe0f0 : 0xf0d6a8;
   scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, 50, 190);
-  W = buildWorld(scene, temple);
+  W = buildWorld(scene, temple); SKY.setWorld(W);
   const L = W.layout;
   // người chơi
   if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
@@ -2161,7 +2163,8 @@ function loop() {
     if (cam.k < 0.999) cp = tgt.clone().lerp(cp, cam.k);
     if (inHall && hallIn.group && hallIn.w) {   // giữ camera trong lòng chánh điện (không lọt ra ngoài nhìn xuyên tường)
       const lc = hallIn.group.worldToLocal(cp.clone()), hw = hallIn.w / 2 - 0.55, hd = hallIn.d / 2;
-      lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 7, lc.z));   // được lùi ra ngoài cửa trước (cột hiên đã ẩn) → không bị phóng to cp = hallIn.group.localToWorld(lc);
+      lc.x = Math.max(-hw, Math.min(hw, lc.x)); lc.z = Math.max(-hd + 0.8, Math.min(hd + 7, lc.z));   // được lùi ra ngoài cửa trước (cột hiên đã ẩn) → không bị phóng to
+      cp = hallIn.group.localToWorld(lc);
     }
     if (inHall && hallIn.ceilY) cp.y = Math.min(cp.y, hallIn.ceilY - 0.75);
     camera.position.lerp(cp, Math.min(1, dt * 8)); camera.lookAt(tgt);
@@ -2169,7 +2172,7 @@ function loop() {
       camRay.set(camera.position, tgt.clone().sub(camera.position).normalize()); camRay.far = camera.position.distanceTo(tgt);
       const hit = new Set(camRay.intersectObjects(W.camHide, false).map(h => h.object)); W.camHide.forEach(m => { m.visible = !hit.has(m); });
     }
-    sun.position.set(me.pos.x + 25, 45, me.pos.z + 20); sun.target.position.copy(tgt);
+    { const sd = SKY.update(dt, camera, me, t), up = Math.max(0.35, Math.sin(THREE.MathUtils.degToRad(Math.max(8, sd.alt)))); sun.position.set(me.pos.x + 25, 15 + 30 * up, me.pos.z + 20); } sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
     npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
     NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); if (SK) SK.step(dt); sysTick();

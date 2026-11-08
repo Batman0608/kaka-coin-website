@@ -251,6 +251,18 @@ function buildYards(root, yards, temple) {
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }));
     fl.rotation.x = -Math.PI / 2; fl.position.set((x0 + x1) / 2, y + 0.012, (z0 + z1) / 2); fl.receiveShadow = true; fl.userData.noCollide = true; root.add(fl);
     const [gs, gat, gw] = Y.gate || ['+z', (x0 + x1) / 2, 5];
+    // cột đèn đá trên sân lát gạch (ban đêm tự sáng): hai bên lối từ cổng vào
+    { const inward = { '+z': [0, -1], '-z': [0, 1], '+x': [-1, 0], '-x': [1, 0] }[gs] || [0, -1], g0 = { '+z': [gat, z1], '-z': [gat, z0], '+x': [x1, gat], '-x': [x0, gat] }[gs] || [gat, z1];
+      const depth = (gs === '+z' || gs === '-z') ? d : w, lat = [inward[1], -inward[0]], stone = mat('lampStone', 0x8a857a), lampM = mat('stoneLamp', 0xffd28a, { emissive: 0xffa040, emissiveIntensity: 0.15 });
+      (yi === 0 ? [2.4, depth * 0.3, depth * 0.55] : [2.4]).forEach(k => [-1, 1].forEach(s => {
+        const off = gw / 2 + 1.1, x = g0[0] + inward[0] * k + lat[0] * s * off, z = g0[1] + inward[1] * k + lat[1] * s * off;
+        const hh = probe.heightAt(x, z, y + 4); if (hh == null || Math.abs(hh - y) > 0.3) return;
+        const L = new THREE.Group(); L.position.set(x, y, z);
+        L.add(box(0.55, 0.22, 0.55, stone, 0, 0.11, 0)); L.add(box(0.2, 1.05, 0.2, stone, 0, 0.74, 0)); L.add(box(0.5, 0.08, 0.5, stone, 0, 1.3, 0));
+        const lb = box(0.36, 0.36, 0.36, lampM, 0, 1.52, 0); lb.userData.nightLamp = true; L.add(lb);
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.42, 0.26, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.83; L.add(cap);
+        L.traverse(o => { o.userData.noCollide = true; }); lb.userData.nightLamp = true; root.add(L);
+      })); }
     const gateG = gateBuild(yi === 0 ? style : 'phu', gw, temple, { plaster, brickM, cap });
     const hw = gateG.userData.halfW;          // nửa bề rộng cả cổng (kể cả hai cánh bên)
     const sides = [['-z', x0, z0, x1, z0], ['+x', x1, z0, x1, z1], ['+z', x1, z1, x0, z1], ['-x', x0, z1, x0, z0]];
