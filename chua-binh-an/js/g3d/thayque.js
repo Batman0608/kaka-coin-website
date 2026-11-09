@@ -25,7 +25,7 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
   const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.75 }, o));
 
   /* ---------- chỗ ngồi: bên trái cổng tam quan (nhìn từ ngoài vào), phía ngoài, không đè lên điện ---------- */
-  function spot(W, sides = [-1, 1]) {
+  function spot(W, sides = [-1, 1], atHall = false) {
     const Y = W.layout.yard && W.layout.yard[0]; if (!Y || !Y.gate) return null;
     const [x0, z0, x1, z1] = Y.r, [gs, gat, gw = 5] = Y.gate;
     const P0 = { '+z': [gat, z1, 0, 1], '-z': [gat, z0, 0, -1], '+x': [x1, gat, 1, 0], '-x': [x0, gat, -1, 0] }[gs]; if (!P0) return null;
@@ -35,6 +35,16 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
       if (avoid.some(([qx, qz]) => Math.hypot(x - qx, z - qz) < 3.6 || Math.hypot(x + ax * 1.5 - qx, z + az * 1.5 - qz) < 2.4)) return null;   // chỗ ngồi & chỗ khách đứng trước bàn phải bằng phẳng, đi tới được
       const hs = [[0, 0], [ax * 1.5, az * 1.5], [-az * 0.9, ax * 0.9], [az * 0.9, -ax * 0.9], [-ax * 0.8, -az * 0.8]].map(([dx, dz]) => W.col.heightAt(x + dx, z + dz, 60, 0.4));
       return hs.every(h => h != null && Math.abs(h - hs[0]) < 0.3) ? hs[0] : null; };
+    // trước cửa chánh điện, bên TRÁI (đứng ngoài sân nhìn vào điện), quay mặt vào lối giữa
+    const H = atHall && W.halls && W.halls[0], MH = H && H.group && H.group.userData.mainHall;
+    if (MH) { const G = H.group; G.updateMatrixWorld(true);
+      const o = G.localToWorld(new THREE.Vector3(0, 0, 0)), dx = G.localToWorld(new THREE.Vector3(1, 0, 0)).sub(o);
+      for (const lz of [2.2, 3.2, 4.4, 5.6, 7, 8.5]) for (const lx of [-3.4, -4.2, -5.2, -2.8, -6.4]) {
+        if (-lx > MH.w / 2 + 1.5) continue;
+        const p = G.localToWorld(new THREE.Vector3(lx, 0, MH.d / 2 + lz));
+        if (W.burners.some(b => Math.hypot(b.x - p.x, b.z - p.z) < 2.6)) continue;
+        const h = flat(p.x, p.z, dx.x, dx.z); if (h != null) return { x: p.x, z: p.z, y: h, face: Math.atan2(dx.x, dx.z) };
+      } }
     for (const side of sides) for (const out of [2.6, 3.6, 1.8, 4.8, 6.5, 8.5])   // side -1: bên TRÁI cổng khi đứng ngoài nhìn vào; hết chỗ mới sang phải
       for (const lat of [gw / 2 + 2.6, gw / 2 + 3.6, gw / 2 + 1.8, gw / 2 + 5]) {
       const x = gx + nx * out + tx * side * lat, z = gz + nz * out + tz * side * lat, ax = -tx * side, az = -tz * side;   // quay mặt về lối đi vào cổng
@@ -101,7 +111,7 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
 
   function onTemple() {
     dispose(); const W = getW(); if (!W) return;
-    const s = spot(W); if (!s) return;
+    const s = spot(W, [-1, 1], true); if (!s) return;
     const st = buildStall(); st.g.position.set(s.x, s.y, s.z); st.g.rotation.y = s.face; st.g.userData.tmp = true; scene.add(st.g);
     st.g.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(st.block); const box = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y }; W.col.boxes.push(box);
