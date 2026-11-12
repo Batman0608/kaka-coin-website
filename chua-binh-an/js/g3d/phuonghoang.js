@@ -10,7 +10,7 @@
 import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
 const SLOT = 8 * 60;                                     // mỗi chùa 8 phút
-const PERCH = 0.95;   // độ cao tâm mô hình khi đậu (chân chạm đất)
+let PERCH = 0.95;   // độ cao tâm mô hình khi đậu = nửa chiều cao thật của chim (tính lại theo mô hình khi tải xong)
 const T_IN = 6, T_HALL = 75, T_OUT = 92, T_UP = 440, T_GONE = 470;   // các mốc trong một lượt (giây)
 const REWARD = 12;
 
@@ -27,7 +27,7 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
       g.scene.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; if (o.material) { o.material.emissiveIntensity = 1.4; } } });
       const inner = new THREE.Group(); inner.rotation.y = -Math.PI / 2; inner.add(g.scene);   // mô hình gốc bay theo trục +x → xoay về +z
       const box = new THREE.Box3().setFromObject(inner, true), c = box.getCenter(V()); g.scene.position.sub(c);
-      const holder = new THREE.Group(); holder.add(inner); holder.userData.len = box.getSize(V()).length();
+      const holder = new THREE.Group(); holder.add(inner); holder.userData.len = box.getSize(V()).length(); holder.userData.hh = box.getSize(V()).y / 2;   // nửa chiều cao (tâm → điểm thấp nhất)
       gl = { g, holder }; return gl;
     }).catch(e => { console.warn('[Phượng hoàng]', e); loading = null; return null; }));
   }
@@ -77,27 +77,40 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
   }
 
   /* ---------- đường bay trong một lượt (theo khung chánh điện của chùa) ---------- */
+  /* lịch một lượt (giây): 0–6 hiện ra · 6–4 lượn rồi đáp · đi quanh chánh điện · đi bộ ra cửa, xuống sân ·
+     bay vòng vòng trên sân · đáp xuống đi quanh sân (thỉnh thoảng nhún bay lên) · lại bay vòng · đi tiếp · bay vút lên trời */
+  const SEG = [[0, 'appear'], [10, 'hallWalk'], [95, 'toDoor'], [112, 'fly'], [175, 'yardWalk'], [300, 'fly'], [345, 'yardWalk'], [T_UP, 'rise'], [T_GONE, 'end']];
   function pathAt(t, W) {
     const H = W.halls && W.halls[0]; if (!H) return null;
     const G = H.group, m = G.userData.mainHall, base = m.base, d = m.d, w = m.w;
-    const ceil = Math.max(base + 2.4, H.ceilY - G.position.y - 1.1);   // độ cao lượn trong điện (dưới xà)
     const L = (x, y, z) => G.localToWorld(V(x, y, z));
-    const inHall = (tt) => { const a = tt * 0.45; return L(Math.sin(a) * w * 0.22, Math.min(ceil, base + 2.3) + Math.sin(tt * 1.3) * 0.25, -d / 2 + 4.6 + Math.sin(a * 2) * 1.2); };
-    // ngoài sân: đậu xuống, đi thong thả quanh sân trước chánh điện; cứ ~22 giây lại vỗ cánh bay lên một chút rồi đậu xuống
-    const yard = (tt) => { const u = (tt - T_OUT) * 0.11; return L(Math.sin(u) * 5.5 + Math.sin(u * 2.3 + 1) * 1.6, base, d / 2 + 8 + Math.sin(u * 1.7) * 3 + Math.cos(u * 0.9) * 1.2); };
     const gy = (q) => { const h = W.col.heightAt(q.x, q.z, q.y + 3); return h == null ? q.y : h; };
-    const HOP = 22, HOPT = 3.2;
-    const ground = (tt) => { const q = yard(tt), ph = (tt - T_OUT) % HOP, air = ph > HOP - HOPT ? Math.sin((ph - (HOP - HOPT)) / HOPT * Math.PI) : 0;
-      q.y = gy(q) + PERCH + air * 2.6; return { p: q, inside: false, air }; };
-    const circle = (tt) => ground(tt).p;
     const ease = (k) => k * k * (3 - 2 * k), lerp3 = (a, b, k) => a.clone().lerp(b, ease(Math.max(0, Math.min(1, k))));
-    if (t < T_HALL) return { p: inHall(t), inside: true };
-    if (t < T_OUT) { const k = (t - T_HALL) / (T_OUT - T_HALL), door = L(0, base + 2.2, d / 2 + 1.5);
-      return k < 0.5 ? { p: lerp3(inHall(T_HALL), door, k * 2), inside: true } : { p: lerp3(door, circle(T_OUT + 0.01), (k - 0.5) * 2), inside: false, air: 1 }; }
-    if (t < T_UP) return ground(t);
-    if (t < T_GONE) { const k = (t - T_UP) / (T_GONE - T_UP), c = circle(T_UP); return { p: c.clone().add(V(0, ease(k) * 45, 0)), inside: false, rise: k }; }
+    // đi trong chánh điện: vòng quanh khoảng sân giữa các hàng đệm, trước bàn thờ
+    const hallPt = (tt) => { const a = tt * 0.09; return L(Math.sin(a) * w * 0.3, base, -d / 2 + 5 + (1 - Math.cos(a)) * d * 0.18); };
+    const hallG = (tt) => { const q = hallPt(tt); q.y += PERCH; return q; };
+    const door = L(0, base, d / 2 + 0.6), doorOut = L(0, base, d / 2 + 4);
+    // ngoài sân: đi uốn lượn trước chánh điện
+    const yardPt = (tt) => { const u = tt * 0.1; const q = L(Math.sin(u) * 6 + Math.sin(u * 2.3 + 1) * 1.6, base, d / 2 + 9 + Math.sin(u * 1.7) * 3 + Math.cos(u * 0.9) * 1.2); q.y = gy(q); return q; };
+    const HOP = 24, HOPT = 3;
+    const yardG = (tt, t0) => { const q = yardPt(tt), ph = (tt - t0) % HOP, air = ph > HOP - HOPT ? Math.sin((ph - (HOP - HOPT)) / HOPT * Math.PI) : 0; q.y += PERCH + air * 2.4; return { p: q, inside: false, air }; };
+    // bay vòng vòng trên sân
+    const ctr = L(0, base, d / 2 + 10); ctr.y = gy(ctr);
+    const flyPt = (tt, t0) => { const a = (tt - t0) * 0.22; return V(ctr.x + Math.sin(a) * 9, ctr.y + 6 + Math.sin(tt * 0.7) * 1.2, ctr.z + Math.cos(a) * 9); };
+    let k = 0; while (k < SEG.length - 1 && t >= SEG[k + 1][0]) k++;
+    const [t0, kind] = SEG[k], t1 = SEG[k + 1] ? SEG[k + 1][0] : t0, u = (t - t0) / Math.max(1e-3, t1 - t0);
+    if (kind === 'appear') { const end = hallG(SEG[1][0]); return { p: end.clone().add(V(0, 2.2 * (1 - ease(u)), 0)), inside: true, air: 1 - u }; }
+    if (kind === 'hallWalk') return { p: hallG(t), inside: true, air: 0 };
+    if (kind === 'toDoor') { const a = hallG(t0), b = door.clone(), c = yardPt(SEG[k + 1][0]); b.y = gy(b) + PERCH;
+      const q = u < 0.5 ? lerp3(a, b, u * 2) : lerp3(b, c.clone().setY(c.y + PERCH), (u - 0.5) * 2); return { p: q, inside: u < 0.5, air: 0 }; }   // đi bộ ra cửa, xuống bậc ra sân
+    if (kind === 'fly') { const st = k > 0 && SEG[k - 1][1] === 'yardWalk' ? yardG(t0, SEG[k - 1][0]).p : yardPt(t0).setY(yardPt(t0).y + PERCH), en = yardPt(t1).setY(yardPt(t1).y + PERCH);
+      const f = flyPt(t, t0), up = Math.min(1, (t - t0) / 4), down = Math.min(1, (t1 - t) / 4);
+      const q = up < 1 ? lerp3(st, f, up) : down < 1 ? lerp3(en, f, down) : f; return { p: q, inside: false, air: Math.min(up, down) }; }
+    if (kind === 'yardWalk') return yardG(t, t0);
+    if (kind === 'rise') { const c = yardG(t0, SEG[k - 1][0]).p; return { p: c.clone().add(V(0, ease(u) * 45, 0)), inside: false, rise: u, air: 1 }; }
     return null;
   }
+
 
   /* ---------- vòng đời ---------- */
   function onTemple() { dispose(); here = false; curSlot = -1; }
@@ -118,11 +131,12 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     if (!bird) { if (!gl) { load(); return; }
       bird = gl.holder; scene.add(bird); mixer = new THREE.AnimationMixer(gl.g.scene); mixer.clipAction(gl.g.animations[0]).play();
       trail = makeTrail(); glow = new THREE.PointLight(0xffa860, 1.6, 9, 1.6); scene.add(glow); lbl = label('🐦 Phượng hoàng', 'abbot far'); here = true; }
+    PERCH = (gl.holder.userData.hh || 0.3) * (2.9 / (gl.holder.userData.len || 1)) * 0.92;
     const P0 = pathAt(t, W), P1 = pathAt(t + 0.25, W); if (!P0) { burst(bird.position.clone(), 1.2); dispose(); return; }
     // xuất hiện: chỉ bùng hiệu ứng khi người chơi đang ở chùa lúc phượng tới (vào giữa chừng thì phượng đã có sẵn)
     if (appeared !== s) { appeared = s; if (t < T_IN + 2) { burst(P0.p, 1); if (A && A.bigBell) A.bigBell(); banner && banner('🐦 Phượng hoàng giáng lâm', at.name, 'Điềm lành đến chùa · lại gần để chiêm bái'); } }
     if (P0.rise > 0.85 && left !== s) { left = s; burst(bird.position.clone(), 1.4); A && A.khanh && A.khanh(); }
-    const len = gl.holder.userData.len || 1, size = (P0.inside ? 2.6 : 3.2) * (1 - Math.max(0, (P0.rise || 0) - 0.6) * 1.8), k = Math.max(0.01, size / len);
+    const len = gl.holder.userData.len || 1, size = (2.9 + (P0.inside ? 0 : 0.5 * Math.min(1, P0.air || 0))) * (1 - Math.max(0, (P0.rise || 0) - 0.6) * 1.8), k = Math.max(0.01, size / len);
     const appear = Math.min(1, t / T_IN); bird.scale.setScalar(k * (0.2 + 0.8 * appear));
     bird.position.copy(P0.p);
     if (P1) { _a.copy(P1.p).sub(P0.p); if (_a.lengthSq() > 1e-6) { const yaw = Math.atan2(_a.x, _a.z), pitch = -Math.atan2(_a.y, Math.hypot(_a.x, _a.z));
