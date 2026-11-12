@@ -27,7 +27,7 @@ function setup() {
 export function portrait(key, look, seed = 1) {
   if (cache.has(key)) return cache.get(key);
   if (!setup()) return '';
-  const av = new Avatar({ look, seed, outline: false, player: false });   // ảnh chân dung vẽ ngay: dùng kiểu chibi
+  const av = new Avatar({ look, seed, outline: false });
   scene.add(av.root); av.update(0.016, false);
   av.root.rotation.y = ((seed % 5) - 2) * 0.12;
   const hy = av.height; cam.position.set(0, hy - 0.05, 2.45); cam.lookAt(0, hy - 0.32, 0);

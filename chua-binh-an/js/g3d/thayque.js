@@ -10,7 +10,6 @@
  *  Dữ liệu quẻ: js/g3d/xinque.js (MIT · Kent Juno · BEAR DEV).
  * ========================================================================= */
 import { TOPICS, HEXAGRAMS, DHARMA } from './xinque.js';
-import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
 const PRICE = 20;
 // chỗ đã có người khác đứng (bán vé thuyền rồng, bến thuyền) — tránh ngồi đè lên
@@ -21,7 +20,7 @@ const rnd = (seed) => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(
 const vnDay = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
 
 export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW, getTemple, P, save, toast, modal, closeModal, el, spend, A, chatBubble, addBeads }) {
-  let npc = null, girl = null, girlTpl = null;
+  let npc = null;
   const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.75 }, o));
 
   /* ---------- chỗ ngồi: bên trái cổng tam quan (nhìn từ ngoài vào), phía ngoài, không đè lên điện ---------- */
@@ -115,56 +114,19 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
     const st = buildStall(); st.g.position.set(s.x, s.y, s.z); st.g.rotation.y = s.face; st.g.userData.tmp = true; scene.add(st.g);
     st.g.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(st.block); const box = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y }; W.col.boxes.push(box);
-    const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'go' }, seed: 83, player: false });   // cụ đồ: giữ kiểu chibi để đội khăn xếp, râu bạc dress(av);
+    const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'go' }, seed: 83 }); dress(av);
     av.root.position.copy(new THREE.Vector3(0, 0.03, -0.05).applyMatrix4(st.g.matrixWorld)); av.root.rotation.y = s.face; av.root.userData.tmp = true; scene.add(av.root); av.setPose('lotus');
     // chỗ khách đứng hỏi quẻ (trước bàn)
     const ask = new THREE.Vector3(0, 0, 1.55).applyMatrix4(st.g.matrixWorld);
     npc = { ...st, av, box, ask, label: label('🔮 Cụ đồ xem quẻ', 'abbot'), sayT: 6 + Math.random() * 6, spin: 0, W };
-    if (getTemple() && getTemple().id === 'binh-an') setupGirl(W, s);
-  }
-  /* ---------- bé Thảo bán hoa sen bên phải cổng chùa Bình An ----------
-     Mô hình “Stylized Fantasy NPC Village Girl” — 3dUVpro (Sketchfab, CC BY 4.0). Mô hình không có khung xương nên bé đứng tại chỗ, thở nhẹ, quay về phía người chơi. */
-  function setupGirl(W, cu) {
-    const s2 = spot(W, [1]); if (!s2 || Math.hypot(s2.x - cu.x, s2.z - cu.z) < 4) return;
-    const root = new THREE.Group(); root.position.set(s2.x, s2.y, s2.z); root.rotation.y = s2.face; root.userData.tmp = true; scene.add(root);
-    // thúng hoa sen trước mặt bé
-    const basket = new THREE.Group(); basket.position.set(0.05, 0, 0.55); root.add(basket);
-    const bm = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.26, 0.3, 18, 1, true), M(0xb08a4a, { side: THREE.DoubleSide, roughness: 0.95 })); bm.position.y = 0.15; basket.add(bm);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 6, 20), M(0x8a6a32)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.3; basket.add(rim);
-    const leaf = M(0x3f7a3a), pink = M(0xf08aa8, { roughness: 0.6 }), pale = M(0xffd6e2, { roughness: 0.6 });
-    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, r = i ? 0.17 : 0, x = Math.cos(a) * r, z = Math.sin(a) * r;
-      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.32, 5), leaf); st.position.set(x, 0.42, z); basket.add(st);
-      const bud = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), i % 2 ? pink : pale); bud.scale.set(1, 1.5, 1); bud.position.set(x, 0.62, z); basket.add(bud); }
-    const g = { root, label: label('🌸 Bé Thảo bán hoa sen', 'abbot'), t: Math.random() * 6, sayT: 4, model: null, yaw0: s2.face, box: null, W };
-    const bb = { x0: s2.x - 0.45, x1: s2.x + 0.45, z0: s2.z - 0.45, z1: s2.z + 0.45, top: 1.9, bottom: 0 }; W.col.boxes.push(bb); g.box = bb;
-    girl = g;
-    (girlTpl || (girlTpl = new GLTFLoader().loadAsync('assets/buddha3d/behoa.glb').then(gl => { gl.scene.traverse(o => { if (o.isMesh) { const m = o.material; o.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, roughness: 0.75, metalness: 0 }); o.castShadow = true; } }); return gl.scene; })))
-      .then(tpl => { if (girl !== g) return; const m = tpl.clone(); const b3 = new THREE.Box3().setFromObject(m), k = 1.55 / (b3.max.y - b3.min.y); m.scale.setScalar(k); m.position.y = -b3.min.y * k; g.model = m; root.add(m); }).catch(() => {});
-  }
-  const GIRL_SAY = ['🌸 Hoa sen mới hái sáng nay đây ạ!', '🪷 Cô chú mua hoa dâng Phật nhé!', '🙏 Con chào cô chú ạ!', '🌼 Sen hồng, sen trắng thơm lắm ạ!'];
-  function girlStep(dt) {
-    const g = girl; if (!g) return; g.t += dt;
-    if (g.model) { g.model.scale.y = g.model.scale.x * (1 + Math.sin(g.t * 2.1) * 0.008); g.model.rotation.z = Math.sin(g.t * 0.9) * 0.015; }
-    const d = Math.hypot(me.pos.x - g.root.position.x, me.pos.z - g.root.position.z);
-    const want = d < 7 ? Math.atan2(me.pos.x - g.root.position.x, me.pos.z - g.root.position.z) : g.yaw0;
-    let dy = Math.atan2(Math.sin(want - g.root.rotation.y), Math.cos(want - g.root.rotation.y)); g.root.rotation.y += dy * Math.min(1, dt * 2.5);
-    placeLabel(g.label, g.root.position, 2.0);
-    g.sayT -= dt; if (g.sayT < 0) { g.sayT = 12 + Math.random() * 14; if (d < 14) chatBubble(g.root, GIRL_SAY[Math.random() * GIRL_SAY.length | 0], '', 1.55, 4); }
-  }
-  function girlGift() {
-    const d = vnDay(); if (P.hoaDay === d) { chatBubble(girl.root, '🌸 Mai cô chú lại ghé con nhé!', '', 1.3, 3); return; }
-    P.hoaDay = d; save(); chatBubble(girl.root, '🪷 Con tặng cô chú một bông sen dâng Phật ạ!', '', 1.3, 4);
-    if (addBeads) addBeads(5); toast('🪷 Bé Thảo tặng bạn một bông sen · +5 hạt'); A && A.khanh && A.khanh();
   }
   function dispose() {
     if (!npc) return; scene.remove(npc.g); scene.remove(npc.av.root); npc.label.remove();
     const i = npc.W.col.boxes.indexOf(npc.box); if (i >= 0) npc.W.col.boxes.splice(i, 1);
     npc = null;
-    if (girl) { scene.remove(girl.root); girl.label.remove(); const j = girl.W.col.boxes.indexOf(girl.box); if (j >= 0) girl.W.col.boxes.splice(j, 1); girl = null; }
   }
   const _p = new THREE.Vector3();
   function step(dt) {
-    girlStep(dt);
     if (!npc) return;
     npc.av.update(dt, false);
     _p.copy(npc.av.root.position); placeLabel(npc.label, _p, 1.25);
@@ -173,7 +135,6 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
     if (npc.sayT < 0) { npc.sayT = 14 + Math.random() * 16; if (Math.hypot(me.pos.x - _p.x, me.pos.z - _p.z) < 14) chatBubble(npc.av.root, SAY[Math.random() * SAY.length | 0], '', 1.15, 4); }
   }
   function context() {
-    if (girl && Math.hypot(me.pos.x - girl.root.position.x, me.pos.z - girl.root.position.z) < 2.2) return { label: '🌸 Chào bé Thảo', fn: girlGift };
     if (!npc) return null;
     const d = Math.min(Math.hypot(me.pos.x - npc.ask.x, me.pos.z - npc.ask.z), Math.hypot(me.pos.x - _p.x, me.pos.z - _p.z) - 0.6);
     return d < 2.0 ? { label: '🔮 Xin quẻ đầu ngày', fn: open } : null;
@@ -255,5 +216,5 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
     if (first) window.dispatchEvent(new CustomEvent('cba-ev', { detail: { k: 'xinque', id: R.topic } }));
     if (npc) chatBubble(npc.av.root, `☯ Quẻ ${h.name} · ${h.rank}`, '', 1.15, 4);
   }
-  return { onTemple, dispose, step, context, open, girl: () => girl && girl.root.position, info: () => npc && { x: npc.g.position.x, y: npc.g.position.y, z: npc.g.position.z, ask: npc.ask } };
+  return { onTemple, dispose, step, context, open, info: () => npc && { x: npc.g.position.x, y: npc.g.position.y, z: npc.g.position.z, ask: npc.ask } };
 }

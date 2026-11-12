@@ -25,7 +25,7 @@ export function initNet(ctx) {
   function clearPeers() { peers.forEach(p => { scene.remove(p.av.root); p.label.remove(); }); peers.clear(); onPeers(0); }
   function addPeer(d) {
     if (peers.has(d.id) || d.id === myId) return;
-    const av = new Avatar({ look: d.look, seed: hash(d.name + d.id), player: true }); av.root.userData.tmp = true; av.root.userData.peer = true;
+    const av = new Avatar({ look: d.look, seed: hash(d.name + d.id) }); av.root.userData.tmp = true; av.root.userData.peer = true;
     const s = d.s || [0, 0, 0, 0, 'idle', 0];
     const pe = { av, label: label('🟢 ' + d.name + (d.bd ? ' ' + d.bd : ''), 'peer'), name: d.name, b: d.b || 0, m: d.m || 0, bd: d.bd || '', tgt: { x: s[0], y: s[1], z: s[2] }, yaw: s[3], mv: 0, pose: s[4] || 'idle', seen: !!(s[0] || s[2]) };
     av.root.position.set(s[0], s[1], s[2]); av.root.visible = pe.seen; scene.add(av.root); peers.set(d.id, pe); onPeers(peers.size);
