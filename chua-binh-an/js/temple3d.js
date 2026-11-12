@@ -443,15 +443,27 @@ function altarPanel(g, w, d, base, h, set) {
                      : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
   const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img); img.userData.statueImg = true;   // không gộp khối: còn ẩn được khi tượng 3D tải xong
   // tượng 3D thật (nếu có cho vị Phật này): ngồi trong khám, trước bức tranh nền; tải xong mới thay ảnh phẳng
+  let lbase = { visible: true };   // đài sen nhỏ (ẩn khi đã có bệ thờ đỡ tượng 3D)
   const skey = (INTERIOR && STATUE_OF[INTERIOR.id]) || key;
   if (STATUE3D[skey]) loadStatue(skey).then(src3 => { if (!src3) return;
     const three = STATUE3D[skey].three, xs = three ? [-1, 0, 1] : [0];   // Tam Thế Phật: ba pho ngồi cạnh nhau (quá khứ · hiện tại · vị lai)
+    const ext = new THREE.Box3();
     xs.forEach(xi => {
       const o = src3.clone(true); o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3());
       let k = ph * (three ? (xi ? 0.8 : 0.9) : 0.97) / sz.y; if (three) k = Math.min(k, pw / 3.1 / sz.x);
       o.scale.setScalar(k); o.position.set(xi * pw / 3 - (bb.min.x + bb.max.x) / 2 * k, base + 1.0 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
       o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
-      g.add(o); });
+      g.add(o); ext.union(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(o.position.x + (bb.min.x + bb.max.x) / 2 * k, 0, o.position.z + (bb.min.z + bb.max.z) / 2 * k), new THREE.Vector3(sz.x * k, 0, sz.z * k))); });
+    // bệ thờ (Phật đài) đỡ trọn tượng: sơn son, viền vàng, chân đế lùi vào; mặt trên đúng chân tượng
+    { const pad = 0.35, x0 = ext.min.x - pad, x1 = ext.max.x + pad, z0 = zb + 0.05, z1 = Math.max(ext.max.z + pad, zf + 0.6), W2 = x1 - x0, D2 = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, top = base + 1.0;
+      const red2 = mat('daisRed', 0x8a1a10), dais = new THREE.Group();
+      dais.add(box(W2, top - base - 0.22, D2, red2, cx, base + 0.12 + (top - base - 0.22) / 2, cz));                 // thân bệ
+      dais.add(box(W2 + 0.24, 0.12, D2 + 0.18, gold, cx, base + 0.06, cz + 0.06));                                    // chân đế vàng
+      dais.add(box(W2 + 0.2, 0.1, D2 + 0.14, gold, cx, top - 0.05, cz + 0.05));                                       // mặt bệ viền vàng
+      dais.add(box(W2 * 0.86, (top - base - 0.22) * 0.6, 0.03, mat('daisPanel', 0x5a0e08), cx, base + 0.12 + (top - base - 0.22) / 2, z1 + 0.01));   // ô hộc chạm trước bệ
+      dais.add(box(W2 * 0.86 + 0.06, 0.04, 0.04, gold, cx, base + 0.12 + (top - base - 0.22) * 0.8, z1 + 0.03));
+      dais.add(box(W2 * 0.86 + 0.06, 0.04, 0.04, gold, cx, base + 0.12 + (top - base - 0.22) * 0.2, z1 + 0.03));
+      nc(dais); lbase.visible = false; }
     img.visible = false; });
   if (!cut) frameRect(g, 0, cy, zf + 0.17, pw + 0.14, ph + 0.14, 0.09, 0.2, gold);   // ảnh có nền → khung vàng sát quanh ảnh (như tranh treo trên vách cảnh)
   // 4) khung nổi nhiều lớp (tạo chiều sâu 3D) bao quanh khám: vàng trong → đỏ ngoài, nhô dần ra
@@ -472,7 +484,7 @@ function altarPanel(g, w, d, base, h, set) {
   const bhh = bw2 * 174 / 1024, boardY = Math.min(base + h - 0.05 - bhh / 2, topY + 0.28 + bhh / 2);
   const hm = new THREE.Mesh(new THREE.PlaneGeometry(bw2, bhh), new THREE.MeshBasicMaterial({ map: boardTex(label, false, 1024, 174), toneMapped: false })); hm.position.set(0, boardY, zf + 0.9); nc(hm);
   // 7) đài sen 3D + bàn thờ thấp trước bức Phật
-  const lb = lotusBase(0.9, gold); lb.position.set(0, base + 0.2, z - 0.1); nc(lb);
+  const lb = lotusBase(0.9, gold); lb.position.set(0, base + 0.2, z - 0.1); nc(lb); lbase = lb; lb.userData.statueImg = true;
   // 8) đèn hắt làm nổi khám
   const pl = new THREE.PointLight(0xffe0a0, 1.5, w * 1.3, 1.5); pl.position.set(0, cy + 0.3, z + 1.2); g.add(pl);
   ANIM.push((t) => { glow.material.opacity = 0.6 + 0.14 * Math.sin(t * 1.1); glow.scale.setScalar(0.98 + 0.03 * Math.sin(t * 1.1)); });
