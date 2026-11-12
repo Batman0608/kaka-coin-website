@@ -1253,12 +1253,31 @@ const SCENES = {
   },
   longson(g) {
     ground(g, 160, 0x5f8a45);
-    const hill = mountain(20, 14, 0x5f8a45, 4, 0, -6); hill.scale.y = 1; g.add(hill);
-    g.add(cyl(6, 7.5, 1.2, 24, STONE(), 0, 12.8, -6));
-    const b = swapStatue(seatedBuddha(7.5), 'thien_trang'); b.position.set(0, 13.4, -6); g.add(b);
-    const st = stairs(2.4, 32, 0.42, 0.42); st.position.set(0, 0, -0.1 + 31 * 0.42);   // 32 bậc: bậc trên cùng ngang mặt bệ (13,44 m), nằm hẳn trên bệ — không bị thành bệ che g.add(st);   // bậc trên cùng chạm mép bệ tượng
+    // ĐỒI TRẠI THỦY: núi đỉnh bằng lớn, sân đá trên đỉnh, bệ & tượng Kim Thân Phật Tổ, lan can đá vòng quanh, 24 bậc đá từ chân núi lên sân
+    const HX = 0, HZ = -6, R0 = 28, RT = 15, HH = 10;
+    { const geo = new THREE.CylinderGeometry(RT, R0, HH, 40, 10), p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y > HH / 2 - 0.01) continue; const a = Math.atan2(p.getZ(i), p.getX(i));
+        const front = Math.exp(-Math.pow(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2)), 2) / 0.08);   // phía bậc thang: sườn phẳng đều
+        const n = 1 + (0.09 * Math.sin(a * 3 + 1.7) + 0.06 * Math.sin(a * 7 + 0.4) + 0.04 * Math.sin(y * 0.6 + a * 2)) * (1 - front) * (0.5 - y / HH);
+        p.setX(i, p.getX(i) * n); p.setZ(i, p.getZ(i) * n); }
+      geo.computeVertexNormals(); const m = mesh(geo, mat('mt' + 0x5f8a45, 0x5f8a45, { flatShading: true }), HX, HH / 2, HZ); m.userData.mesa = { r: R0, h: HH, top: RT }; m.userData.mountain = true; g.add(m); }
+    const plaza = new THREE.Mesh(uvMeters(new THREE.CircleGeometry(RT - 0.3, 48), [[2 * (RT - 0.3), 2 * (RT - 0.3)]]), STONE_TILE()); plaza.rotation.x = -Math.PI / 2; plaza.position.set(HX, HH + 0.02, HZ); plaza.receiveShadow = true; plaza.userData.noCollide = true; g.add(plaza);
+    g.add(cyl(5.2, 5.8, 0.8, 32, STONE(), HX, HH + 0.4, HZ));                       // bệ tượng
+    g.add(cyl(5.9, 5.9, 0.12, 32, GOLD(), HX, HH + 0.06, HZ)).userData.noCollide = true;   // viền chân bệ
+    const b = swapStatue(seatedBuddha(7.5), 'thien_trang'); b.position.set(HX, HH + 0.8, HZ); g.add(b);
+    // lan can đá vòng quanh mép sân (chừa lối xuống bậc thang phía trước)
+    { const RR = RT - 0.6, N = 64, gap = 0.12, rail = STONE();
+      for (let k = 0; k < N; k++) { const a0 = k / N * Math.PI * 2, a1 = (k + 1) / N * Math.PI * 2, am = (a0 + a1) / 2;
+        const off = (a) => Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < gap;
+        const px = HX + Math.cos(a0) * RR, pz = HZ + Math.sin(a0) * RR;
+        if (!off(a0)) { g.add(box(0.3, 1.1, 0.3, rail, px, HH + 0.55, pz)); g.add(box(0.38, 0.12, 0.38, rail, px, HH + 1.16, pz)).userData.noCollide = true; }
+        if (off(a0) || off(a1) || off(am)) continue;
+        const L = 2 * RR * Math.sin(Math.PI / N), seg = box(L, 0.16, 0.18, rail, HX + Math.cos(am) * RR, HH + 0.95, HZ + Math.sin(am) * RR); seg.rotation.y = -am + Math.PI / 2; g.add(seg);
+        const low = box(L, 0.4, 0.12, rail, HX + Math.cos(am) * RR, HH + 0.25, HZ + Math.sin(am) * RR); low.rotation.y = -am + Math.PI / 2; g.add(low); } }
+    // bậc đá: bậc trên cùng ngang mặt sân; độ dốc bằng sườn núi (cao 10 m trên 13 m ngang)
+    { const n = 24, rise = HH / n, run = (R0 - RT) / n, st = stairs(3.0, n, rise, run); st.position.set(HX, 0, HZ + RT + (n - 1) * run + 0.3); g.add(st); }
     const h = hall({ w: 10, d: 6, h: 3, tiers: 2 }); h.position.set(-27, 0, 15); g.add(h);   // đặt xa sườn đồi để đồi không xuyên vào điện
-    [10, 14, -40].forEach(x => g.add(tree(5, LEAF(), x, 9)));
+    [-40, 32, 36].forEach(x => g.add(tree(5, LEAF(), x, 9)));   // cây ngoài chân núi
     return { cam: [20, 20, 30], target: [0, 17, -5] };
   },
   vinhnghiem(g) {

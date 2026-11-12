@@ -7,7 +7,7 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans); }
 #view, #view canvas { position: fixed; inset: 0; display: block; touch-action: none; }
 #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
-.nlabel { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 10px; font: 700 12px var(--sans); background: rgba(20, 8, 4, .65); color: #fff; white-space: nowrap; }
+.nlabel { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 10px; font: 700 12px var(--sans); background: rgba(20, 8, 4, .65); color: #fff; white-space: nowrap; text-align: center; line-height: 1.25; }   /* 3 dòng (tu tập · tên · công đức) căn giữa cân nhau */
 .nlabel.me { background: linear-gradient(90deg, #a3231a, #c98a1c); }
 .nlabel[data-tu]:not([data-tu=""])::before { content: attr(data-tu); display: block; text-align: center; font: 700 10px var(--sans); color: #bfe6c8; letter-spacing: .2px; }
 .nlabel[data-title]:not([data-title=""])::after { content: attr(data-title); display: block; text-align: center; font: 700 10px var(--sans); color: #ffe08a; letter-spacing: .2px; }
@@ -1003,3 +1003,7 @@ body.touch .chatfeed { top: min(calc(50% + 78px), calc(100% - 212px - env(safe-a
 .xq-rank { color: #ffcf80; font-weight: 800; font-size: 13px; }
 .xq-verse { font: italic 600 15px var(--serif); color: #ffe6a8; border-left: 3px solid var(--gold); padding-left: 10px; }
 .xq-dharma { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(233, 185, 73, .12); border: 1px solid #c98a1c; font: 600 14px var(--serif); color: #ffe6a8; }
+
+/* nhãn 3 dòng: các dòng căn giữa, khoảng cách đều, dòng tên nổi bật hơn */
+.nlabel[data-tu]:not([data-tu=""]) { padding: 2px 9px 3px; }
+.nlabel[data-tu]:not([data-tu=""])::before, .nlabel[data-title]:not([data-title=""])::after { margin: 1px 0; opacity: .95; }
