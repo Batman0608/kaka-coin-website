@@ -1,3 +1,4 @@
+import { bakeGroup } from '../temple3d.js';
 /* =========================================================================
  *  GIA PHẢ DÒNG HỌ — "Ông giữ gia phả" đứng ở mỗi chùa
  *  · Bấm vào ông → mở bảng gia phả của mình (lưu trên máy chủ theo mã nhân vật).
@@ -55,6 +56,7 @@ export function initGiaPha({ THREE, scene, Avatar, label, placeLabel, me, getW, 
       const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.34), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false })); sg.position.set(0.95, 1.05, 0.9); grp.add(sg);
       B(0.05, 1.0, 0.05, wood, 0.95, 0.5, 0.88); }
     grp.traverse(o => { o.userData.noCollide = true; });
+    bakeGroup(grp);   // sạp gia phả: gộp ~90 mảnh thành vài khối
     const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'tram' }, seed: 31 });
     av.root.position.set(0, 0.16, -0.05); av.setPose('lotus'); grp.add(av.root);
     keeper = { av, grp, label: label('📜 Ông giữ gia phả', 'abbot'), lastBow: 0, wp: new THREE.Vector3() };

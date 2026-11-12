@@ -1,3 +1,4 @@
+import { mergeGeometries } from '../../vendor/three/addons/BufferGeometryUtils.js';
 /* =========================================================================
  *  THUYỀN RỒNG THAM QUAN — sông Hương (Thiên Mụ), hồ Tam Chúc, suối Yến (chùa Hương)
  *  · Người bán vé đứng ở bến ngoài cổng: 30 hoa sen / 1 vòng.
@@ -96,6 +97,12 @@ export function initBoat({ THREE, scene, Avatar, label, placeLabel, me, getW, ge
     // vệt sóng sau lái
     wake = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })); wake.rotation.x = -Math.PI / 2; wake.position.set(0, 0.07, -half - 5); g.add(wake);
     g.traverse(o => { if (o.isMesh) { o.userData.noCollide = true; } });
+    // gộp thân thuyền tĩnh theo chất liệu (≈160 mảnh → ~15 lệnh vẽ); chừa cờ bay & vệt sóng
+    { g.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), by = new Map(), skip = new Set([wake, ...flags]);
+      g.traverse(o => { if (!o.isMesh || skip.has(o) || o.material.transparent && o.material !== (roofMats[0] || null)) return; (by.get(o.material) || by.set(o.material, []).get(o.material)).push(o); });
+      by.forEach((list, m) => { if (list.length < 2) return;
+        const geos = list.map(o => { const q = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); ['uv1', 'uv2', 'color', 'tangent'].forEach(k => q.deleteAttribute(k)); if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2)); return q.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); });
+        const mg = mergeGeometries(geos); if (!mg) return; list.forEach(o => o.parent.remove(o)); const mm = new THREE.Mesh(mg, m); mm.castShadow = true; mm.userData.noCollide = true; g.add(mm); }); }
     // người chèo & hai ca nương hát ca Huế
     crew = [];
     const add = (look, seed, x, z, yaw, pose) => { const av = new Avatar({ look, seed }); av.root.position.set(x, deck, z); av.root.rotation.y = yaw; if (pose) av.setPose(pose); body.add(av.root); crew.push(av); };

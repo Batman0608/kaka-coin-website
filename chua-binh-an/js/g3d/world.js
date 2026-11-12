@@ -2,7 +2,10 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { swapStatue, placeStatue, lanternGlb } from '../temple3d.js';
+import { bakeGroup } from '../temple3d.js';
+import { swapStatue as swapStatue0, placeStatue as placeStatue0, lanternGlb as lanternGlb0, MOBILE3D } from '../temple3d.js';
+// điện thoại: đồ trang trí phụ (đèn đá, đèn lồng, tượng nhỏ trong vườn) giữ bản dựng sẵn nhẹ — đỡ tải mạng & đỡ lệnh vẽ; tượng chính vẫn 3D
+const swapStatue = MOBILE3D ? (p) => p : swapStatue0, placeStatue = MOBILE3D ? () => null : placeStatue0, lanternGlb = MOBILE3D ? () => {} : lanternGlb0;
 import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM, STONE_TILE, uvMeters } from '../temple3d.js';
 import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
@@ -181,7 +184,7 @@ export function buildWorld(scene, temple) {
   if (halls[0]) { const h = halls[0], m = h.userData.mainHall, inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
     [-1, 1].forEach(sx => { const p = h.localToWorld(new THREE.Vector3(sx * Math.min(m.w / 2 - 0.6, 6.5), m.base, m.d / 2 + 1.6)).applyMatrix4(inv), yaw = h.getWorldQuaternion(new THREE.Quaternion());
       const e = new THREE.Euler().setFromQuaternion(yaw, 'YXZ'); placeStatue(root, 'denlong', 1.9, p.x, p.y, p.z, e.y);
-      const blk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshBasicMaterial()); blk.visible = false; blk.position.set(p.x, p.y + 0.9, p.z); root.add(blk); }); }
+      if (MOBILE3D) return; const blk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshBasicMaterial()); blk.visible = false; blk.position.set(p.x, p.y + 0.9, p.z); root.add(blk); }); }
   let col = new Collision(); col.build(root);
   // khuôn viên: tượng Phật, hồ sen, hồ cá Koi… đặt vào chỗ trống bằng phẳng; mỗi nơi là một điểm câu hỏi
   const quiz = gardenDecor(root, Lx, temple, col, hallInfo);
@@ -195,15 +198,27 @@ export function buildWorld(scene, temple) {
   const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
   { const lm = mat('lantern', 0xd9332a), L2 = []; root.traverse(o => { if (o.isMesh && o.material === lm && o.geometry.type === 'SphereGeometry') L2.push(o); }); L2.forEach(lanternGlb); }   // đèn lồng đỏ 3D
   mergeStatic(root);   // gộp cây & vật trang trí tĩnh thành vài khối lớn → điện thoại vẽ nhanh, bấm không trễ
-  return { quizSpots: quiz.spots, root, conf, layout: Lx, duyenTree: root.userData.duyenTree || null, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
+  const cushionsNear = instanceCushions(root);
+  return { cushionsNear, quizSpots: quiz.spots, root, conf, layout: Lx, duyenTree: root.userData.duyenTree || null, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
 
 /* khói hương ở lư hương */
+/* khói hương: 18 hạt khói vẽ chung MỘT lần (Points + shader nhỏ) thay vì 18 sprite riêng */
+let _smokeTex = null;
 export function smoke(scene, pos) {
-  const tex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-  const parts = [];
-  for (let i = 0; i < 18; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })); s.userData.t = i / 18 * 6; scene.add(s); parts.push(s); }
-  return (dt, boost = 0) => parts.forEach(s => { s.userData.t += dt * (1 + boost); const t = s.userData.t % 6; s.position.set(pos.x + Math.sin(t * 1.3 + s.id) * 0.25 * t, pos.y + 1.2 + t * 0.6, pos.z); const k = t / 6; s.scale.setScalar(0.3 + k * 1.6); s.material.opacity = 0.35 * Math.sin(Math.PI * k) * (1 + boost * 0.5); });
+  if (!_smokeTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); _smokeTex = new THREE.CanvasTexture(c); }
+  const N = 18, P = new Float32Array(N * 3), S = new Float32Array(N), A = new Float32Array(N), T = []; for (let i = 0; i < N; i++) T.push(i / N * 6);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('size', new THREE.BufferAttribute(S, 1)); geo.setAttribute('alpha', new THREE.BufferAttribute(A, 1));
+  const m = new THREE.ShaderMaterial({ uniforms: { map: { value: _smokeTex }, scale: { value: 420 } }, transparent: true, depthWrite: false,
+    vertexShader: 'attribute float size; attribute float alpha; varying float vA; uniform float scale; void main(){ vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying float vA; void main(){ vec4 c = texture2D(map, gl_PointCoord); gl_FragColor = vec4(c.rgb * 0.92, c.a * vA); }' });
+  const pts = new THREE.Points(geo, m); pts.frustumCulled = false; pts.userData.tmp = true; scene.add(pts);
+  const _db = new THREE.Vector2(); pts.onBeforeRender = (r, sc, cam) => { m.uniforms.scale.value = r.getDrawingBufferSize(_db).y * 0.5 / Math.tan(cam.fov * Math.PI / 360); };   // cỡ hạt khói đúng theo mét
+  const f = (dt, boost = 0) => { for (let i = 0; i < N; i++) { T[i] += dt * (1 + boost); const t = T[i] % 6, k = t / 6;
+      P[i * 3] = pos.x + Math.sin(t * 1.3 + i * 7.1) * 0.25 * t; P[i * 3 + 1] = pos.y + 1.2 + t * 0.6; P[i * 3 + 2] = pos.z; S[i] = 0.3 + k * 1.6; A[i] = Math.sin(k * Math.PI) * 0.5 * (1 + boost * 0.3); }
+    geo.attributes.position.needsUpdate = geo.attributes.size.needsUpdate = geo.attributes.alpha.needsUpdate = true; };
+  f.dispose = () => { scene.remove(pts); geo.dispose(); m.dispose(); };
+  return f;
 }
 
 /* hòm công đức: hộp gỗ sơn son, viền vàng, khe bỏ tiền, bảng chữ "CÔNG ĐỨC" */
@@ -942,15 +957,36 @@ function landscape(root, L, col) {
   return { edge: R - 3, trees };
 }
 
+/* đệm ngồi trong chánh điện: hàng chục đệm giống nhau → vẽ hàng loạt (InstancedMesh, 1 lệnh vẽ mỗi loại thay vì 2 × số đệm).
+   cushionsNear(p, r) trả về các "đệm" quanh điểm p, mỗi cái có thuộc tính visible để ẩn/hiện như vật thường. */
+function instanceCushions(root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = new Map(), all = [];
+  root.traverse(o => { if (!o.isMesh || !o.userData.cushion || !o.visible) return; const P = o.geometry.parameters || {}; const k = o.material.uuid + JSON.stringify(P); (groups.get(k) || groups.set(k, []).get(k)).push(o); });
+  const ZERO = new THREE.Matrix4().makeScale(0, 0, 0), wp = new THREE.Vector3();
+  groups.forEach(list => {
+    if (list.length < 3) return;
+    const im = new THREE.InstancedMesh(list[0].geometry, list[0].material, list.length); im.receiveShadow = true; im.userData.noCollide = true; im.userData.cushInst = true;
+    list.forEach((o, i) => { const M = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); im.setMatrixAt(i, M); o.getWorldPosition(wp);
+      const item = { x: wp.x, y: wp.y, z: wp.z, _v: true, get visible() { return this._v; }, set visible(v) { if (this._v === v) return; this._v = v; im.setMatrixAt(i, v ? M : ZERO); im.instanceMatrix.needsUpdate = true; } };
+      all.push(item); o.parent.remove(o); });
+    im.computeBoundingSphere(); root.add(im);
+  });
+  return (p, r = 0.3) => all.filter(c => c._v !== null && Math.hypot(c.x - p.x, c.z - p.z) < r);
+}
 /* gộp các khối tĩnh (cây, búi cỏ…) cùng chất liệu thành một khối: hàng nghìn lệnh vẽ → vài chục */
-function mergeStatic(root) {
+/* gộp lượt sau: mô hình 3D tải về sau khi dựng cảnh (tượng, bệ thờ, đèn đá, đèn lồng…) — gọi khi đã tải xong */
+export function lateMerge(W) { if (!W || !W.root) return; mergeStatic(W.root, ['lahan', 'swap', 'statueImg', 'swapLantern', 'pagoda']);
+  // mặt tiền & mái điện (ẩn khi vào trong): gộp mảnh bên trong từng cụm, cụm vẫn ẩn/hiện được
+  W.root.traverse(h => { const MH = h.userData.mainHall; if (!MH || MH._baked) return; MH._baked = true; [...(MH.front || []), ...(MH.roofs || [])].forEach(x => { if (x && x.isGroup || (x && x.children && x.children.length > 1)) bakeGroup(x); }); }); }
+function mergeStatic(root, extra = []) {
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = new Map(), victims = [];
   // vật có hoạt cảnh (ANIM đổi vị trí/xoay) thì giữ nguyên: chạy thử ANIM ở hai thời điểm, so ma trận
   const before = new Map(); root.traverse(o => { if (o.isMesh) before.set(o, o.matrixWorld.clone()); });
   try { ANIM.forEach(f => f(3.7)); ANIM.forEach(f => f(11.3)); } catch (e) {}
   root.updateMatrixWorld(true); const moving = new Set(); before.forEach((m0, o) => { if (!o.matrixWorld.equals(m0)) moving.add(o); });
-  const OK = new Set(['noCollide', 'camSkip', 'floor', 'merged', 'builderTree', 'court', 'mesa', 'mountain', 'tree']);
+  const OK = new Set(['noCollide', 'camSkip', 'floor', 'merged', 'builderTree', 'court', 'mesa', 'mountain', 'tree', 'hallSteps', 'stairs', ...extra]);   // bậc thềm & bậc đá cũng gộp (va chạm đã tính trước)
   const keep = new Set(['lantern', 'paperLamp', 'stoneLamp'].map(k => mat(k, 0xffffff)));
   root.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || !o.visible || moving.has(o) || o.userData.merged) return;

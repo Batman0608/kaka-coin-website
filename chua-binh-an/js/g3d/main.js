@@ -7,6 +7,7 @@
 import { initSky } from './sky.js';
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
 import { Avatar, PATTERNS } from './avatar.js';
+import { mergeGeometries } from '../../vendor/three/addons/BufferGeometryUtils.js';
 import { initTuHanh } from './tuhanh.js';
 import { initDuyen } from './duyen.js';
 import { initShare } from './share.js';
@@ -30,7 +31,7 @@ let SW = null;   // quét sân chùa tích công đức
 let QZ = null;   // câu hỏi khi tham quan khuôn viên chùa
 Avatar.outline = !matchMedia('(pointer: coarse)').matches;   // máy tính: nhân vật chibi có viền nét
 import { initShop, badgeOf } from './shop.js';
-import { buildWorld, smoke, LAYOUT } from './world.js';
+import { lateMerge, buildWorld, smoke, LAYOUT } from './world.js';
 import { bootAccount, initAccount } from './account.js';
 import { initNet } from './net.js';
 
@@ -110,9 +111,11 @@ function closeModal() { $('veil').hidden = true; $('veil').innerHTML = ''; pause
 let paused = false;
 
 /* ---------------- 3D ---------------- */
+const MOBILE = matchMedia('(pointer: coarse)').matches;   // điện thoại/máy tính bảng: vẽ ít điểm ảnh hơn, không đổ bóng (đổ bóng = vẽ cả cảnh thêm một lần)
 const renderer = new THREE.WebGLRenderer({ antialias: !S.low, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(S.low ? 1 : 1.75, devicePixelRatio || 1));
-renderer.shadowMap.enabled = !S.low; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(S.low ? 1 : MOBILE ? 1.5 : 1.75, devicePixelRatio || 1));
+renderer.shadowMap.enabled = !S.low && !(MOBILE && !S.shadow); renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+window.__R = renderer;   // đo hiệu năng khi kiểm thử
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 $('view').append(renderer.domElement);
 const scene = new THREE.Scene();
@@ -130,15 +133,24 @@ const cam = { yaw: 0, pitch: 0.34, dist: 11.5 };   // lùi xa sau lưng để nh
 const npcs = []; let abbot = null, monks = null, resMonk = null;   // monks: 3 vị sư tụng kinh (chỉ trong giờ tụng)
 
 let meritLbl = null;
+/* ẩn nhân vật ở xa camera (không vẽ, không tính dáng): điện thoại 34 m, máy tính 60 m */
+let cullT = 0; const CULL = MOBILE ? 34 : 60;
+function cullAvatars() {
+  const c = camera.position, R2 = CULL * CULL;
+  scene.children.forEach(o => { const a = o.userData && o.userData.avatar; if (!a || a === me.av || o.userData.festKeep) return;
+    const v = o.position.distanceToSquared(c) < R2; if (o.visible !== v) o.visible = v; });
+}
+/* giải phóng bộ nhớ đồ hoạ của vật bị gỡ khỏi cảnh (đổi chùa nhiều lần không còn nặng dần) */
+function freeObj(o) { o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
 function disposeWorld() {
   if (!W) return;
   ferryFolk.forEach(f => { scene.remove(f.root); f.label.remove(); }); ferryFolk = [];
   festDispose(); hideMonks(); if (TH) TH.dispose(); if (DY) DY.dispose(); if (SW) SW.dispose(); if (GP) GP.dispose(); if (BT) BT.dispose(); if (XQ) XQ.dispose(); if (PH) PH.dispose(); if (FEED) FEED.clear(); if (resMonk) { resMonk.label.remove(); scene.remove(resMonk.cush); resMonk = null; }
   scene.remove(W.root); W.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   smokes.forEach(s => s.dispose && s.dispose()); smokes = [];
-  [...npcs, abbot].forEach(n => n && n.label && n.label.remove()); npcs.length = 0; abbot = null;
+  [...npcs, abbot].forEach(n => { if (!n) return; if (n.label) n.label.remove(); if (n.av && n.av.root.parent) { n.av.root.parent.remove(n.av.root); freeObj(n.av.root); } }); npcs.length = 0; abbot = null;
   if (meritLbl) { meritLbl.remove(); meritLbl = null; }
-  [...scene.children].forEach(o => { if (o.isSprite || (o.userData && o.userData.tmp)) scene.remove(o); });
+  [...scene.children].forEach(o => { if (o.isSprite || (o.userData && o.userData.tmp)) { scene.remove(o); if (!o.isSprite) freeObj(o); } });
 }
 function loadTemple(id) {
   if (temple && temple.id !== id) window.dispatchEvent(new CustomEvent('cba-ev', { detail: { k: 'visit', id } }));
@@ -147,6 +159,7 @@ function loadTemple(id) {
   const sky = temple.model === 'yentu' ? 0xcfe0ea : temple.model === 'khmer' ? 0xbfe0f0 : 0xf0d6a8;
   scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, 50, 190);
   W = buildWorld(scene, temple); SKY.setWorld(W);
+  { const w0 = W; [8000, 22000].forEach(ms => setTimeout(() => { if (W === w0) lateMerge(W); }, ms)); }   // gộp thêm mô hình tải về sau → ít lệnh vẽ
   const L = W.layout;
   // người chơi
   if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
@@ -158,7 +171,7 @@ function loadTemple(id) {
   me.yaw = Math.PI; cam.yaw = 0;
   // khói hương
   meCushion = null;
-  smokes = W.burners.map(b => { const f = smoke(scene, b); return { update: f }; });
+  smokes = W.burners.map(b => { const f = smoke(scene, b); return { update: f, dispose: f.dispose }; });
   // sư trụ trì
   const ab = new Avatar({ look: { g: 'nam', hair: 'troc' }, seed: 7, monk: true }); ab.root.position.set(L.abbot[0], W.col.heightAt(L.abbot[0], L.abbot[1], 50) ?? 0, L.abbot[1]); scene.add(ab.root);
   abbot = { av: ab, label: label('Sư trụ trì ' + sangha().tru, 'abbot') }; abbot.av.root.userData.tmp = true;
@@ -212,7 +225,7 @@ function spawnNpcs() {
   // ~5 Phật tử ngồi lễ trong chánh điện (để chùa luôn có người, thu hút người mới vào)
   if (hall) {
     const free = hall.cushions.filter(c => !c.taken).sort((a, b) => a.distanceTo(hall.altar) - b.distanceTo(hall.altar));
-    const want = Math.min(5, free.length);
+    const want = Math.min(MOBILE ? 3 : 5, free.length);   // điện thoại: ít Phật tử ảo hơn cho mượt
     for (let i = 0; i < want; i++, n++) {
       const { h, av } = mkAv(n), c = free[i]; c.taken = true;
       av.root.position.set(c.x, c.y, c.z); av.root.rotation.y = Math.atan2(hall.altar.x - c.x, hall.altar.z - c.z); av.setPose('kneel');
@@ -221,14 +234,14 @@ function spawnNpcs() {
     }
   }
   // vài Phật tử đi lại ngoài sân
-  for (let j = 0; j < 3; j++, n++) {
+  for (let j = 0; j < (MOBILE ? 2 : 3); j++, n++) {
     const { h, av } = mkAv(n), L = W.layout, x = L.spawn[0] + (Math.random() - 0.5) * 10, z = L.spawn[1] - 4 - Math.random() * 6;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); scene.add(av.root); av.root.userData.tmp = true;
     npcs.push({ av, ...(nm => ({ name: nm, label: label(nm, 'npc') }))(pickName(h)), target: null, wait: Math.random() * 4, sit: null, hall: false });
   }
   // chùa Hà: khách thập phương đứng quanh Cây tình duyên ngắm dải lụa, khấn nguyện
   const T = W.duyenTree;
-  if (T) for (let j = 0; j < 10; j++, n++) {
+  if (T) for (let j = 0; j < (MOBILE ? 5 : 10); j++, n++) {
     const { h, av } = mkAv(n), a = j / 10 * Math.PI * 2 + 0.3, r = 6.6 + (j % 3) * 1.2, x = T.center.x + Math.cos(a) * r, z = T.center.z + Math.sin(a) * r;
     av.root.position.set(x, W.col.heightAt(x, z, 50) ?? 0, z); av.root.rotation.y = Math.atan2(T.center.x - x, T.center.z - z); scene.add(av.root); av.root.userData.tmp = true;
     npcs.push({ av, ...(nm => ({ name: nm, label: label(nm, 'npc') }))(pickName(h)), target: null, wait: 4 + Math.random() * 14, sit: null, hall: false, tree: T });
@@ -336,6 +349,16 @@ function findContext() {
 $('ctx').onclick = () => { if (ctxAction) ctxAction.fn(); };
 let _cuGlow = null;
 function cushionGlowTex() { if (_cuGlow) return _cuGlow; const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.4, 'rgba(255,230,150,.55)'); gr.addColorStop(1, 'rgba(255,220,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); _cuGlow = new THREE.CanvasTexture(c); _cuGlow.colorSpace = THREE.SRGBColorSpace; return _cuGlow; }
+/* gộp các mảnh tĩnh cùng chất liệu trong một nhóm thành 1 khối (đệm sen nhiều cánh: 40 lệnh vẽ → 4) */
+function mergeByMat(g) {
+  g.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), by = new Map();
+  [...g.children].forEach(c => { if (!c.isMesh || c.children.length || c.material.transparent) return; (by.get(c.material) || by.set(c.material, []).get(c.material)).push(c); });
+  by.forEach((list, m) => { if (list.length < 2) return;
+    const geos = list.map(c => { const gg = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone(); gg.deleteAttribute('uv'); return gg.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld)); });
+    const mg = mergeGeometries(geos); if (!mg) return; list.forEach(c => { g.remove(c); c.geometry.dispose(); }); geos.forEach(x => x.dispose());
+    const mm = new THREE.Mesh(mg, m); mm.castShadow = true; g.add(mm); });
+  return g;
+}
 function cushionMesh(cfg) {
   const g = new THREE.Group();
   const matT = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.8 }), matG = new THREE.MeshStandardMaterial({ color: cfg.trim, metalness: 0.5, roughness: 0.38 });
@@ -378,10 +401,11 @@ function cushionMesh(cfg) {
     const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.28, 0.1, 24), matG); seat.position.y = 0.2; g.add(seat);   // nhụy ngồi
     if (sh === 'sen-vang' || sh === 'sen-bach') { for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const st = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), matG); st.position.set(Math.cos(a) * 0.2, 0.26, Math.sin(a) * 0.2); g.add(st); } }
   }
+  mergeByMat(g);
   if (cfg.glow) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cushionGlowTex(), color: cfg.glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 }));
     const sc = 1.6 + (cfg.gi || 1) * 0.9; sp.scale.set(sc, sc, 1); sp.position.y = 0.3; g.add(sp); g.userData.glow = sp;
-    const pl = new THREE.PointLight(cfg.glow, 0.8 * (cfg.gi || 1), 3.5, 1.6); pl.position.y = 0.5; g.add(pl); g.userData.pl = pl;
+    const pl = new THREE.PointLight(cfg.glow, 0.8 * (cfg.gi || 1), 3.5, 1.6); pl.visible = !MOBILE; pl.position.y = 0.5; g.add(pl); g.userData.pl = pl;
     g.userData.gi = cfg.gi || 1;
   }
   return g;
@@ -427,7 +451,8 @@ let hiddenCush = [];
 function hideTempleCushion(p, on) {   // ẩn / hiện đệm của chùa tại chỗ ngồi
   hiddenCush.forEach(o => { o.visible = true; }); hiddenCush = [];
   if (!on || !W) return; const v = new THREE.Vector3();
-  W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.getWorldPosition(v) && Math.hypot(v.x - p.x, v.z - p.z) < 0.3) { o.visible = false; hiddenCush.push(o); } });
+  W.cushionsNear(p).forEach(o => { o.visible = false; hiddenCush.push(o); });
+  W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.getWorldPosition(v) && Math.hypot(v.x - p.x, v.z - p.z) < 0.3) { o.visible = false; hiddenCush.push(o); } });   // đệm lẻ (không vẽ hàng loạt)
 }
 function hideMeCushion() { hideTempleCushion(null, false); if (meCushion) { scene.remove(meCushion); meCushion = null; } }
 function stepMeCushion(t) { if (meCushion && meCushion.userData.glow) { const k = 0.75 + 0.25 * Math.sin(t * 2.4); meCushion.userData.glow.material.opacity = 0.7 * k; if (meCushion.userData.pl) meCushion.userData.pl.intensity = 0.8 * meCushion.userData.gi * k; } }
@@ -1116,7 +1141,8 @@ function monkSeat(p) {
   /* tọa cụ của quý thầy: bệ bát giác sơn son viền vàng, cánh sen vàng xòe thấp quanh bệ (không chạm áo cà sa),
      bồ đoàn tròn vàng nghệ có viền chỉ vàng, vầng sáng dưới sàn */
   const g = new THREE.Group(); g.position.set(p.x, p.y - 0.15, p.z); g.userData.tmp = true;
-  g.userData.hid = []; const wv = new THREE.Vector3(); W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.visible && o.getWorldPosition(wv) && Math.hypot(wv.x - p.x, wv.z - p.z) < 0.3) { o.visible = false; g.userData.hid.push(o); } });   // ẩn đệm chùa ở chỗ thầy ngồi
+  g.userData.hid = W.cushionsNear(p).filter(o => o.visible); g.userData.hid.forEach(o => { o.visible = false; });
+   const wv = new THREE.Vector3(); W.root.traverse(o => { if (o.isMesh && o.userData.cushion && o.visible && o.getWorldPosition(wv) && Math.hypot(wv.x - p.x, wv.z - p.z) < 0.3) { o.visible = false; g.userData.hid.push(o); } });   // ẩn đệm chùa ở chỗ thầy ngồi
   const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.55 }, o));
   const lac = M(0x7a140c, { roughness: 0.35 }), gold = M(0xe8b84a, { metalness: 0.7, roughness: 0.3 }), saffron = M(0xe0902a, { roughness: 0.75 });
   const dais = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.58, 0.1, 8), lac); dais.position.y = 0.05; g.add(dais);
@@ -1129,7 +1155,7 @@ function monkSeat(p) {
   const pip = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.016, 6, 32), gold); pip.rotation.x = Math.PI / 2; pip.position.y = 0.26; g.add(pip);
   const pl = new THREE.PointLight(0xffd36b, 0.36, 2.2, 1.6); pl.position.y = 0.12; g.add(pl); g.userData.pl = pl; g.userData.gi = 0.45;
   const disc = new THREE.Mesh(new THREE.CircleGeometry(0.85, 32), new THREE.MeshBasicMaterial({ map: cushionGlowTex(), color: 0xffd36b, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; g.add(disc); g.userData.disc = disc;
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; mergeByMat(g); g.add(disc); g.userData.disc = disc;
   scene.add(g); return g;
 }
 function pulseSeat(g, t, ph = 0) {
@@ -2277,7 +2303,8 @@ function loop() {
     }
     { const sd = SKY.update(dt, camera, me, t), up = Math.max(0.35, Math.sin(THREE.MathUtils.degToRad(Math.max(8, sd.alt)))); sun.position.set(me.pos.x + 25, 15 + 30 * up, me.pos.z + 20); } sun.target.position.copy(tgt);
     // NPC, sư trụ trì, nhãn
-    npcs.forEach(n => { const mv = npcThink(n, dt); n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
+    cullT -= dt; if (cullT < 0) { cullT = 0.3; cullAvatars(); }
+    npcs.forEach(n => { const mv = npcThink(n, dt); if (n.av.root.visible) n.av.update(dt, mv); placeLabel(n.label, n.av.root.position, n.av.height + 0.15); });
     NET.step(dt); stepMonks(dt); festStep(dt); if (TH) TH.step(dt, t); if (DY) DY.step(dt, t); if (QZ) QZ.step(); if (SW) SW.step(dt, t); if (GP) GP.step(dt); if (BT) BT.step(dt); if (XQ) XQ.step(dt); if (PH) PH.step(dt); if (FEED) FEED.step(); if (MQ) MQ.step(); if (SK) SK.step(dt); sysTick();
     if (abbot) { stepAbbot(dt); placeLabel(abbot.label, abbot.av.root.position, abbot.av.height + 0.15); }
     ferryStep(dt, t);

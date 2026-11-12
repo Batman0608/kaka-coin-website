@@ -71,11 +71,12 @@ export function initSky(scene, hemi, sun) {
   scene.add(moon, moonGlow); moon.renderOrder = moonGlow.renderOrder = -9;
 
   /* ---- đèn đêm: vài đèn điểm dùng chung (gán cho đèn lồng gần người chơi nhất) + 2 đèn pha rọi chánh điện ---- */
-  const POOL = 8, pool = [];
+  const MOB = matchMedia('(pointer: coarse)').matches;   // điện thoại: ít đèn hơn (mỗi đèn làm mọi bề mặt phải tính thêm → GPU điện thoại nặng)
+  const POOL = MOB ? 3 : 8, pool = [];
   for (let i = 0; i < POOL; i++) { const pl = new THREE.PointLight(0xffb060, 0, 12, 1.5); scene.add(pl); pool.push(pl); }
-  const spots = [0, 1].map(() => { const s = new THREE.SpotLight(0xffd9a0, 0, 40, 0.5, 0.6, 1.2); scene.add(s); scene.add(s.target); return s; });
+  const spots = (MOB ? [] : [0, 1]).map(() => { const s = new THREE.SpotLight(0xffd9a0, 0, 40, 0.5, 0.6, 1.2); scene.add(s); scene.add(s.target); return s; });
   // đèn chiếu sáng chung cả sân chùa ban đêm (mỗi sân 1–2 đèn lớn treo cao) + đèn trong chánh điện sáng mạnh hơn
-  const yardLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xffdcae, 0, 40, 1); scene.add(l); return l; });
+  const yardLights = (MOB ? [0, 1] : [0, 1, 2, 3]).map(() => { const l = new THREE.PointLight(0xffdcae, 0, 40, 1); scene.add(l); return l; });
   let hallLights = [];
   let lamps = [], glows = [], world = null, nightK = 0, lastAssign = 0;
 
@@ -100,7 +101,7 @@ export function initSky(scene, hemi, sun) {
     // đèn pha: từ sân trước rọi vào mặt tiền chánh điện chính
     const h = W.halls[0];
     if (h && h.group && h.d) {
-      [-1, 1].forEach((sx, i) => { const s = spots[i];
+      [-1, 1].forEach((sx, i) => { const s = spots[i]; if (!s) return;
         s.position.copy(h.group.localToWorld(new THREE.Vector3(sx * h.w * 0.45, 0.4, h.d / 2 + 9)));
         s.target.position.copy(h.group.localToWorld(new THREE.Vector3(sx * h.w * 0.15, (h.ceilY - h.group.getWorldPosition(v).y) * 0.6, h.d / 2 - 0.5))); s.target.updateMatrixWorld(); });
     }

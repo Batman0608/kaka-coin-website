@@ -1,3 +1,4 @@
+import { bakeGroup } from '../temple3d.js';
 /* =========================================================================
  *  THẦY ĐỒ XEM QUẺ ở ngoài cổng chùa
  *  Ngoài cổng nhiều chùa Việt có các cụ đồ ngồi chiếu, bày án thư nhỏ, xin quẻ
@@ -93,6 +94,7 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
     // lọng che nắng
     const umb = new THREE.Mesh(new THREE.ConeGeometry(1.25, 0.42, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xc8a050, roughness: 0.9, side: THREE.DoubleSide })); umb.position.set(0.15, 2.45, -0.1); umb.userData.noCollide = true; umb.castShadow = true; g.add(umb);
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.3, 6), M(0x4a2a12)); stick.position.set(0.15, 1.2, -0.62); stick.rotation.x = 0.22; stick.userData.noCollide = true; g.add(stick);
+    bakeGroup(g, o => coins.includes(o) || o === block);   // gộp sạp xem quẻ (chừa 3 đồng xu tung lên)
     return { g, coins, block, flag };
   }
   /* khăn xếp, râu bạc cho cụ đồ */

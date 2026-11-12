@@ -7,6 +7,7 @@
 import * as THREE from '../vendor/three/three.module.min.js';
 import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { GLTFLoader } from '../vendor/three/addons/GLTFLoader.js';
+import { mergeGeometries } from '../vendor/three/addons/BufferGeometryUtils.js';
 
 /* ---------------- vật liệu ---------------- */
 const M = {};
@@ -82,6 +83,7 @@ function roof(w, d, h, color = null, gold = true) {
 /* điện thờ: nền đá, cột đỏ, tường, 1–2 tầng mái */
 let INTERIOR = null;   // game 3D: { set: 'hoanh'|'thu'|'nam' } → chánh điện mở cửa, có bàn thờ & đệm
 export const HALLS = [];
+export const MOBILE3D = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;   // điện thoại: bớt đèn, bớt bóng
 export const ANIM = [];   // hàm cập nhật hiệu ứng mỗi khung hình (game gọi)
 /* ảnh tượng thật (đã tách nền) + màu hào quang */
 const PHOTO = { quanamdung: ['assets/buddha/quanam-dung.webp', 561 / 880, '#fff3d6'], quanam: ['assets/buddha/quanam.webp', 462 / 539, '#ffe9a8'], duocsu: ['assets/buddha/duocsu.webp', 442 / 700, '#8fc3ff'], thichca: ['assets/buddha/thichca.webp', 725 / 860, '#ffd36b'], adida: ['assets/buddha/adida.webp', 576 / 700, '#ff9f6b'], dilac: ['assets/buddha/dilac.webp', 617 / 700, '#ffe9a8'] };
@@ -309,6 +311,34 @@ const STATUE_OF = { 'binh-an': 'thichca_vang', 'long-son': 'thichca_vang', 'thie
 const _statues = {};
 /* cân bằng đáy tượng: bản quét thường hơi nghiêng → tìm mặt phẳng qua các điểm thấp nhất (đáy bệ/tòa sen)
    rồi xoay cho mặt đáy nằm ngang, để tượng đặt sát mặt bệ ở mọi phía (tối đa 12°) */
+/* gộp mảnh tĩnh trong một nhóm (sạp, bàn, quầy…) theo chất liệu; skip(o) = true để giữ riêng (vật cử động) */
+export function bakeGroup(grp, skip = () => false) {
+  grp.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(grp.matrixWorld).invert(), by = new Map();
+  grp.traverse(o => { if (!o.isMesh || !o.visible || o.isSkinnedMesh || o.material.transparent || skip(o)) return; (by.get(o.material) || by.set(o.material, []).get(o.material)).push(o); });
+  by.forEach((list, m) => { if (list.length < 2) return;
+    const geos = list.map(o => { const q = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); Object.keys(q.attributes).forEach(k => { if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); });
+      if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2)); return q.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); });
+    const mg = mergeGeometries(geos); if (!mg) return; list.forEach(o => o.parent.remove(o));
+    const mm = new THREE.Mesh(mg, m); mm.castShadow = list[0].castShadow; mm.receiveShadow = true; mm.userData.noCollide = true; grp.add(mm); });
+  return grp;
+}
+/* gộp mọi mảnh của một mô hình tải về theo chất liệu (bản quét thường tách 10–30 mảnh → 1–3 lệnh vẽ) */
+function bakeMerge(w) {
+  w.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(w.matrixWorld).invert(), by = new Map();
+  w.traverse(c => { if (c.isMesh && !c.isSkinnedMesh) (by.get(c.material) || by.set(c.material, []).get(c.material)).push(c); });
+  let changed = false; const out = new THREE.Group();
+  by.forEach((list, m) => {
+    const attrs = Object.keys(list[0].geometry.attributes).filter(a => list.every(c => c.geometry.attributes[a]));
+    const geos = list.map(c => { let g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone(); Object.keys(g.attributes).forEach(a => { if (!attrs.includes(a)) g.deleteAttribute(a); });
+      ['position', 'normal'].forEach(a => { const A = g.attributes[a]; if (A && (A.normalized || !(A.array instanceof Float32Array))) { const f = new Float32Array(A.count * A.itemSize); for (let i = 0; i < A.count; i++) for (let k = 0; k < A.itemSize; k++) f[i * A.itemSize + k] = A.getComponent(i, k); g.setAttribute(a, new THREE.BufferAttribute(f, A.itemSize)); } });
+      if (g.attributes.uv && (g.attributes.uv.normalized || !(g.attributes.uv.array instanceof Float32Array))) { const A = g.attributes.uv, f = new Float32Array(A.count * 2); for (let i = 0; i < A.count; i++) { f[i * 2] = A.getX(i); f[i * 2 + 1] = A.getY(i); } g.setAttribute('uv', new THREE.BufferAttribute(f, 2)); }
+      return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld)); });
+    const mg = list.length > 1 ? mergeGeometries(geos) : geos[0];
+    if (!mg) { list.forEach(c => out.add(c.clone())); return; }
+    out.add(new THREE.Mesh(mg, m)); changed = true;
+  });
+  return changed ? out : w;
+}
 function levelBase(w) {
   w.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(w), H = bb.max.y - bb.min.y, v = new THREE.Vector3(), pts = [];
   w.traverse(c => { if (!c.isMesh) return; const P = c.geometry.attributes.position, st = Math.max(1, Math.floor(P.count / 30000)); for (let i = 0; i < P.count; i += st) { v.fromBufferAttribute(P, i).applyMatrix4(c.matrixWorld); pts.push([v.x, v.y, v.z]); } });
@@ -349,7 +379,7 @@ function loadStatue(key) {
         for (let t = 0; t < I.length; t += 3) if (y(I[t]) > lim && y(I[t + 1]) > lim && y(I[t + 2]) > lim) keep.push(I[t], I[t + 1], I[t + 2]);
         g2.setIndex(keep); }); }
     let w = o; if (S.rot || S.rotX) { w = new THREE.Group(); o.rotation.set(S.rotX || 0, S.rot || 0, 0); w.add(o); }
-    return levelBase(w);
+    return levelBase(bakeMerge(w));
   }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
 }
 /* khung bao "bền": bỏ 0,1% đỉnh thấp nhất (điểm rác lơ lửng của bản quét) để đáy tượng chạm đúng bệ */
@@ -507,7 +537,7 @@ function altarPanel(g, w, d, base, h, set) {
   // 7) đài sen 3D + bàn thờ thấp trước bức Phật
   const lb = lotusBase(0.9, gold); lb.position.set(0, base + 0.2, z - 0.1); nc(lb); lbase = lb; lb.userData.statueImg = true;
   // 8) đèn hắt làm nổi khám
-  const pl = new THREE.PointLight(0xffe0a0, 1.5, w * 1.3, 1.5); pl.position.set(0, cy + 0.3, z + 1.2); g.add(pl);
+  const pl = new THREE.PointLight(0xffe0a0, 1.5, w * 1.3, 1.5); pl.visible = !MOBILE3D; pl.position.set(0, cy + 0.3, z + 1.2); g.add(pl);
   ANIM.push((t) => { glow.material.opacity = 0.6 + 0.14 * Math.sin(t * 1.1); glow.scale.setScalar(0.98 + 0.03 * Math.sin(t * 1.1)); });
 }
 /* hàng tượng nhỏ dọc hai bên tường chánh điện (các mô hình ít chi tiết, nhìn từ xa vẫn đẹp)
@@ -723,7 +753,7 @@ function hallSideDecor(g, w, d, base, h, az, colM) {
     g.add(dl);
   });
   // thay khối La Hán đơn giản bằng tượng 3D thật khi tải xong (giữ khối cũ nếu tải lỗi)
-  sideModels().then(M => { if (!M) return; let k = 0;
+  if (!MOBILE3D) sideModels().then(M => { if (!M) return; let k = 0;
     figs.forEach(p => { const o = p.last ? M.botat.clone() : M.small[(k++ + (p.s > 0 ? 3 : 0)) % M.small.length].clone();
       p.f.children.forEach(c => { c.visible = false; });
       const t = fitPlace(o, p.last ? 1.05 : 0.95, 0, 0, 0, 0); p.f.add(t); });
@@ -743,7 +773,7 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
     g.add(woodFloor(w - 0.6, d - 0.3, 0, base + 0.03, 0.1));   // sàn gỗ lim
     const nc = (o) => { o.traverse(x => { x.userData.noCollide = true; x.castShadow = false; }); g.add(o); return o; };
     const fill = new THREE.PointLight(0xffd6a0, 1.5, Math.max(w, d) * 1.4, 1.2); fill.position.set(0, base + h - 1.0, 0.15 * d); g.add(fill);
-    const fill2 = new THREE.PointLight(0xffd6a0, 0.9, Math.max(w, d), 1.3); fill2.position.set(0, base + h - 1.2, d * 0.32); g.add(fill2);
+    const fill2 = new THREE.PointLight(0xffd6a0, MOBILE3D ? 0 : 0.9, Math.max(w, d), 1.3); fill2.visible = !MOBILE3D; fill2.position.set(0, base + h - 1.2, d * 0.32); g.add(fill2);
     const wood = mat('ceil', 0x3a1a0c), beamM = mat('ceilBeam', 0x241008);
     nc(box(w - 0.3, 0.08, d + 0.4, wood, 0, base + h + 0.02, 0.1));
     for (let z = -d / 2 + 1.6; z < d / 2; z += 2.6) nc(box(w - 0.4, 0.32, 0.28, beamM, 0, base + h - 0.18, z));

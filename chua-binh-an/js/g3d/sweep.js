@@ -1,3 +1,4 @@
+import { mergeGeometries } from '../../vendor/three/addons/BufferGeometryUtils.js';
 /* =========================================================================
  *  QUÉT SÂN CHÙA — tích công đức bằng việc làm: lá rụng thành từng đống trong
  *  sân, người chơi đến gần bấm "🧹 Quét sân" → cầm chổi tre quét, lá bay đi,
@@ -15,8 +16,11 @@ export function initSweep({ THREE, scene, me, getW, getTemple, P, save, toast, b
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.pow(Math.random(), 0.7) * 0.9, l = new THREE.Mesh(leafGeo, leafMats[i % leafMats.length]);
       l.position.set(Math.cos(a) * r, 0.01 + (0.9 - r) * 0.12 * Math.random(), Math.sin(a) * r); l.rotation.set(-Math.PI / 2 + (Math.random() - 0.5) * 0.6, 0, Math.random() * 6.3);
-      l.userData = { noCollide: true, v: null }; g.add(l);
+      l.userData = { noCollide: true, v: null }; l.visible = false; g.add(l);
     }
+    // đống lá đứng yên: gộp thành vài khối (mỗi màu lá 1 khối) → 3–4 lệnh vẽ thay vì 26; khi quét mới hiện từng lá bay lên
+    const byMat = new Map(); g.children.forEach(l => { l.updateMatrix(); const gg = leafGeo.clone().applyMatrix4(l.matrix); (byMat.get(l.material) || byMat.set(l.material, []).get(l.material)).push(gg); });
+    g.userData.merged = []; byMat.forEach((list, m) => { const mm = new THREE.Mesh(mergeGeometries(list), m); mm.userData.noCollide = true; mm.receiveShadow = true; g.add(mm); g.userData.merged.push(mm); list.forEach(x => x.dispose()); });
     g.userData.noCollide = true; scene.add(g); return g;
   }
   function spots(n) {
@@ -63,7 +67,7 @@ export function initSweep({ THREE, scene, me, getW, getTemple, P, save, toast, b
     if (busy || p.done) return;
     me.yaw = Math.atan2(p.x - me.pos.x, p.z - me.pos.z);
     const b = getBroom(); scene.add(b); busy = { p, t0: performance.now(), dur: 2.6 };
-    p.g.children.forEach(l => { const a = me.yaw + (Math.random() - 0.5) * 1.6; l.userData.v = new THREE.Vector3(Math.sin(a) * (1 + Math.random() * 2), 0.6 + Math.random() * 0.8, Math.cos(a) * (1 + Math.random() * 2)); l.userData.delay = Math.random() * 1.6; });
+    (p.g.userData.merged || []).forEach(m => { m.visible = false; }); p.g.children.forEach(l => { if (l.userData.v === undefined) return; l.visible = true; }); p.g.children.forEach(l => { if (l.userData.v === undefined) return; const a = me.yaw + (Math.random() - 0.5) * 1.6; l.userData.v = new THREE.Vector3(Math.sin(a) * (1 + Math.random() * 2), 0.6 + Math.random() * 0.8, Math.cos(a) * (1 + Math.random() * 2)); l.userData.delay = Math.random() * 1.6; });
     if (me.av && me.av.bow) me.av.bow();
   }
   function step(dt, t) {
