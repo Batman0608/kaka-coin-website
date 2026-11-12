@@ -448,14 +448,16 @@ function altarPanel(g, w, d, base, h, set) {
   if (STATUE3D[skey]) loadStatue(skey).then(src3 => { if (!src3) return;
     const three = STATUE3D[skey].three, xs = three ? [-1, 0, 1] : [0];   // Tam Thế Phật: ba pho ngồi cạnh nhau (quá khứ · hiện tại · vị lai)
     const ext = new THREE.Box3();
+    const FRONT = -d / 2 + 2.05, FRONT_MAX = FRONT - (zf + 0.12);   // mép trước tối đa của tượng & bệ (lư hương bắt đầu ở -d/2 + 2,6)
     xs.forEach(xi => {
       const o = src3.clone(true); o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3());
       let k = ph * (three ? (xi ? 0.8 : 0.9) : 0.97) / sz.y; if (three) k = Math.min(k, pw / 3.1 / sz.x);
+      k = Math.min(k, FRONT_MAX / sz.z);   // tượng không lấn ra trước che lư hương (lư hương cách bàn thờ ~2,6 m)
       o.scale.setScalar(k); o.position.set(xi * pw / 3 - (bb.min.x + bb.max.x) / 2 * k, base + 0.96 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
       o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
       g.add(o); ext.union(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(o.position.x + (bb.min.x + bb.max.x) / 2 * k, 0, o.position.z + (bb.min.z + bb.max.z) / 2 * k), new THREE.Vector3(sz.x * k, 0, sz.z * k))); });
     // bệ thờ (Phật đài) đỡ trọn tượng: sơn son, viền vàng, chân đế lùi vào; mặt trên đúng chân tượng
-    { const pad = 0.35, x0 = ext.min.x - pad, x1 = ext.max.x + pad, z0 = zb + 0.05, z1 = Math.max(ext.max.z + pad, zf + 0.6), W2 = x1 - x0, D2 = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, top = base + 0.96;   // ngang mặt bàn thờ dài: tượng đặt thẳng trên bàn
+    { const pad = 0.35, x0 = ext.min.x - pad, x1 = ext.max.x + pad, z0 = zb + 0.05, z1 = Math.min(Math.max(ext.max.z + pad, zf + 0.6), FRONT + 0.15), W2 = x1 - x0, D2 = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, top = base + 0.96;   // ngang mặt bàn thờ dài: tượng đặt thẳng trên bàn
       const red2 = mat('daisRed', 0x8a1a10), dais = new THREE.Group();
       dais.add(box(W2, top - base - 0.22, D2, red2, cx, base + 0.12 + (top - base - 0.22) / 2, cz));                 // thân bệ
       dais.add(box(W2 + 0.24, 0.12, D2 + 0.18, gold, cx, base + 0.06, cz + 0.06));                                    // chân đế vàng

@@ -1763,6 +1763,11 @@ function sysTick() {
     const key = txt.replace(/\d+/g, '#'), s = sysSeen[i];
     if (!s || s.key !== key || now - s.t > 75000) { sysSeen[i] = { key, t: now }; FEED.sys(txt, fn); }
   });
+  // phượng hoàng: báo đang ở chùa nào (khi vừa sang chùa mới, rồi nhắc lại mỗi 2 phút)
+  if (PH && W) { const w = PH.where(), here = temple && w.temple.id === temple.id, key = w.temple.id + (w.gone ? '-gone' : ''), s = sysSeen.ph, mins = Math.max(1, Math.round(w.left / 60));
+    if (!s || s.key !== key || now - s.t > 120000) { sysSeen.ph = { key, t: now };
+      const txt = w.gone ? `🐦 Phượng hoàng đã bay đi · sắp giáng lâm ${w.next.name}` : here ? `🐦 Phượng hoàng đang ở ngay chùa này (${w.temple.name}) · lượn trong chánh điện rồi ra sân · còn ${mins} phút` : `🐦 Phượng hoàng đang giáng lâm ${w.temple.name} · còn ${mins} phút · bấm để đến`;
+      FEED.sys(txt, here || w.gone ? null : () => { if (confirm(`Đến ${w.temple.name} chiêm bái phượng hoàng?`)) loadTemple(w.temple.id); }); } }
 }
 /* ---------------- trò chuyện (chat) ---------------- */
 const chatBubbles = [];
