@@ -188,7 +188,14 @@ function loadTemple(id) {
 /* ---------------- nhãn tên trên đầu ---------------- */
 function label(text, cls = '') { const e = el('div', 'nlabel ' + cls, text); $('labels').append(e); return e; }
 const v3 = new THREE.Vector3();
+const LABEL_NEAR = 9;   // tên & danh hiệu chỉ hiện khi đến gần (m) — đứng ngoài cổng không thấy tên người ngồi trong chánh điện
 function placeLabel(lbl, pos, h) {
+  if (lbl !== me.label && me.av && !lbl.classList.contains('far')) {
+    const R = lbl.classList.contains('chatbub') ? 14 : lbl.classList.contains('abbot') || lbl.classList.contains('merit') ? 12 : LABEL_NEAR;
+    const d = Math.hypot(pos.x - me.pos.x, pos.z - me.pos.z, ((pos.y || 0) - me.y) * 1.5);
+    if (d > R) { if (lbl.style.display !== 'none') lbl.style.display = 'none'; return; }
+    const op = d > R - 2 ? String(Math.max(0, (R - d) / 2).toFixed(2)) : ''; if (lbl.style.opacity !== op) lbl.style.opacity = op;
+  }
   v3.set(pos.x, pos.y + h, pos.z).project(camera);
   const on = v3.z < 1 && Math.abs(v3.x) < 1.1 && Math.abs(v3.y) < 1.1;
   lbl.style.display = on ? '' : 'none';
@@ -1917,15 +1924,19 @@ setInterval(() => {
 const MERIT_TITLES = [[10000, '👑', 'Đại Thí Chủ'], [5000, '☀️', 'Công Đức Vô Lượng'], [2000, '🌟', 'Đại Phước Đức'], [1000, '✨', 'Phước Đức Viên'], [500, '🪷', 'Thiện Nhân'], [200, '🍃', 'Hộ Pháp'], [50, '🌱', 'Thiện Tín']];
 const RANK_ICON = ['🥇', '🥈', '🥉', '🏅', '🏅'];
 const titleOf = (m) => MERIT_TITLES.find(t => (m || 0) >= t[0]) || null;
-function decorate(lbl, merit, rank) {
-  if (!lbl) return; const t = titleOf(merit), tt = t ? `${t[1]} ${t[2]}` : '', r = rank >= 1 && rank <= RANK_ICON.length ? RANK_ICON[rank - 1] : '';
-  if (lbl.dataset.title !== tt) lbl.dataset.title = tt; if (lbl.dataset.rank !== r) lbl.dataset.rank = r;
+/* danh hiệu tu tập theo số hạt (cấp tu tập): hiện dòng trên tên · danh hiệu công đức: dòng dưới tên (kèm huy hiệu hạng) */
+const TU_ICON = ['🌱', '🌿', '🌼', '🪷', '🧘', '💡', '💞', '🙏', '🌳', '☀️'];
+const tuOf = (beads) => { const i = levelOf(beads || 0); return `${TU_ICON[i] || '🪷'} ${C.levels[i].name}`; };
+function decorate(lbl, merit, rank, beads) {
+  if (!lbl) return; const t = titleOf(merit), r = rank >= 1 && rank <= RANK_ICON.length ? RANK_ICON[rank - 1] : '';
+  const tt = [r, t ? `${t[1]} ${t[2]}` : ''].filter(Boolean).join(' '), tu = beads == null ? '' : tuOf(beads);
+  if (lbl.dataset.title !== tt) lbl.dataset.title = tt; if (lbl.dataset.tu !== tu) lbl.dataset.tu = tu;
 }
 function decorateAll(rows) {
   const rk = (name) => rows.findIndex(r => r[0] === name) + 1;
-  decorate(me.label, P.merit, rk(P.name));
-  npcs.forEach(n => decorate(n.label, n.merit, rk(n.label.textContent)));
-  NET.decorate && NET.decorate((lbl, name, m) => decorate(lbl, m, rk(name)));
+  decorate(me.label, P.merit, rk(P.name), P.beads);
+  npcs.forEach(n => decorate(n.label, n.merit, rk(n.label.textContent), n.beads != null ? n.beads : (n.merit || 0) * 5 + (n.h || 7) % 300));
+  NET.decorate && NET.decorate((lbl, name, m, b) => decorate(lbl, m, rk(name), b));
   const t = titleOf(P.merit), k = t ? MERIT_TITLES.length - MERIT_TITLES.indexOf(t) : 0;   // mốc mới → chúc mừng
   if (k > (P.titleK || 0)) { P.titleK = k; save(); A.smallBell && A.smallBell(); banner('🏵 Danh hiệu mới', `${t[1]} ${t[2]}`, `Đạt ${fmt(t[0])} công đức · danh hiệu hiện dưới tên trên đầu nhân vật`); }
 }

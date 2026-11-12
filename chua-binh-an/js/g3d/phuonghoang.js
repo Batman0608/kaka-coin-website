@@ -111,7 +111,7 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     if (curSlot !== s) { curSlot = s; appeared = left = -1; }
     if (!bird) { if (!gl) { load(); return; }
       bird = gl.holder; scene.add(bird); mixer = new THREE.AnimationMixer(gl.g.scene); mixer.clipAction(gl.g.animations[0]).play();
-      trail = makeTrail(); glow = new THREE.PointLight(0xffa860, 1.6, 9, 1.6); scene.add(glow); lbl = label('🐦 Phượng hoàng', 'abbot'); here = true; }
+      trail = makeTrail(); glow = new THREE.PointLight(0xffa860, 1.6, 9, 1.6); scene.add(glow); lbl = label('🐦 Phượng hoàng', 'abbot far'); here = true; }
     const P0 = pathAt(t, W), P1 = pathAt(t + 0.25, W); if (!P0) { burst(bird.position.clone(), 1.2); dispose(); return; }
     // xuất hiện: chỉ bùng hiệu ứng khi người chơi đang ở chùa lúc phượng tới (vào giữa chừng thì phượng đã có sẵn)
     if (appeared !== s) { appeared = s; if (t < T_IN + 2) { burst(P0.p, 1); if (A && A.bigBell) A.bigBell(); banner && banner('🐦 Phượng hoàng giáng lâm', at.name, 'Điềm lành đến chùa · lại gần để chiêm bái'); } }

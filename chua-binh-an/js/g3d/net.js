@@ -115,7 +115,7 @@ export function initNet(ctx) {
     listChannels() { sendJ({ t: 'chs' }); },
     switchChannel(c) { if (online && c !== ch) { wantCh = c; sendJ({ t: 'ch', ch: c }); } },
     newChannel() { if (online) { let c = 1; while (chs.some(x => x.ch === c)) c++; wantCh = c; sendJ({ t: 'ch', ch: c }); } },
-    decorate(fn) { peers.forEach(p => fn(p.label, p.name, p.m || 0)); },
+    decorate(fn) { peers.forEach(p => fn(p.label, p.name, p.m || 0, p.b || 0)); },
     auraByMerit() { peers.forEach(p => p.av && p.av.setAura((p.m || 0) >= 1000, 0xffe08a, (p.m || 0) >= 2000)); },
     step, onChange: (f) => listeners.add(f),
     soc(op, d) { if (online) { sendJ(Object.assign({ t: 'soc', op }, d || {})); return true; } return false; },

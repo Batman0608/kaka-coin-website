@@ -9,7 +9,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 .nlabel { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 10px; font: 700 12px var(--sans); background: rgba(20, 8, 4, .65); color: #fff; white-space: nowrap; }
 .nlabel.me { background: linear-gradient(90deg, #a3231a, #c98a1c); }
-.nlabel[data-rank]:not([data-rank=""])::before { content: attr(data-rank) ' '; }
+.nlabel[data-tu]:not([data-tu=""])::before { content: attr(data-tu); display: block; text-align: center; font: 700 10px var(--sans); color: #bfe6c8; letter-spacing: .2px; }
 .nlabel[data-title]:not([data-title=""])::after { content: attr(data-title); display: block; text-align: center; font: 700 10px var(--sans); color: #ffe08a; letter-spacing: .2px; }
 .nlabel.abbot { background: #6a3a10; color: #ffe08a; }
 .nlabel.npc { opacity: .85; font-weight: 600; }
@@ -973,8 +973,10 @@ body.touch #kinhBar { top: calc(236px + env(safe-area-inset-top, 0px)); right: m
 html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .nlabel { padding: 1px 6px; border-radius: 8px; font-size: 10.5px; line-height: 1.25; }
 .nlabel[data-title]:not([data-title=""])::after { font-size: 8.5px; line-height: 1.15; }
+.nlabel[data-tu]:not([data-tu=""])::before { font-size: 8.5px; line-height: 1.15; }
 body.touch .nlabel { font-size: 9.5px; padding: 1px 5px; }
 body.touch .nlabel[data-title]:not([data-title=""])::after { font-size: 8px; }
+body.touch .nlabel[data-tu]:not([data-tu=""])::before { font-size: 8px; }
 .nlabel.npc { font-size: 9px; }
 .nlabel.wishlbl { font-size: 11px; max-width: 180px; }
 .chatfeed { gap: 1px; }
