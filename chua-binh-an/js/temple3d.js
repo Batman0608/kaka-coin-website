@@ -300,6 +300,29 @@ const STATUE3D = {
 const STATUE_OF = { 'binh-an': 'thichca_vang', 'long-son': 'thichca_vang', 'thien-mu': 'thichca_go', 'yen-tu': 'thichca_da',
   'vinh-nghiem': 'adida', 'giac-lam': 'adida', 'bai-dinh': 'tamthe_vang', 'tam-chuc': 'tamthe_nga', 'mot-cot': 'quanam_vang', 'huong': 'quanam', 'linh-ung': 'quanam', 'doi': 'khmer' };
 const _statues = {};
+/* cân bằng đáy tượng: bản quét thường hơi nghiêng → tìm mặt phẳng qua các điểm thấp nhất (đáy bệ/tòa sen)
+   rồi xoay cho mặt đáy nằm ngang, để tượng đặt sát mặt bệ ở mọi phía (tối đa 12°) */
+function levelBase(w) {
+  w.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(w), H = bb.max.y - bb.min.y, v = new THREE.Vector3(), pts = [];
+  w.traverse(c => { if (!c.isMesh) return; const P = c.geometry.attributes.position, st = Math.max(1, Math.floor(P.count / 30000)); for (let i = 0; i < P.count; i += st) { v.fromBufferAttribute(P, i).applyMatrix4(c.matrixWorld); pts.push([v.x, v.y, v.z]); } });
+  if (pts.length < 100) return w;
+  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2, R = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2;
+  let tilt = null;
+  for (let it = 0; it < 3; it++) {   // mỗi ô lưới lấy điểm thấp nhất (so với mặt phẳng hiện tại) → khớp mặt phẳng → lặp
+    const N = 8, cell = new Map();
+    pts.forEach(([x, y, z]) => { const yy = y - (tilt ? tilt[0] * (x - cx) + tilt[1] * (z - cz) : 0); const k = Math.floor((x - bb.min.x) / (2 * R) * N) + ',' + Math.floor((z - bb.min.z) / (2 * R) * N);
+      const c = cell.get(k); if (!c || yy < c[3]) cell.set(k, [x, y, z, yy]); });
+    let low = [...cell.values()]; const ymin = Math.min(...low.map(c => c[3])); low = low.filter(c => c[3] < ymin + H * 0.08);   // chỉ ô thuộc đáy
+    if (low.length < 4) return w;
+    let sxx = 0, sxz = 0, szz = 0, sxy = 0, szy = 0, sy = 0; const n = low.length; low.forEach(([x, y, z]) => { const X = x - cx, Z = z - cz; sxx += X * X; sxz += X * Z; szz += Z * Z; sxy += X * y; szy += Z * y; sy += y; });
+    const mx = low.reduce((a, c) => a + c[0] - cx, 0) / n, mz = low.reduce((a, c) => a + c[2] - cz, 0) / n, my = sy / n;
+    const A = sxx - n * mx * mx, B = sxz - n * mx * mz, C = szz - n * mz * mz, D = sxy - n * mx * my, E = szy - n * mz * my, det = A * C - B * B;
+    if (Math.abs(det) < 1e-9) return w; tilt = [(D * C - B * E) / det, (A * E - B * D) / det];
+  }
+  const nrm = new THREE.Vector3(-tilt[0], 1, -tilt[1]).normalize(), ang = Math.acos(nrm.y);
+  if (ang < 0.004 || ang > 0.21) return w;   // gần phẳng sẵn, hoặc nghiêng quá (không phải đáy) → giữ nguyên
+  const g = new THREE.Group(); g.quaternion.setFromUnitVectors(nrm, new THREE.Vector3(0, 1, 0)); g.add(w); return g;
+}
 function loadStatue(key) {
   if (_statues[key]) return _statues[key];
   const S = STATUE3D[key];
@@ -318,8 +341,8 @@ function loadStatue(key) {
         const y = (i) => v.fromBufferAttribute(P, i).applyMatrix4(c.matrixWorld).y;
         for (let t = 0; t < I.length; t += 3) if (y(I[t]) > lim && y(I[t + 1]) > lim && y(I[t + 2]) > lim) keep.push(I[t], I[t + 1], I[t + 2]);
         g2.setIndex(keep); }); }
-    if (S.rot || S.rotX) { const w = new THREE.Group(); o.rotation.set(S.rotX || 0, S.rot || 0, 0); w.add(o); return w; }
-    return o;
+    let w = o; if (S.rot || S.rotX) { w = new THREE.Group(); o.rotation.set(S.rotX || 0, S.rot || 0, 0); w.add(o); }
+    return levelBase(w);
   }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
 }
 /* khung bao "bền": bỏ 0,1% đỉnh thấp nhất (điểm rác lơ lửng của bản quét) để đáy tượng chạm đúng bệ */
