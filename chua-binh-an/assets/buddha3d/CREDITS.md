@@ -13,3 +13,4 @@
 `daitong.glb`: chỉ giữ phần tượng và bệ (cắt bỏ sườn đồi), giảm tam giác, nén 16,6 MB → 1,4 MB, đổi chất liệu sang có ánh sáng.
 Các tượng mới: giảm tam giác, nén ảnh WebP 512–1024 px; `tuongnho.glb` bỏ 4 pho màu lạ (tuyết, nhựa, đen); `thichca_go.glb` và `botat.glb` vá phần đuôi tệp bị thiếu khi tải lên; `botat.glb` hiển thị màu cẩm thạch trắng.
 Đợt 3: Quan Âm & Phật ngồi thiền (bản quét 500 nghìn tam giác) giảm còn ~35 nghìn; Phật ngồi thiền xoay dựng đứng & thếp vàng; `botat.glb` thay bằng bản đầy đủ có vân đồng vàng.
+Tượng ngoài trời: cắt bệ bê tông / mảng nền / mảnh vụn của bản quét; Quan Âm & Kim Thân Phật Tổ trắng (Linh Ứng, Long Sơn) dùng lại mô hình trong điện.

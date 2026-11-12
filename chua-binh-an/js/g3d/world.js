@@ -2,6 +2,7 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
+import { swapStatue, placeStatue } from '../temple3d.js';
 import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM, STONE_TILE, uvMeters } from '../temple3d.js';
 import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
@@ -176,6 +177,11 @@ export function buildWorld(scene, temple) {
       roofs: m.roofs || [], front: m.front || [], ceilY: h.localToWorld(new THREE.Vector3(0, m.base + (m.h || 4), 0)).y, w: m.w, d: m.d, yaw: h.getWorldQuaternion(new THREE.Quaternion()) };
   });
   const burners = []; root.traverse(o => { if (o.userData.burner) burners.push(o.getWorldPosition(new THREE.Vector3())); });
+  // đôi đèn lồng đồng trước cửa chánh điện (Japanese Bronze Lantern — adrianovalentini, CC BY 4.0); khối chặn vô hình để không đi xuyên qua
+  if (halls[0]) { const h = halls[0], m = h.userData.mainHall, inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    [-1, 1].forEach(sx => { const p = h.localToWorld(new THREE.Vector3(sx * Math.min(m.w / 2 - 0.6, 6.5), m.base, m.d / 2 + 1.6)).applyMatrix4(inv), yaw = h.getWorldQuaternion(new THREE.Quaternion());
+      const e = new THREE.Euler().setFromQuaternion(yaw, 'YXZ'); placeStatue(root, 'denlong', 1.9, p.x, p.y, p.z, e.y);
+      const blk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshBasicMaterial()); blk.visible = false; blk.position.set(p.x, p.y + 0.9, p.z); root.add(blk); }); }
   let col = new Collision(); col.build(root);
   // khuôn viên: tượng Phật, hồ sen, hồ cá Koi… đặt vào chỗ trống bằng phẳng; mỗi nơi là một điểm câu hỏi
   const quiz = gardenDecor(root, Lx, temple, col, hallInfo);
@@ -446,7 +452,7 @@ function yardDecor(root, L) {
     const b = cyl(0.55, 0.7, 1.3, 16, BRONZE(), 0, 2.4, 0); b.userData.noCollide = true; bell.add(b); g.add(bell); }
   { const gy = new THREE.Group(); gy.position.set(20, 0, -9); g.add(gy);
     gy.add(cyl(2.4, 2.6, 0.5, 24, stone, 0, 0.25, 0));
-    const gu = standingGuanyin(4.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })); gu.position.y = 0.5; gu.rotation.y = -Math.PI / 2; gy.add(gu);
+    const gu = swapStatue(standingGuanyin(4.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })), 'quanam'); gu.position.y = 0.5; gu.rotation.y = -Math.PI / 2; gy.add(gu);
     for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), LEAF2()); bush.position.set(Math.cos(a) * 3.6, 0.4, Math.sin(a) * 3.6); bush.userData.noCollide = true; gy.add(bush); } }
   // hàng cây: dọc lối vào, quanh tường rào, sau chánh điện
   const T = (x, z, h = 6) => g.add(tree(h, (Math.abs(x * 7 + z) | 0) % 2 ? LEAF() : LEAF2(), x, z));
@@ -681,7 +687,7 @@ function gardenDecor(root, L, temple, col, halls) {
   const statueKinds = [['Tượng Phật Thích Ca ngoài trời', 'thichca'], ['Tượng Phật A Di Đà', 'adida'], ['Tượng Phật Dược Sư', 'duocsu']];
   { const p = place(3.0); if (p) { const [nm] = statueKinds[H % 3]; const q = new THREE.Group(); q.position.set(p.x, p.y, p.z); g.add(q);
     q.add(cyl(2.2, 2.4, 0.6, 24, stone, 0, 0.3, 0)); q.add(box(1.6, 1.0, 1.6, stone, 0, 1.1, 0));
-    const b = seatedBuddha(1.15, H % 2 ? WHITE() : GOLD()); b.position.y = 1.6; b.traverse(o => { o.userData.noCollide = true; }); q.add(b);
+    const b = temple.id === 'doi' ? swapStatue(seatedBuddha(1.15, GOLD()), 'phatdung', 1.9) : swapStatue(seatedBuddha(1.15, H % 2 ? WHITE() : GOLD()), 'phatda', 1.15); b.position.y = 1.6; b.traverse(o => { o.userData.noCollide = true; }); q.add(b);
     const tb = box(1.0, 0.5, 0.45, mat('altar', 0x7a1a0e), 0, 0.85, 1.55); q.add(tb); faceTo(q, p.x, p.z);
     plates(q, 2.6, 0);
     spots.push({ name: nm, x: p.x, z: p.z, r: 4.6 }); } }
@@ -713,7 +719,7 @@ function gardenDecor(root, L, temple, col, halls) {
   // 4) tượng Quán Âm đứng / Di Lặc cười
   { const p = place(2.6); if (p) { const q = new THREE.Group(); q.position.set(p.x, p.y, p.z); g.add(q); const dl = H % 2;
     q.add(cyl(1.9, 2.1, 0.5, 20, stone, 0, 0.25, 0));
-    const st = dl ? maitreya(1.1, GOLD()) : standingGuanyin(3.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })); st.position.y = 0.5; st.traverse(o => { o.userData.noCollide = true; }); q.add(st);
+    const st = dl ? swapStatue(maitreya(1.1, GOLD()), 'dilac', 1.25) : swapStatue(standingGuanyin(3.2, mat('guanyinW', 0xf5f1e6, { roughness: 0.5 })), 'quanam'); st.position.y = 0.5; st.traverse(o => { o.userData.noCollide = true; }); q.add(st);
     q.add(box(0.9, 1.2, 0.9, stone, 0, 0.6, 0)); faceTo(q, p.x, p.z); plates(q, 2.3, 0);
     spots.push({ name: dl ? 'Tượng Phật Di Lặc' : 'Tượng Quán Thế Âm Bồ Tát', x: p.x, z: p.z, r: 4.2 }); } }
   // 5) sân rộng: vườn cảnh ở góc sân — hòn non bộ, bonsai, khóm trúc, ghế đá, đèn đá
