@@ -27,7 +27,11 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
       g.scene.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; if (o.material) { o.material.emissiveIntensity = 1.4; } } });
       const inner = new THREE.Group(); inner.rotation.y = -Math.PI / 2; inner.add(g.scene);   // mô hình gốc bay theo trục +x → xoay về +z
       const box = new THREE.Box3().setFromObject(inner, true), c = box.getCenter(V()); g.scene.position.sub(c);
-      const holder = new THREE.Group(); holder.add(inner); holder.userData.len = box.getSize(V()).length(); holder.userData.hh = box.getSize(V()).y / 2;   // nửa chiều cao (tâm → điểm thấp nhất)
+      const holder = new THREE.Group(); holder.add(inner); holder.userData.len = box.getSize(V()).length(); holder.userData.hh = box.getSize(V()).y / 2;
+      // đo điểm thấp nhất THẬT của chim khi đang cử động (mô hình có xương: khung bao tĩnh sai lệch) → đặt chân đúng mặt sàn
+      if (g.animations[0]) { const mx = new THREE.AnimationMixer(g.scene), act = mx.clipAction(g.animations[0]); act.play(); const dur = g.animations[0].duration, lows = [];
+        for (let k = 0; k < 10; k++) { mx.setTime(dur * k / 10); holder.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(holder, true); lows.push(-b.min.y); }
+        mx.stopAllAction(); mx.uncacheRoot(g.scene); lows.sort((x, y) => x - y); holder.userData.hh = lows[Math.floor(lows.length * 0.6)]; }
       gl = { g, holder }; return gl;
     }).catch(e => { console.warn('[Phượng hoàng]', e); loading = null; return null; }));
   }
@@ -80,6 +84,19 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
   /* lịch một lượt (giây): 0–6 hiện ra · 6–4 lượn rồi đáp · đi quanh chánh điện · đi bộ ra cửa, xuống sân ·
      bay vòng vòng trên sân · đáp xuống đi quanh sân (thỉnh thoảng nhún bay lên) · lại bay vòng · đi tiếp · bay vút lên trời */
   const SEG = [[0, 'appear'], [10, 'hallWalk'], [95, 'toDoor'], [112, 'fly'], [175, 'yardWalk'], [300, 'fly'], [345, 'yardWalk'], [T_UP, 'rise'], [T_GONE, 'end']];
+  const _ys = new WeakMap();
+  function yardSpot(W, G, m) {
+    if (_ys.has(W)) return _ys.get(W);
+    const L = (x, z) => G.localToWorld(V(x, m.base, z)), ok = (q, y0) => { const h = W.col.heightAt(q.x, q.z, y0 + 2); return h != null && Math.abs(h - y0) < 0.35 ? h : null; };
+    let best = null;
+    for (const r of [7, 5.5, 4, 3]) { for (const dz of [9, 12, 7, 15, 6, 18]) for (const dx of [0, -5, 5, -9, 9]) {
+        const c = L(dx, m.d / 2 + dz); const y0 = W.col.heightAt(c.x, c.z, c.y + 4); if (y0 == null) continue;
+        let good = true; for (let i = 0; i < 12 && good; i++) { const a = i / 12 * Math.PI * 2; if (ok(V(c.x + Math.cos(a) * r, 0, c.z + Math.sin(a) * r), y0) == null) good = false; }
+        if (good) { best = { x: c.x, y: y0, z: c.z, r }; break; } }
+      if (best) break; }
+    if (!best) { const sp = W.layout.spawn; best = { x: sp[0], y: W.col.heightAt(sp[0], sp[1], 50) || 0, z: sp[1], r: 3 }; }
+    _ys.set(W, best); return best;
+  }
   function pathAt(t, W) {
     const H = W.halls && W.halls[0]; if (!H) return null;
     const G = H.group, m = G.userData.mainHall, base = m.base, d = m.d, w = m.w;
@@ -91,18 +108,19 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     const hallG = (tt) => { const q = hallPt(tt); q.y += PERCH; return q; };
     const door = L(0, base, d / 2 + 0.6), doorOut = L(0, base, d / 2 + 4);
     // ngoài sân: đi uốn lượn trước chánh điện
-    const yardPt = (tt) => { const u = tt * 0.1; const q = L(Math.sin(u) * 6 + Math.sin(u * 2.3 + 1) * 1.6, base, d / 2 + 9 + Math.sin(u * 1.7) * 3 + Math.cos(u * 0.9) * 1.2); q.y = gy(q); return q; };
+    const YC = yardSpot(W, G, m);   // khoảng sân khô, đi được trước điện (tránh hồ sen, bậc cao…)
+    const yardPt = (tt) => { const u = tt * 0.1, r = YC.r; const q = V(YC.x + (Math.sin(u) * 0.75 + Math.sin(u * 2.3 + 1) * 0.2) * r, YC.y, YC.z + (Math.sin(u * 1.7) * 0.5 + Math.cos(u * 0.9) * 0.2) * r); q.y = gy(q); return q; };
     const HOP = 24, HOPT = 3;
-    const yardG = (tt, t0) => { const q = yardPt(tt), ph = (tt - t0) % HOP, air = ph > HOP - HOPT ? Math.sin((ph - (HOP - HOPT)) / HOPT * Math.PI) : 0; q.y += PERCH + air * 2.4; return { p: q, inside: false, air }; };
+    const yardG = (tt, t0) => { const q = yardPt(tt), g = q.y, ph = (tt - t0) % HOP, air = ph > HOP - HOPT ? Math.sin((ph - (HOP - HOPT)) / HOPT * Math.PI) : 0; q.y += PERCH + air * 2.4; return { p: q, inside: false, air, g }; };
     // bay vòng vòng trên sân
-    const ctr = L(0, base, d / 2 + 10); ctr.y = gy(ctr);
+    const ctr = V(YC.x, YC.y, YC.z);
     const flyPt = (tt, t0) => { const a = (tt - t0) * 0.22; return V(ctr.x + Math.sin(a) * 9, ctr.y + 6 + Math.sin(tt * 0.7) * 1.2, ctr.z + Math.cos(a) * 9); };
     let k = 0; while (k < SEG.length - 1 && t >= SEG[k + 1][0]) k++;
     const [t0, kind] = SEG[k], t1 = SEG[k + 1] ? SEG[k + 1][0] : t0, u = (t - t0) / Math.max(1e-3, t1 - t0);
-    if (kind === 'appear') { const end = hallG(SEG[1][0]); return { p: end.clone().add(V(0, 2.2 * (1 - ease(u)), 0)), inside: true, air: 1 - u }; }
-    if (kind === 'hallWalk') return { p: hallG(t), inside: true, air: 0 };
+    if (kind === 'appear') { const end = hallG(SEG[1][0]); return { p: end.clone().add(V(0, 2.2 * (1 - ease(u)), 0)), inside: true, air: 1 - u, g: hallPt(SEG[1][0]).y }; }
+    if (kind === 'hallWalk') return { p: hallG(t), inside: true, air: 0, g: hallPt(t).y };
     if (kind === 'toDoor') { const a = hallG(t0), b = door.clone(), c = yardPt(SEG[k + 1][0]); b.y = gy(b) + PERCH;
-      const q = u < 0.5 ? lerp3(a, b, u * 2) : lerp3(b, c.clone().setY(c.y + PERCH), (u - 0.5) * 2); return { p: q, inside: u < 0.5, air: 0 }; }   // đi bộ ra cửa, xuống bậc ra sân
+      const q = u < 0.5 ? lerp3(a, b, u * 2) : lerp3(b, c.clone().setY(c.y + PERCH), (u - 0.5) * 2); const hg = W.col.heightAt(q.x, q.z, q.y); return { p: q, inside: u < 0.5, air: 0, g: hg != null && Math.abs(hg - (q.y - PERCH)) < 1.2 ? hg : q.y - PERCH }; }   // đi bộ ra cửa, chân bám theo từng bậc, xuống bậc ra sân
     if (kind === 'fly') { const st = k > 0 && SEG[k - 1][1] === 'yardWalk' ? yardG(t0, SEG[k - 1][0]).p : yardPt(t0).setY(yardPt(t0).y + PERCH), en = yardPt(t1).setY(yardPt(t1).y + PERCH);
       const f = flyPt(t, t0), up = Math.min(1, (t - t0) / 4), down = Math.min(1, (t1 - t) / 4);
       const q = up < 1 ? lerp3(st, f, up) : down < 1 ? lerp3(en, f, down) : f; return { p: q, inside: false, air: Math.min(up, down) }; }
@@ -120,7 +138,7 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     if (glow) { scene.remove(glow); glow = null; } if (lbl) { lbl.remove(); lbl = null; }
     fx.forEach(f => scene.remove(f.g)); fx = []; bird = null; mixer = null; appeared = left = -1;
   }
-  const _a = V(), _b = V();
+  const _a = V(), _b = V(); let feet = [], footOff = null;
   function step(dt) {
     fxStep(dt);
     const t0 = now(), s = slotOf(t0), at = templeOf(s), t = t0 - s * SLOT, W = getW(), tp = getTemple();
@@ -129,9 +147,9 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     if (!mine) { if (bird) { const p = bird.position.clone(); if (here) burst(p, 1.2); dispose(); } here = false; return; }
     if (curSlot !== s) { curSlot = s; appeared = left = -1; }
     if (!bird) { if (!gl) { load(); return; }
-      bird = gl.holder; scene.add(bird); mixer = new THREE.AnimationMixer(gl.g.scene); mixer.clipAction(gl.g.animations[0]).play();
+      bird = gl.holder; scene.add(bird); feet = []; footOff = null; bird.traverse(o => { if (o.isBone && /Foot/i.test(o.name)) feet.push(o); }); mixer = new THREE.AnimationMixer(gl.g.scene); mixer.clipAction(gl.g.animations[0]).play();
       trail = makeTrail(); glow = new THREE.PointLight(0xffa860, 1.6, 9, 1.6); scene.add(glow); lbl = label('🐦 Phượng hoàng', 'abbot far'); here = true; }
-    PERCH = (gl.holder.userData.hh || 0.3) * (2.9 / (gl.holder.userData.len || 1)) * 0.92;
+    PERCH = (gl.holder.userData.hh || 0.3) * (2.9 / (gl.holder.userData.len || 1));
     const P0 = pathAt(t, W), P1 = pathAt(t + 0.25, W); if (!P0) { burst(bird.position.clone(), 1.2); dispose(); return; }
     // xuất hiện: chỉ bùng hiệu ứng khi người chơi đang ở chùa lúc phượng tới (vào giữa chừng thì phượng đã có sẵn)
     if (appeared !== s) { appeared = s; if (t < T_IN + 2) { burst(P0.p, 1); if (A && A.bigBell) A.bigBell(); banner && banner('🐦 Phượng hoàng giáng lâm', at.name, 'Điềm lành đến chùa · lại gần để chiêm bái'); } }
@@ -143,7 +161,10 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
       const onGround = P0.air != null && P0.air < 0.05; bird.rotation.set(onGround ? 0 : pitch * 0.6, yaw, 0, 'YXZ'); } }
     // đang đậu/đi bộ: cánh vỗ rất chậm như rỉa lông; bay lên: vỗ nhanh
     const flying = P0.air == null || P0.air > 0.05; mixer.update(dt * (P0.rise ? 1.6 : flying ? 1.15 : 0.18));
-    if (!flying) bird.position.y += Math.abs(Math.sin(t0 * 5.2)) * 0.06;   // nhún nhẹ theo bước đi
+    // đặt bàn chân đúng mặt sàn/sân: đo xương bàn chân thật mỗi khung hình (chim có xương, dáng thay đổi khi vỗ cánh)
+    if (P0.g != null && feet.length) { bird.updateMatrixWorld(true); let fy = Infinity; feet.forEach(f => { fy = Math.min(fy, f.getWorldPosition(_b).y); });
+      const off = bird.position.y - fy; footOff = footOff == null ? off : footOff + (off - footOff) * Math.min(1, dt * 6);
+      bird.position.y = P0.g + footOff + 0.03 + (P0.air || 0) * 2.4 + (flying ? 0 : Math.abs(Math.sin(t0 * 5.2)) * 0.05); }
     _b.set(0, 0, -0.45 * size).applyEuler(bird.rotation).add(bird.position);   // đuôi
     trailStep(dt, _b, true);
     glow.position.copy(bird.position); glow.intensity = 1.6 + Math.sin(t0 * 3) * 0.4;
@@ -159,5 +180,5 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
   /* cho biết phượng đang ở đâu & bao lâu nữa sang chùa khác (Cài đặt / bản đồ có thể dùng) */
   function where() { const t0 = now(), s = slotOf(t0), t = t0 - s * SLOT; return { temple: templeOf(s), next: templeOf(s + 1), left: Math.max(0, SLOT - t), gone: t >= T_GONE }; }
   setTimeout(load, 12000);   // tải sẵn mô hình (≈1 MB) sau khi game đã chạy ổn, để lúc phượng tới là hiện ngay
-  return { onTemple, dispose, step, context, where, pos: () => bird && bird.position };
+  return { onTemple, dispose, step, context, where, pos: () => bird && bird.position, low: () => feet.length ? Math.min(...feet.map(f => f.getWorldPosition(V()).y)) : null };   // low: độ cao bàn chân (kiểm thử)
 }
