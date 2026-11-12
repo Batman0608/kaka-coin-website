@@ -2,7 +2,7 @@
  *  THẾ GIỚI 3D CỦA TỪNG CHÙA: dựng cảnh, va chạm, địa hình (núi leo được,
  *  bậc thềm bước được), địa danh khám phá, bến thuyền, sư trụ trì.
  * ========================================================================= */
-import { swapStatue, placeStatue } from '../temple3d.js';
+import { swapStatue, placeStatue, lanternGlb } from '../temple3d.js';
 import { THREE, buildLandmark, interiorHall, plaque, HALLS, box, mat, water, tree, LEAF, LEAF2, STONE, roof, cyl, hall, lotusPads, standingGuanyin, GOLD, BRONZE, WOOD, RED, seatedBuddha, maitreya, WHITE, ANIM, STONE_TILE, uvMeters } from '../temple3d.js';
 import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
@@ -193,6 +193,7 @@ export function buildWorld(scene, temple) {
   (Lx.pois || []).forEach(p => { if (!p[5] && !hallInfo.some(h => Math.hypot(p[1] - h.altar.x, p[2] - h.altar.z) < Math.max(h.w, h.d) / 2 + 2)) quiz.spots.push({ name: p[0], x: p[1], z: p[2], r: Math.min(p[3], 5) }); });   // điểm trong chánh điện không hỏi (đang lễ Phật)
   // mái cổng & phần cao của cổng: ẩn tạm khi che giữa camera và người chơi
   const camHide = []; root.traverse(o => { if (o.userData.gate) o.traverse(m => { if (m.isMesh && new THREE.Box3().setFromObject(m).max.y > 2.2) camHide.push(m); }); });
+  { const lm = mat('lantern', 0xd9332a), L2 = []; root.traverse(o => { if (o.isMesh && o.material === lm && o.geometry.type === 'SphereGeometry') L2.push(o); }); L2.forEach(lanternGlb); }   // đèn lồng đỏ 3D
   mergeStatic(root);   // gộp cây & vật trang trí tĩnh thành vài khối lớn → điện thoại vẽ nhanh, bấm không trễ
   return { quizSpots: quiz.spots, root, conf, layout: Lx, duyenTree: root.userData.duyenTree || null, halls: hallInfo, burners, col, camHide, merit: meritAt ? meritAt.getWorldPosition(new THREE.Vector3()) : null };
 }
@@ -250,6 +251,7 @@ function brickTex() {   // gạch vuông xám đã cũ: ố màu, sứt mẻ, r�
 }
 /* kiểu cổng theo vùng miền & kiến trúc từng chùa */
 const GATE_STYLE = { 'chua-ha': 'bac1', 'binh-an': 'bac', 'bai-dinh': 'baidinh', 'tam-chuc': 'hue', 'mot-cot': 'bac1', 'huong': 'son', 'yen-tu': 'son', 'thien-mu': 'hue', 'linh-ung': 'hien', 'long-son': 'nam', 'vinh-nghiem': 'bac', 'giac-lam': 'nam', 'doi': 'khmer' };
+const MOSSY = new Set(['yen-tu', 'huong', 'tam-chuc', 'bai-dinh']);   // chùa núi: đèn đá phủ rêu
 function buildYards(root, yards, temple) {
   root.updateMatrixWorld(true);
   const probe = new Collision(); probe.build(root);           // địa hình hiện có: bỏ đoạn tường đâm vào núi, nhà, nước
@@ -274,7 +276,7 @@ function buildYards(root, yards, temple) {
         L.add(box(0.55, 0.22, 0.55, stone, 0, 0.11, 0)); L.add(box(0.2, 1.05, 0.2, stone, 0, 0.74, 0)); L.add(box(0.5, 0.08, 0.5, stone, 0, 1.3, 0));
         const lb = box(0.36, 0.36, 0.36, lampM, 0, 1.52, 0); lb.userData.nightLamp = true; L.add(lb);
         const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.42, 0.26, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.83; L.add(cap);
-        L.traverse(o => { o.userData.noCollide = true; }); lb.userData.nightLamp = true; root.add(L);
+        L.traverse(o => { o.userData.noCollide = true; }); lb.userData.nightLamp = true; root.add(swapStatue(L, MOSSY.has(temple.id) ? 'den_reu' : 'den_thap', 1.15));
       })); }
     const gateG = gateBuild(yi === 0 ? style : 'phu', gw, temple, { plaster, brickM, cap });
     const hw = gateG.userData.halfW;          // nửa bề rộng cả cổng (kể cả hai cánh bên)
@@ -437,7 +439,7 @@ function yardDecor(root, L) {
   const stone = STONE(), lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
   const lantern = (x, z) => { const l = new THREE.Group(); l.position.set(x, 0, z);
     l.add(box(0.6, 0.2, 0.6, stone, 0, 0.1, 0)); l.add(cyl(0.1, 0.13, 0.85, 8, stone, 0, 0.62, 0)); l.add(box(0.5, 0.42, 0.5, lampM, 0, 1.25, 0)); l.add(box(0.36, 0.44, 0.62, stone, 0, 1.25, 0));
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); g.add(l); };
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); l.children.find(c => c.material === lampM).userData.nightLamp = true; g.add(swapStatue(l, 'den_mai', 1.1)); };
   [21.5, 25.5, 29.5].forEach(z => [-3.3, 3.3].forEach(x => lantern(x, z)));
   [[wx0 - 2.4, wz0 - 2.4], [wx1 + 2.4, wz0 - 2.4], [wx0 - 2.4, wz1 + 2.4], [wx1 + 2.4, wz1 + 2.4]].forEach(([x, z]) => lantern(x, z));
   // hai hồ sen trước sân: bờ đá thấp, nước, lá & hoa sen
@@ -520,7 +522,7 @@ function yardGreen(root, L) {
   const stone = STONE(), lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
   const lantern = (x, z, y) => { const l = new THREE.Group(); l.position.set(x, y, z);
     l.add(box(0.6, 0.2, 0.6, stone, 0, 0.1, 0)); l.add(cyl(0.1, 0.13, 0.85, 8, stone, 0, 0.62, 0)); l.add(box(0.5, 0.42, 0.5, lampM, 0, 1.25, 0)); l.add(box(0.36, 0.44, 0.62, stone, 0, 1.25, 0));
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); g.add(l); };
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.36, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.64; l.add(cap); l.children.find(c => c.material === lampM).userData.nightLamp = true; g.add(swapStatue(l, 'den_tron', 0.95)); };
   L.yard.forEach((Y, yi) => {
     const [x0, z0, x1, z1] = Y.r, y = Y.y || 0, O = (LAYOUT_OF(L, yi) || Y.r);
     const isNew = (x, z) => !(x > O[0] - 1 && x < O[2] + 1 && z > O[1] - 1 && z < O[3] + 1);
@@ -762,7 +764,7 @@ function gardenDecor(root, L, temple, col, halls) {
         const rk2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4, 0), rockD); rk2.position.set(-0.9, 0.3, 0.5); q.add(rk2);
         const bench = new THREE.Group(); bench.position.set(0, 0, 2.6); bench.add(box(1.8, 0.12, 0.5, stone, 0, 0.45, 0)); [-0.7, 0.7].forEach(x => bench.add(box(0.15, 0.42, 0.42, stone, x, 0.21, 0))); q.add(bench);
         const lampM = mat('stoneLamp', 0xffd9a0, { emissive: 0xffb050, emissiveIntensity: 0.9 });
-        [[-2.4, 1.6], [2.4, 1.6]].forEach(([x, z]) => { const l = new THREE.Group(); l.position.set(x, 0, z); l.add(box(0.5, 0.18, 0.5, stone, 0, 0.09, 0)); l.add(cyl(0.09, 0.12, 0.75, 8, stone, 0, 0.55, 0)); l.add(box(0.42, 0.36, 0.42, lampM, 0, 1.1, 0)); const cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.3, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.43; l.add(cap); q.add(l); });
+        [[-2.4, 1.6], [2.4, 1.6]].forEach(([x, z]) => { const l = new THREE.Group(); l.position.set(x, 0, z); l.add(box(0.5, 0.18, 0.5, stone, 0, 0.09, 0)); l.add(cyl(0.09, 0.12, 0.75, 8, stone, 0, 0.55, 0)); l.add(box(0.42, 0.36, 0.42, lampM, 0, 1.1, 0)); const cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.3, 4), stone); cap.rotation.y = Math.PI / 4; cap.position.y = 1.43; l.add(cap); l.children.find(c => c.material === lampM).userData.nightLamp = true; q.add(swapStatue(l, 'den_kasuga', 1.2)); });
         faceTo(q, p.x, p.z);
         spots.push({ name: 'Vườn trúc thiền', x: p.x, z: p.z, r: 5 });
       }

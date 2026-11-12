@@ -291,7 +291,14 @@ const STATUE3D = {
   phatda: { url: 'assets/buddha3d/phatda.glb', cutBelow: 0.5 },                     // Phật đá trắng ngồi tòa sen — ezearo, CC BY 4.0 (bỏ bệ & nền của bản quét)
   phatdung: { url: 'assets/buddha3d/phatdung.glb', cutBelow: 0.1 },                 // Phật vàng đứng kiểu Thái — nottyairs, CC BY 4.0
   dilac: { url: 'assets/buddha3d/dilac.glb' },                                       // Phật Di Lặc đá giơ tay — nicamarvin2005, CC BY 4.0
-  denlong: { url: 'assets/buddha3d/denlong.glb' },                                   // đèn lồng đồng — adrianovalentini, CC BY 4.0
+  denlong: { url: 'assets/buddha3d/denlong.glb' },
+  // ---- cột đèn đá (CC BY 4.0) ----
+  longden: { url: 'assets/buddha3d/longden.glb' },      // đèn lồng đỏ treo — z3song
+  den_thap: { url: 'assets/buddha3d/den_thap.glb' },     // đèn đá mái tháp cao — patrakeevasveta
+  den_tron: { url: 'assets/buddha3d/den_tron.glb' },     // đèn đá tròn ô cửa tròn — patrakeevasveta
+  den_mai: { url: 'assets/buddha3d/den_mai.glb' },       // đèn đá mái cong chân tiện — ST_20
+  den_reu: { url: 'assets/buddha3d/den_reu.glb' },       // đèn đá phủ rêu, đèn đỏ, dây buộc — Lindroow
+  den_kasuga: { url: 'assets/buddha3d/den_kasuga.glb' }, // đèn đá vuông ô sáng — Sahir Virmani                                   // đèn lồng đồng — adrianovalentini, CC BY 4.0
   thichca_vang: { url: 'assets/buddha3d/thichca_vang.glb', metal: true },           // Thích Ca đồng thếp vàng — Korea Heritage Service, CC BY 4.0
   thichca_go: { url: 'assets/buddha3d/thichca_go.glb', rot: Math.PI },              // Thích Ca gỗ, hào quang lá đề — Tomas Ibar, CC BY 4.0
   thichca_da: { url: 'assets/buddha3d/thichca_da.glb' },                            // Thích Ca đá phủ rêu — AshSkag, CC BY 4.0
@@ -371,6 +378,18 @@ export function swapStatue(proc, key, hk = 1, atOrigin = false) {   // atOrigin:
     proc.children.forEach(c => { c.visible = false; }); proc.add(o);
     contactShadow(proc, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * k * 0.62, atOrigin ? 0 : ob.min.y); });
   return proc;
+}
+/* đèn lồng đỏ treo: thay quả cầu đỏ bằng đèn lồng 3D (khung đồng, tua rua); quả cầu thu nhỏ giấu bên trong để
+   ban đêm vẫn được bầu trời bật sáng; đèn lồng sáng theo cùng độ sáng của quả cầu */
+export function lanternGlb(sph) {
+  sph.userData.swapLantern = true;
+  loadStatue('longden').then(src => { if (!src || !sph.parent) return;
+    const o = src.clone(true); o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o);
+    sph.geometry.computeBoundingSphere(); const r = sph.geometry.boundingSphere.radius * sph.scale.x, k = r * 2.1 / (bb.max.x - bb.min.x);
+    o.scale.setScalar(k); o.position.set(sph.position.x - (bb.min.x + bb.max.x) / 2 * k, sph.position.y - (bb.min.y + bb.max.y) / 2 * k + r * 0.25, sph.position.z - (bb.min.z + bb.max.z) / 2 * k);
+    const src0 = sph.material; o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { const m = c.material.clone(); m.emissive = new THREE.Color(0xffffff); m.emissiveMap = m.map; c.material = m; c.castShadow = false;
+      ANIM.push(() => { m.emissiveIntensity = 0.15 + (src0.emissiveIntensity || 0) * 0.55; }); } });
+    sph.parent.add(o); sph.scale.multiplyScalar(0.55); });
 }
 export function placeStatue(parent, key, h, x, y, z, ry = 0) {   // đặt thêm tượng/đồ 3D (không thay gì), cao h mét
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
