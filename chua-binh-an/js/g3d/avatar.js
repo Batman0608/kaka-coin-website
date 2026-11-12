@@ -8,6 +8,7 @@
  * ========================================================================= */
 import { THREE } from '../temple3d.js';
 import { usePsx } from './psxnam.js';
+import { useMonk } from './sumonk.js';
 let _auraTex = null;
 function auraTex() {
   if (_auraTex) return _auraTex;
@@ -333,6 +334,7 @@ export class Avatar {
     this.halo = part(new THREE.RingGeometry(0.3, 0.36, 40), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, toneMapped: false }), 0, hy, -0.14); this.halo.visible = false; head.add(this.halo);
     this.apply();
     if (this.player && this.look.g === 'nam' && !this.monk) usePsx(this, ROBES[L.robe] || ROBES.lam);
+    if (this.player && this.monk) useMonk(this, this.kasaya ? 'su' : 'tru');   // sư thầy (khoác cà sa) & sư trụ trì
   }
   setLook(look) { const aura = this.aura && this.aura.visible ? [this._auraColor, this._auraStrong] : null; Object.assign(this.look, look); this.build(); if (aura) this.setAura(true, aura[0], aura[1]); }
   setPose(name) { if (POSES[name]) this.target = name; }
