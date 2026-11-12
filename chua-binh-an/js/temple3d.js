@@ -729,7 +729,34 @@ function hall({ w = 10, d = 6, h = 3.2, tiers = 2, wall = null, roofColor = null
   return g;
 }
 /* tháp nhiều tầng: sides 4 = vuông, 6 = lục giác, 8 = bát giác */
-function tower({ tiers = 7, sides = 8, r = 2.2, th = 2, taper = 0.45, wall = null, roofColor = null } = {}) {
+/* THÁP 3D: “Pagoda - Low Poly” — calebcram (Sketchfab, CC BY 4.0). Mỗi chùa tô một bộ màu riêng:
+   col = cột, lan can, mặt dưới mái (vốn đỏ son) · roof = mái (vốn nâu ô liu); vách giấy trắng giữ nguyên. */
+let _thap = null; const _thapTex = new Map();
+function thapTex(img, col, roof) {
+  const key = col + '|' + roof; if (_thapTex.has(key)) return _thapTex.get(key);
+  const c = document.createElement('canvas'); c.width = c.height = 1024; const g = c.getContext('2d'); g.drawImage(img, 0, 0, 1024, 1024);
+  const D = g.getImageData(0, 0, 1024, 1024), a = D.data, C = new THREE.Color(col), R = new THREE.Color(roof);
+  const cr = [C.r, C.g, C.b].map(v => Math.pow(v, 1 / 2.2) * 255), rr = [R.r, R.g, R.b].map(v => Math.pow(v, 1 / 2.2) * 255);
+  for (let i = 0; i < a.length; i += 4) { const r = a[i], gg = a[i + 1], b = a[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0;
+    if (r > gg * 1.8 && r > b * 1.8 && sat > 0.5) { const k = r / 230; a[i] = cr[0] * k; a[i + 1] = cr[1] * k; a[i + 2] = cr[2] * k; }                   // đỏ son → màu cột
+    else if (sat > 0.12 && sat < 0.5 && r >= b && gg >= b && mx < 150 && mx > 40) { const k = mx / 95; a[i] = rr[0] * k; a[i + 1] = rr[1] * k; a[i + 2] = rr[2] * k; } }   // nâu ô liu → màu mái
+  g.putImageData(D, 0, 0); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.anisotropy = 4; _thapTex.set(key, t); return t;
+}
+function thapGlb(holder, pal) {   // thay tháp dựng khối bằng tháp 3D (giữ chiều cao cũ); tải lỗi thì giữ tháp cũ
+  holder.userData.pagoda = true;   // không gộp khối (để ẩn được phần cũ khi tháp mới tải xong)
+  (_thap || (_thap = new GLTFLoader().loadAsync('assets/thap.glb').catch(e => { console.warn('[Tháp 3D]', e); return null; }))).then(gl => { if (!gl) return;
+    holder.updateMatrixWorld(true);
+    const old = new THREE.Box3(); holder.children.forEach(c => old.expandByObject(c)); const ws = holder.getWorldScale(new THREE.Vector3()).y, oh = (old.max.y - old.min.y) / ws;   // chiều cao cũ (toạ độ riêng của tháp)
+    const m = gl.scene.clone(true); let tex = null;
+    m.traverse(o => { if (!o.isMesh) return; const src = o.material; if (!tex && src.map && src.map.image) tex = thapTex(src.map.image, pal.col, pal.roof);
+      o.material = new THREE.MeshStandardMaterial({ map: tex || src.map, roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide }); o.castShadow = true; o.receiveShadow = true; o.userData.noCollide = true; });
+    m.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(m), k = oh / (bb.max.y - bb.min.y) * (pal.h || 1);
+    holder.children.forEach(c => { c.visible = false; });
+    m.scale.setScalar(k); m.position.set(-(bb.min.x + bb.max.x) / 2 * k, -bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k);
+    holder.add(m);
+  });
+}
+function tower({ tiers = 7, sides = 8, r = 2.2, th = 2, taper = 0.45, wall = null, roofColor = null, glb = null } = {}) {
   const g = new THREE.Group(); let y = 0;
   g.add(cyl(r * 1.3, r * 1.4, 0.6, sides, STONE(), 0, 0.3, 0)); y = 0.6;
   for (let i = 0; i < tiers; i++) {
@@ -746,6 +773,7 @@ function tower({ tiers = 7, sides = 8, r = 2.2, th = 2, taper = 0.45, wall = nul
   g.add(cyl(0.05, r * 0.35, 1.4, 8, GOLD(), 0, y + 0.7, 0));
   g.add(mesh(new THREE.SphereGeometry(r * 0.12, 12, 8), GOLD(), 0, y + 1.5, 0));
   g.userData.height = y + 1.6;
+  if (glb) thapGlb(g, glb);
   return g;
 }
 function stairs(w, n, rise, run, m = STONE()) {
@@ -994,7 +1022,7 @@ const SCENES = {
     const st = stairs(6, 10, 0.3, 0.6); st.position.set(0, 0, 10.7); g.add(st);   // bậc trên cùng (3,0 m) chạm đúng mép nền
     const bell = hall({ w: 4, d: 4, h: 2.6, tiers: 2 }); bell.position.set(-19, 0, 6); g.add(bell);
     // Bảo Tháp 13 tầng cao lớn bên phải
-    const tw = tower({ tiers: 13, sides: 4, r: 3, th: 1.9, taper: 0.52, wall: mat('btwall', 0xcdbda0), roofColor: 0x5a3a24 }); tw.position.set(20, 0, -4); tw.scale.setScalar(1.25); g.add(tw);
+    const tw = tower({ tiers: 13, sides: 4, r: 3, th: 1.9, taper: 0.52, wall: mat('btwall', 0xcdbda0), roofColor: 0x5a3a24, glb: { col: 0x8a5a2a, roof: 0x4a3020 } }); tw.position.set(20, 0, -4); tw.scale.setScalar(1.25); g.add(tw);
     // Hành lang La Hán hai bên lối lên (dãy cột có mái, tượng La Hán ngồi)
     laHanCorridor(g, -13, 3, 16.5); laHanCorridor(g, 13, 3, 16.5);   // nằm trọn trong tường, dừng trước cổng
     courtyard(g, 22, 12, 14); g.add(burner(0, 16));
@@ -1014,7 +1042,7 @@ const SCENES = {
     g.add(boat(-12, 46, 0.15)); g.add(boat(9, 49, -0.2)); lotusPads(g, 18, 80, 10, 0, 48);
     // núi Thất Tinh (hậu Thất Tinh) phía sau + Chùa Ngọc granit đỏ trên sườn
     g.add(mountain(24, 32, 0x3f6a35, 2, 0, -92)); g.add(mountain(18, 22, 0x4a7a3a, 6, -40, -86)); g.add(mountain(18, 20, 0x56803f, 8, 40, -88));
-    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a }); ngoc.position.set(0, 13, -76); ngoc.scale.setScalar(0.95); g.add(ngoc);
+    const ngoc = tower({ tiers: 5, sides: 4, r: 1.7, th: 1.6, taper: 0.5, wall: mat('ngocwall', 0x9c3a2a), roofColor: 0x7a241a, glb: { col: 0xa8322a, roof: 0x2f5a4a } }); ngoc.position.set(0, 13, -76); ngoc.scale.setScalar(0.95); g.add(ngoc);
     g.add(cyl(5, 6.5, 1.3, 20, STONE(), 0, 12.3, -76)); g.add(mountain(14, 12.3, 0x4a7a3a, 5, 0, -76, 6));
     // tượng Di Lặc đồng trên đồi bên phải (có đài sen, hào quang)
     { const ds = 3.0, top = 6, dx = 31, dz = 10;   // đồi đỉnh bằng, bệ đá, tượng ngồi vững trên đỉnh, hào quang sau đầu
@@ -1142,7 +1170,7 @@ const SCENES = {
         [-3.2, 3.2].forEach(ox => { const arc = mesh(new THREE.TorusGeometry(sp / 2, 0.12, 6, 20, Math.PI), bm, bx + ox, 6.4, zc); arc.rotation.y = Math.PI / 2; g.add(arc); });
         if (i) g.add(cyl(0.7, 0.9, 6.2, 10, STONE(), bx, 3.1, z0 + sp * i)); }
     }
-    const tw = tower({ tiers: 7, sides: 8, r: 2.6, th: 2.2, taper: 0.42, wall: mat('tmwall', 0xd9b89a), roofColor: 0x5a4a3a }); tw.position.set(0, 1.6, 2); g.add(tw);
+    const tw = tower({ tiers: 7, sides: 8, r: 2.6, th: 2.2, taper: 0.42, wall: mat('tmwall', 0xd9b89a), roofColor: 0x5a4a3a, glb: { col: 0xc0913a, roof: 0x4a4038 } }); tw.position.set(0, 1.6, 2); g.add(tw);
     // chánh điện sau tháp: lùi đủ xa để cửa điện không bị tháp chắn; đồi kéo dài đỡ trọn điện
     const h = hall({ w: 9, d: 5, h: 3, tiers: 2 }); const hd = h.userData.mainHall ? h.userData.mainHall.d : 5, hz = -1.9 - (hd / 2 + 2.9) - 6;   // lùi điện xa tháp Phước Duyên
     h.position.set(0, 1.6, hz); g.add(h);
@@ -1176,7 +1204,7 @@ const SCENES = {
   vinhnghiem(g) {
     ground(g, 140, 0x8a8a7a); courtyard(g, 34, 14, 9);
     const h = hall({ w: 16, d: 9, h: 4, tiers: 2, roofColor: 0x5a2a1a }); h.position.set(-6, 0, -7); g.add(h);
-    const tw = tower({ tiers: 7, sides: 4, r: 2.2, th: 2, taper: 0.4, wall: mat('vnwall', 0xe8e0d0), roofColor: 0x3a3a3a }); tw.position.set(17, 0, -2); g.add(tw);
+    const tw = tower({ tiers: 7, sides: 4, r: 2.2, th: 2, taper: 0.4, wall: mat('vnwall', 0xe8e0d0), roofColor: 0x3a3a3a, glb: { col: 0xc8302a, roof: 0x34343a } }); tw.position.set(17, 0, -2); g.add(tw);
     g.add(burner(-6, 14));
     [-24, -20, 22].forEach(x => g.add(tree(5, LEAF(), x, 12)));
     return { cam: [24, 13, 30], target: [2, 6, 0] };
@@ -1184,7 +1212,7 @@ const SCENES = {
   giaclam(g) {
     ground(g, 140, 0x5f8a45); courtyard(g, 30, 12, 8);
     const h = hall({ w: 13, d: 8, h: 3.2, tiers: 1, roofColor: 0x5a3a2a }); h.position.set(-6, 0, -6); g.add(h);
-    const tw = tower({ tiers: 7, sides: 6, r: 2, th: 2, taper: 0.45, wall: mat('glwall', 0xeadbbf), roofColor: 0x4a3a2a }); tw.position.set(14, 0, 4); g.add(tw);
+    const tw = tower({ tiers: 7, sides: 6, r: 2, th: 2, taper: 0.45, wall: mat('glwall', 0xeadbbf), roofColor: 0x4a3a2a, glb: { col: 0x3a6e9a, roof: 0x5a3a26 } }); tw.position.set(14, 0, 4); g.add(tw);
     const bodhi = tree(10, mat('bodhi', 0x3a7a32, { flatShading: true }), -22, 12); g.add(bodhi);
     g.add(burner(-6, 14));
     return { cam: [20, 12, 28], target: [0, 5, 0] };
