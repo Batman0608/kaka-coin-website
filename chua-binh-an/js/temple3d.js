@@ -311,6 +311,7 @@ function loadStatue(key) {
       else if (S.tint) { c.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: S.tint, metalness: 0.5, roughness: 0.4, emissive: 0x241604 }); }
       else if (S.metal) { m.metalness = 0.55; m.roughness = 0.38; }
       else { m.metalness = Math.min(m.metalness ?? 0.5, 0.6); m.roughness = Math.max(m.roughness ?? 0.4, 0.38); } });
+    o.traverse(c => { if (c.isMesh && c.material) c.material.side = THREE.DoubleSide; });   // bản quét có lỗ thủng nhỏ: hiện mặt trong thay vì nhìn xuyên ra trời
     if (S.cutBelow) {   // cắt bỏ phần dưới của bản quét (bệ bê tông, mảng nền, mảnh vụn)
       o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o), lim = bb.min.y + (bb.max.y - bb.min.y) * S.cutBelow, v = new THREE.Vector3();
       o.traverse(c => { if (!c.isMesh || !c.geometry.index) return; const g2 = c.geometry, P = g2.attributes.position, I = g2.index.array, keep = [];
@@ -321,31 +322,39 @@ function loadStatue(key) {
     return o;
   }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
 }
-/* khung bao "bền": bỏ 0,5% đỉnh thấp nhất (điểm rác lơ lửng của bản quét) để đáy tượng chạm đúng bệ */
+/* khung bao "bền": bỏ 0,1% đỉnh thấp nhất (điểm rác lơ lửng của bản quét) để đáy tượng chạm đúng bệ */
 function robustBox(o) {
   o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o), ys = [], v = new THREE.Vector3();
   o.traverse(c => { if (!c.isMesh) return; const P = c.geometry.attributes.position, step = Math.max(1, Math.floor(P.count / 4000)); for (let i = 0; i < P.count; i += step) ys.push(v.fromBufferAttribute(P, i).applyMatrix4(c.matrixWorld).y); });
-  if (ys.length > 50) { ys.sort((a, b) => a - b); bb.min.y = ys[Math.floor(ys.length * 0.005)]; }
+  if (ys.length > 50) { ys.sort((a, b) => a - b); bb.min.y = ys[Math.floor(ys.length * 0.001)]; }   // chỉ bỏ 0,1% (điểm rác lẻ); bỏ nhiều hơn sẽ mất vành đáy tòa sen
   return bb;
 }
+let _ao = null;
+function contactShadow(parent, r, y) {   // vệt bóng mờ dưới chân tượng: tượng "ngồi" hẳn trên bệ, không trông như lơ lửng
+  if (!_ao) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 4, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(0.6, 'rgba(0,0,0,.4)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); _ao = new THREE.CanvasTexture(c); }
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 32), new THREE.MeshBasicMaterial({ map: _ao, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.rotation.x = -Math.PI / 2; m.position.y = y + 0.015; m.userData.noCollide = true; m.renderOrder = 1; parent.add(m); return m;
+}
 /* thay một tượng dựng khối (ngoài trời) bằng tượng 3D: giữ chiều cao, đặt đáy đúng chỗ cũ; tải lỗi thì giữ tượng cũ */
-export function swapStatue(proc, key, hk = 1) {
+export function swapStatue(proc, key, hk = 1, atOrigin = false) {   // atOrigin: đặt đáy tượng tại gốc nhóm (mặt bệ) thay vì đáy tượng cũ
   if (!proc || !STATUE3D[key]) return proc;
-  proc.userData.swap = true;   // không gộp khối (để còn ẩn phần cũ)
+  proc.userData.swap = key;   // không gộp khối (để còn ẩn phần cũ)
   loadStatue(key).then(src => { if (!src) return;
     proc.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(proc.matrixWorld).invert(), ob = new THREE.Box3();
     proc.traverse(c => { if (c.isMesh && c.geometry) { c.geometry.computeBoundingBox(); ob.union(c.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld))); } });
     const o = src.clone(true); const bb = robustBox(o), k = (ob.max.y - ob.min.y) * hk / (bb.max.y - bb.min.y);
-    o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k + (ob.min.x + ob.max.x) / 2, Math.min(ob.min.y, 0) - bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k + (ob.min.z + ob.max.z) / 2);
+    o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k + (ob.min.x + ob.max.x) / 2, (atOrigin ? 0 : ob.min.y) - bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k + (ob.min.z + ob.max.z) / 2);
     o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    proc.children.forEach(c => { c.visible = false; }); proc.add(o); });
+    proc.children.forEach(c => { c.visible = false; }); proc.add(o);
+    contactShadow(proc, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * k * 0.62, atOrigin ? 0 : ob.min.y); });
   return proc;
 }
 export function placeStatue(parent, key, h, x, y, z, ry = 0) {   // đặt thêm tượng/đồ 3D (không thay gì), cao h mét
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
   loadStatue(key).then(src => { if (!src) return; const o = src.clone(true); const bb = robustBox(o), k = h / (bb.max.y - bb.min.y);
     o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k, -bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k);
-    o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } }); g.add(o); });
+    o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } }); g.add(o);
+    contactShadow(g, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * k * 0.6, 0); });
   return g;
 }
 // [src, tỉ lệ, kiểu, cutRemoveBg] — cutRemoveBg=true là ảnh đã tách nền (hiện nền tranh riêng phía sau)
@@ -1099,7 +1108,7 @@ const SCENES = {
     { const ds = 3.0, top = 6, dx = 31, dz = 10;   // đồi đỉnh bằng, bệ đá, tượng ngồi vững trên đỉnh, hào quang sau đầu
       g.add(mountain(12, top, 0x5f8a45, 4, dx, dz, 5));
       g.add(cyl(3.6, 4.0, 0.8, 24, STONE(), dx, top + 0.4, dz));
-      const dl = swapStatue(maitreya(ds, BRONZE()), 'dilac', 1.25); dl.position.set(dx, top + 0.8, dz); dl.rotation.y = -0.8; g.add(dl);
+      const dl = swapStatue(maitreya(ds, BRONZE()), 'dilac', 1.25, true); dl.position.set(dx, top + 0.8, dz); dl.rotation.y = -0.8; g.add(dl);
       const hal = new THREE.Mesh(new THREE.TorusGeometry(ds * 0.55, 0.1, 10, 36), GOLD()); hal.position.set(dx + Math.sin(-0.8) * -ds * 0.4, top + 0.8 + ds * 1.9, dz - Math.cos(-0.8) * ds * 0.4); hal.rotation.y = -0.8; hal.userData.noCollide = true; /* hào quang cũ bỏ: tượng Di Lặc 3D giơ tay cao */ hal.visible = false; g.add(hal); }
 
     /* === TỔ HỢP CÁC CẤP: đi từ hồ lên, qua các điện cấp thấp (cổng đóng, chỉ vào sân) === */
@@ -1247,7 +1256,7 @@ const SCENES = {
     const hill = mountain(20, 14, 0x5f8a45, 4, 0, -6); hill.scale.y = 1; g.add(hill);
     g.add(cyl(6, 7.5, 1.2, 24, STONE(), 0, 12.8, -6));
     const b = swapStatue(seatedBuddha(7.5), 'thien_trang'); b.position.set(0, 13.4, -6); g.add(b);
-    const st = stairs(2.4, 30, 0.42, 0.42); st.position.set(0, 0, 1.6 + 0.21 + 29 * 0.42); g.add(st);   // bậc trên cùng chạm mép bệ tượng
+    const st = stairs(2.4, 32, 0.42, 0.42); st.position.set(0, 0, -0.1 + 31 * 0.42);   // 32 bậc: bậc trên cùng ngang mặt bệ (13,44 m), nằm hẳn trên bệ — không bị thành bệ che g.add(st);   // bậc trên cùng chạm mép bệ tượng
     const h = hall({ w: 10, d: 6, h: 3, tiers: 2 }); h.position.set(-27, 0, 15); g.add(h);   // đặt xa sườn đồi để đồi không xuyên vào điện
     [10, 14, -40].forEach(x => g.add(tree(5, LEAF(), x, 9)));
     return { cam: [20, 20, 30], target: [0, 17, -5] };
