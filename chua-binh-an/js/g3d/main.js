@@ -17,6 +17,8 @@ import { initSweep } from './sweep.js';
 import { initGiaPha } from './giapha.js';
 import { initBoat } from './boat.js';
 import { initThayQue } from './thayque.js';
+import { preloadPsx } from './psxnam.js';
+preloadPsx();   // tải sẵn mô hình người chơi nam
 import { initChatFeed } from './chatfeed.js';
 let TH = null;   // tu tập & cộng đồng (khởi tạo sau khi có NET)
 let DY = null;   // cầu duyên (chùa Hà)
@@ -142,7 +144,7 @@ function loadTemple(id) {
   W = buildWorld(scene, temple); SKY.setWorld(W);
   const L = W.layout;
   // người chơi
-  if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name) }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
+  if (!me.av) { me.av = new Avatar({ look: P.look, seed: hash(P.name), player: true }); me.label = label(P.name + (badgeOf(P) ? ' ' + badgeOf(P) : ''), 'me'); }
   scene.add(me.av.root);
   // mỗi người xuất hiện lệch một chút quanh điểm vào chùa, để người chơi thật không đứng chồng lên nhau
   me.pos.set(L.spawn[0], 0, L.spawn[1]);
@@ -1587,7 +1589,7 @@ function openSettings() {
     { const f = el('a', 'btn', '📘 Fanpage Facebook'); f.href = contact.facebook || 'https://www.facebook.com/share/19u9bTRswX/'; f.target = '_blank'; f.rel = 'noopener'; cr.append(f); const sh = el('button', 'btn gold', '📣 Chia sẻ game lên Facebook'); sh.onclick = () => { closeModal(); setTimeout(() => SH && SH.open('time'), 80); }; cr.append(sh); }
     b.append(cr);
     if (contact.note) b.append(el('p', 'note', contact.note));
-    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Dữ liệu quẻ Kinh Dịch của cụ đồ xem quẻ: dự án “Tử Vi Phát Đạt” — Kent Juno & BEAR DEV (giấy phép MIT).')); b.append(el('p', 'note', 'Mô hình tượng 3D (Sketchfab, CC BY 4.0): “First Photogrammetry with Buddha” — milanautica; “Gilt-bronze Seated Buddha” — Korea Heritage Service; “Buddha” — Tomas Ibar; “The Buddha statue in a mountain” — AshSkag; “Lowpoly Buddhas” — Loïc Norgeot; “Yoga – Buddha Bodhisattva” — T.Koeniger; “Tian Tan Buddha videogrammetry scan” — Miguel Bandera; bé Thảo bán hoa: “Stylized Fantasy NPC Village Girl” — 3dUVpro. Ảnh chùa: Wikimedia Commons.'));
+    { const V = CBA.version || {}, vp = el('p', 'note verline'); vp.append(el('b', '', `Phiên bản ${V.so || '?'}`), document.createTextNode(` · cập nhật ${V.ngay || ''}`)); const cs = el('small', '', ''); vp.append(cs); b.append(vp); b.append(el('p', 'note', 'Dữ liệu quẻ Kinh Dịch của cụ đồ xem quẻ: dự án “Tử Vi Phát Đạt” — Kent Juno & BEAR DEV (giấy phép MIT).')); b.append(el('p', 'note', 'Mô hình tượng 3D (Sketchfab, CC BY 4.0): “First Photogrammetry with Buddha” — milanautica; “Gilt-bronze Seated Buddha” — Korea Heritage Service; “Buddha” — Tomas Ibar; “The Buddha statue in a mountain” — AshSkag; “Lowpoly Buddhas” — Loïc Norgeot; “Yoga – Buddha Bodhisattva” — T.Koeniger; “Tian Tan Buddha videogrammetry scan” — Miguel Bandera; bé Thảo bán hoa: “Stylized Fantasy NPC Village Girl” — 3dUVpro; nhân vật người chơi nam: “PSX Avatar – May” — Emotenshi (đã vẽ lại áo tràng). Ảnh chùa: Wikimedia Commons.'));
       // bản đang lưu trong bộ nhớ máy (service worker) — lệch với bản trên máy chủ thì nhắc làm mới
       if (window.caches) caches.keys().then(ks => { const k = ks.filter(x => /^cba-v\d+/.test(x)).sort().pop(); if (!k) return; const sv = 'v' + k.replace('cba-v', ''); cs.textContent = ` · bộ nhớ máy: ${sv}` + (V.so && sv !== V.so ? ' — hãy tải lại trang (Ctrl + F5) để lên bản mới' : ' ✓'); }).catch(() => {});
       b.append(el('p', 'note', 'Nếu chưa thấy cập nhật mới, kéo xuống làm mới trang (hoặc xóa dữ liệu trang một lần).')); }
@@ -1627,7 +1629,7 @@ function previewRenderer(host) {
   const cm = new THREE.PerspectiveCamera(35, 140 / 180, 0.1, 20); cm.position.set(0, 1.1, 4.2); cm.lookAt(0, 0.95, 0);
   let av = null, alive = true; const t0 = performance.now();
   const loop = () => { if (!alive) return; if (av) { av.root.rotation.y = Math.sin((performance.now() - t0) / 1400) * 0.8; av.update(0.016, false); } r.render(sc, cm); requestAnimationFrame(loop); }; loop();
-  return { set(look) { if (av) sc.remove(av.root); av = new Avatar({ look, seed: 3 }); sc.add(av.root); }, dispose() { alive = false; r.dispose(); } };
+  return { set(look) { if (av) sc.remove(av.root); av = new Avatar({ look, seed: 3, player: true }); sc.add(av.root); }, dispose() { alive = false; r.dispose(); } };
 }
 
 /* ---------------- thanh hành động ---------------- */

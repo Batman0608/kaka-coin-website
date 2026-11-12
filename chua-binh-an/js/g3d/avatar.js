@@ -7,6 +7,7 @@
  *  Tư thế: idle (chắp tay) · walk · kneel · bow · lotus (thiền) · incense · carry
  * ========================================================================= */
 import { THREE } from '../temple3d.js';
+import { usePsx } from './psxnam.js';
 let _auraTex = null;
 function auraTex() {
   if (_auraTex) return _auraTex;
@@ -168,7 +169,8 @@ const POSES = {
 };
 
 export class Avatar {
-  constructor({ look = {}, seed = 1, monk = false, kasaya = false, outline = Avatar.outline } = {}) {
+  constructor({ look = {}, seed = 1, monk = false, kasaya = false, outline = Avatar.outline, player = false } = {}) {
+    this.player = player;   // người chơi thật (mình & người khác): nam dùng mô hình 3D có xương (psxnam.js)
     this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam', mala: 'go', rose: '' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
     this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk || kasaya; this.kasaya = kasaya;
@@ -177,7 +179,7 @@ export class Avatar {
   }
   build() {
     const r = this.root; while (r.children.length) r.remove(r.children[0]);
-    this.aura = null;
+    this.aura = null; this.psx = null; this._psxTok = null;
     const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = ROBES[this.kasaya ? 'hau' : this.monk ? 'tang' : L.robe] || ROBES.lam;
     const robe = T(robeC, { map: fabricTex() }), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC, { map: hairTex() });
     const lightRobe = new THREE.Color(robeC).getHSL({}).l > 0.6;   // áo sáng màu → quần sẫm, áo sẫm → quần kem cho tách bạch
@@ -330,6 +332,7 @@ export class Avatar {
     // vầng hào quang (khi được Phật Quang chiếu)
     this.halo = part(new THREE.RingGeometry(0.3, 0.36, 40), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, toneMapped: false }), 0, hy, -0.14); this.halo.visible = false; head.add(this.halo);
     this.apply();
+    if (this.player && this.look.g === 'nam' && !this.monk) usePsx(this, ROBES[L.robe] || ROBES.lam);
   }
   setLook(look) { const aura = this.aura && this.aura.visible ? [this._auraColor, this._auraStrong] : null; Object.assign(this.look, look); this.build(); if (aura) this.setAura(true, aura[0], aura[1]); }
   setPose(name) { if (POSES[name]) this.target = name; }
@@ -375,6 +378,7 @@ export class Avatar {
   }
   apply() {
     const p = this.pose;
+    if (this.psx) { this.psx.apply(p); return; }
     this.hips.position.y = p.hipY;
     this.torso.rotation.x = p.torso; this.head.rotation.x = p.head;
     this.lLeg.thigh.rotation.set(p.lThigh, 0, -p.legOut); this.rLeg.thigh.rotation.set(p.rThigh, 0, p.legOut);
