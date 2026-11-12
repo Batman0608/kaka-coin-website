@@ -169,8 +169,8 @@ const POSES = {
 };
 
 export class Avatar {
-  constructor({ look = {}, seed = 1, monk = false, kasaya = false, outline = Avatar.outline, player = false } = {}) {
-    this.player = player;   // người chơi thật (mình & người khác): nam dùng mô hình 3D có xương (psxnam.js)
+  constructor({ look = {}, seed = 1, monk = false, kasaya = false, outline = Avatar.outline, player = true } = {}) {
+    this.player = player;   // mọi nhân vật nam (không phải sư) dùng mô hình 3D có xương (psxnam.js); player:false để giữ kiểu chibi
     this.look = Object.assign({ g: 'nu', hair: 'bui', robe: 'lam', mala: 'go', rose: '' }, look);
     this.root = new THREE.Group(); this.root.userData.avatar = this;
     this.pose = Object.assign({}, POSES.idle); this.target = 'idle'; this.walkT = 0; this.speed = 0; this.bowT = -1; this.monk = monk || kasaya; this.kasaya = kasaya;

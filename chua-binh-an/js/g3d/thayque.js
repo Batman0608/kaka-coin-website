@@ -115,7 +115,7 @@ export function initThayQue({ THREE, scene, Avatar, label, placeLabel, me, getW,
     const st = buildStall(); st.g.position.set(s.x, s.y, s.z); st.g.rotation.y = s.face; st.g.userData.tmp = true; scene.add(st.g);
     st.g.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(st.block); const box = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, top: bb.max.y, bottom: bb.min.y }; W.col.boxes.push(box);
-    const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'go' }, seed: 83 }); dress(av);
+    const av = new Avatar({ look: { g: 'nam', hair: 'ngan', robe: 'nau', mala: 'go' }, seed: 83, player: false });   // cụ đồ: giữ kiểu chibi để đội khăn xếp, râu bạc dress(av);
     av.root.position.copy(new THREE.Vector3(0, 0.03, -0.05).applyMatrix4(st.g.matrixWorld)); av.root.rotation.y = s.face; av.root.userData.tmp = true; scene.add(av.root); av.setPose('lotus');
     // chỗ khách đứng hỏi quẻ (trước bàn)
     const ask = new THREE.Vector3(0, 0, 1.55).applyMatrix4(st.g.matrixWorld);
