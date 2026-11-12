@@ -10,6 +10,7 @@
 import { GLTFLoader } from '../../vendor/three/addons/GLTFLoader.js';
 
 const SLOT = 8 * 60;                                     // mỗi chùa 8 phút
+const PERCH = 0.95;   // độ cao tâm mô hình khi đậu (chân chạm đất)
 const T_IN = 6, T_HALL = 75, T_OUT = 92, T_UP = 440, T_GONE = 470;   // các mốc trong một lượt (giây)
 const REWARD = 12;
 
@@ -82,13 +83,18 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     const ceil = Math.max(base + 2.4, H.ceilY - G.position.y - 1.1);   // độ cao lượn trong điện (dưới xà)
     const L = (x, y, z) => G.localToWorld(V(x, y, z));
     const inHall = (tt) => { const a = tt * 0.45; return L(Math.sin(a) * w * 0.22, Math.min(ceil, base + 2.3) + Math.sin(tt * 1.3) * 0.25, -d / 2 + 4.6 + Math.sin(a * 2) * 1.2); };
-    const front = G.localToWorld(V(0, base, d / 2 + 13)), R = 13;
-    const circle = (tt) => { const a = (tt - T_OUT) * 0.16; return V(front.x + Math.sin(a) * R, front.y + 7.5 + Math.sin(tt * 0.5) * 1.5, front.z + Math.cos(a) * R); };
+    // ngoài sân: đậu xuống, đi thong thả quanh sân trước chánh điện; cứ ~22 giây lại vỗ cánh bay lên một chút rồi đậu xuống
+    const yard = (tt) => { const u = (tt - T_OUT) * 0.11; return L(Math.sin(u) * 5.5 + Math.sin(u * 2.3 + 1) * 1.6, base, d / 2 + 8 + Math.sin(u * 1.7) * 3 + Math.cos(u * 0.9) * 1.2); };
+    const gy = (q) => { const h = W.col.heightAt(q.x, q.z, q.y + 3); return h == null ? q.y : h; };
+    const HOP = 22, HOPT = 3.2;
+    const ground = (tt) => { const q = yard(tt), ph = (tt - T_OUT) % HOP, air = ph > HOP - HOPT ? Math.sin((ph - (HOP - HOPT)) / HOPT * Math.PI) : 0;
+      q.y = gy(q) + PERCH + air * 2.6; return { p: q, inside: false, air }; };
+    const circle = (tt) => ground(tt).p;
     const ease = (k) => k * k * (3 - 2 * k), lerp3 = (a, b, k) => a.clone().lerp(b, ease(Math.max(0, Math.min(1, k))));
     if (t < T_HALL) return { p: inHall(t), inside: true };
     if (t < T_OUT) { const k = (t - T_HALL) / (T_OUT - T_HALL), door = L(0, base + 2.2, d / 2 + 1.5);
-      return k < 0.5 ? { p: lerp3(inHall(T_HALL), door, k * 2), inside: true } : { p: lerp3(door, circle(T_OUT + 0.01), (k - 0.5) * 2), inside: false }; }
-    if (t < T_UP) return { p: circle(t), inside: false };
+      return k < 0.5 ? { p: lerp3(inHall(T_HALL), door, k * 2), inside: true } : { p: lerp3(door, circle(T_OUT + 0.01), (k - 0.5) * 2), inside: false, air: 1 }; }
+    if (t < T_UP) return ground(t);
     if (t < T_GONE) { const k = (t - T_UP) / (T_GONE - T_UP), c = circle(T_UP); return { p: c.clone().add(V(0, ease(k) * 45, 0)), inside: false, rise: k }; }
     return null;
   }
@@ -116,12 +122,14 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
     // xuất hiện: chỉ bùng hiệu ứng khi người chơi đang ở chùa lúc phượng tới (vào giữa chừng thì phượng đã có sẵn)
     if (appeared !== s) { appeared = s; if (t < T_IN + 2) { burst(P0.p, 1); if (A && A.bigBell) A.bigBell(); banner && banner('🐦 Phượng hoàng giáng lâm', at.name, 'Điềm lành đến chùa · lại gần để chiêm bái'); } }
     if (P0.rise > 0.85 && left !== s) { left = s; burst(bird.position.clone(), 1.4); A && A.khanh && A.khanh(); }
-    const len = gl.holder.userData.len || 1, size = (P0.inside ? 2.6 : 3.8) * (1 - Math.max(0, (P0.rise || 0) - 0.6) * 1.8), k = Math.max(0.01, size / len);
+    const len = gl.holder.userData.len || 1, size = (P0.inside ? 2.6 : 3.2) * (1 - Math.max(0, (P0.rise || 0) - 0.6) * 1.8), k = Math.max(0.01, size / len);
     const appear = Math.min(1, t / T_IN); bird.scale.setScalar(k * (0.2 + 0.8 * appear));
     bird.position.copy(P0.p);
     if (P1) { _a.copy(P1.p).sub(P0.p); if (_a.lengthSq() > 1e-6) { const yaw = Math.atan2(_a.x, _a.z), pitch = -Math.atan2(_a.y, Math.hypot(_a.x, _a.z));
-      bird.rotation.set(pitch * 0.6, yaw, 0, 'YXZ'); } }
-    mixer.update(dt * (P0.rise ? 1.6 : 1));
+      const onGround = P0.air != null && P0.air < 0.05; bird.rotation.set(onGround ? 0 : pitch * 0.6, yaw, 0, 'YXZ'); } }
+    // đang đậu/đi bộ: cánh vỗ rất chậm như rỉa lông; bay lên: vỗ nhanh
+    const flying = P0.air == null || P0.air > 0.05; mixer.update(dt * (P0.rise ? 1.6 : flying ? 1.15 : 0.18));
+    if (!flying) bird.position.y += Math.abs(Math.sin(t0 * 5.2)) * 0.06;   // nhún nhẹ theo bước đi
     _b.set(0, 0, -0.45 * size).applyEuler(bird.rotation).add(bird.position);   // đuôi
     trailStep(dt, _b, true);
     glow.position.copy(bird.position); glow.intensity = 1.6 + Math.sin(t0 * 3) * 0.4;
@@ -137,5 +145,5 @@ export function initPhuongHoang({ THREE, scene, getW, getTemple, TEMPLES, me, to
   /* cho biết phượng đang ở đâu & bao lâu nữa sang chùa khác (Cài đặt / bản đồ có thể dùng) */
   function where() { const t0 = now(), s = slotOf(t0), t = t0 - s * SLOT; return { temple: templeOf(s), next: templeOf(s + 1), left: Math.max(0, SLOT - t), gone: t >= T_GONE }; }
   setTimeout(load, 12000);   // tải sẵn mô hình (≈1 MB) sau khi game đã chạy ổn, để lúc phượng tới là hiện ngay
-  return { onTemple, dispose, step, context, where };
+  return { onTemple, dispose, step, context, where, pos: () => bird && bird.position };
 }
