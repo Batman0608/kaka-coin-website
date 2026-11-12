@@ -39,6 +39,37 @@ function fabricTex() {
   for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 1); }
   _fab = new THREE.CanvasTexture(c); _fab.colorSpace = THREE.SRGBColorSpace; _fab.wrapS = _fab.wrapT = THREE.RepeatWrapping; _fab.repeat.set(6, 3); return _fab;
 }
+// ---- áo tràng thêu hoa văn (bán trong cửa hàng): màu nền + hoạ tiết thêu chỉ ----
+const PATTERNS = {
+  sen:   { c: 0xf1d7dd, m: '#d9608a', m2: '#6aa060', motif: 'sen',  n: 'Áo tràng lụa thêu sen hồng' },
+  may:   { c: 0x5b77c4, m: '#e8eefc', m2: '#a8b8e8', motif: 'may',  n: 'Áo tràng lam thêu mây trắng' },
+  truc:  { c: 0x8c5a34, m: '#d8c27a', m2: '#a8924a', motif: 'truc', n: 'Áo nâu thêu trúc vàng' },
+  mai:   { c: 0x2f8a78, m: '#fff1a8', m2: '#f4b030', motif: 'mai',  n: 'Áo ngọc thêu hoa mai' },
+  cuc:   { c: 0x6a3f8e, m: '#f5d36a', m2: '#e89a30', motif: 'cuc',  n: 'Áo tím Huế thêu hoa cúc' },
+  gam:   { c: 0x9c1c18, m: '#f2c14e', m2: '#c8902a', motif: 'gam',  n: 'Áo gấm đỏ hoa văn chữ Vạn' },
+  bachlien: { c: 0xf6f4ee, m: '#e7c25a', m2: '#9ac0d8', motif: 'sen', n: 'Áo trắng bạch liên viền vàng' },
+  rong:  { c: 0xe8b22e, m: '#fff3c0', m2: '#b27812', motif: 'rong', n: 'Áo gấm vàng kim thêu rồng mây' },
+};
+const _pat = {};
+function patternTex(id) {
+  if (_pat[id]) return _pat[id]; const P = PATTERNS[id];
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#' + P.c.toString(16).padStart(6, '0'); g.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < 256; y += 2) { g.fillStyle = `rgba(0,0,0,${0.03 + (y % 4 ? 0.02 : 0)})`; g.fillRect(0, y, 256, 1); }   // vân dệt
+  const at = (x, y, f) => { for (const dx of [0, 256, -256]) for (const dy of [0, 256, -256]) { g.save(); g.translate(x + dx, y + dy); f(); g.restore(); } };   // vẽ lặp liền mép
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const spots = [[64, 64], [192, 64], [0, 128], [128, 128], [64, 192], [192, 192], [0, 0], [128, 0]];
+  spots.forEach(([x, y], i) => at(x, y, () => { g.rotate((i % 3 - 1) * 0.3);
+    if (P.motif === 'sen') { g.fillStyle = P.m2; g.beginPath(); g.ellipse(0, 10, 16, 5, 0, 0, 7); g.fill(); g.fillStyle = P.m; for (let k = -2; k <= 2; k++) { g.save(); g.rotate(k * 0.42); g.beginPath(); g.ellipse(0, -6, 5, 12, 0, 0, 7); g.fill(); g.restore(); } }
+    else if (P.motif === 'may') { g.strokeStyle = P.m; g.lineWidth = 3; g.beginPath(); g.arc(-8, 0, 7, Math.PI, 0); g.arc(5, 0, 9, Math.PI, 0); g.arc(17, 2, 5, Math.PI, 0.3); g.stroke(); g.strokeStyle = P.m2; g.lineWidth = 2; g.beginPath(); g.arc(-8, 0, 3, Math.PI, 0); g.arc(5, 0, 4, Math.PI, 0); g.stroke(); }
+    else if (P.motif === 'truc') { g.strokeStyle = P.m; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 22); g.lineTo(0, -22); g.stroke(); g.strokeStyle = P.m2; [-8, 8].forEach(y2 => { g.beginPath(); g.moveTo(-3, y2); g.lineTo(3, y2); g.stroke(); });
+      g.fillStyle = P.m; [[-1, -14], [1, -2], [-1, 10]].forEach(([s2, y2]) => { g.save(); g.translate(0, y2); g.rotate(s2 * 0.9); g.beginPath(); g.ellipse(9, 0, 9, 2.5, 0, 0, 7); g.fill(); g.restore(); }); }
+    else if (P.motif === 'mai' || P.motif === 'cuc') { const np = P.motif === 'mai' ? 5 : 12, r = P.motif === 'mai' ? 6 : 8; g.fillStyle = P.m; for (let k = 0; k < np; k++) { g.save(); g.rotate(k / np * Math.PI * 2); g.beginPath(); g.ellipse(0, -r, P.motif === 'mai' ? 5 : 2.5, r * 0.75, 0, 0, 7); g.fill(); g.restore(); } g.fillStyle = P.m2; g.beginPath(); g.arc(0, 0, 3.5, 0, 7); g.fill(); }
+    else if (P.motif === 'gam') { g.strokeStyle = P.m; g.lineWidth = 3; g.strokeRect(-14, -14, 28, 28); g.beginPath(); g.moveTo(0, -10); g.lineTo(0, 10); g.moveTo(-10, 0); g.lineTo(10, 0); g.moveTo(0, -10); g.lineTo(6, -10); g.moveTo(10, 0); g.lineTo(10, 6); g.moveTo(0, 10); g.lineTo(-6, 10); g.moveTo(-10, 0); g.lineTo(-10, -6); g.stroke(); }   // chữ Vạn trong khung
+    else if (P.motif === 'rong') { g.strokeStyle = P.m; g.lineWidth = 3.5; g.beginPath(); for (let k = 0; k <= 24; k++) { const x2 = -24 + k * 2, y2 = Math.sin(k * 0.6) * 7; k ? g.lineTo(x2, y2) : g.moveTo(x2, y2); } g.stroke(); g.fillStyle = P.m2; g.beginPath(); g.arc(24, Math.sin(14.4) * 7, 4.5, 0, 7); g.fill(); g.strokeStyle = P.m2; g.lineWidth = 2; g.beginPath(); g.arc(-6, 12, 6, Math.PI, 0); g.stroke(); }
+  }));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 1.5); t.anisotropy = 4; return (_pat[id] = t);
+}
 // ---- vân sợi tóc: các sợi chạy từ đỉnh đầu xuống, có dải bóng ----
 let _hairT = null;
 function hairTex() {
@@ -98,7 +129,7 @@ function faceTex(nu, bald, seed = 1) {
 }
 
 const MALAS = { go: [0x8a5328, 0xa86a38], bode: [0xc9a46a, 0xe6c98e], tram: [0x3a2416, 0x5a3a22], ngoc: [0x3f8f6a, 0x7fd0a8], mana: [0xa8322a, 0xe0705a] };
-const ROBES = { hong: 0xd77a96, ngoc: 0x3f9a88, tim: 0x7a4f9e, reu: 0x5f7a3a, dat: 0xa8643a, kim: 0xd8a93a, lam: 0x4f6fc4, nau: 0x8c5530, xam: 0x767c8c, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
+const ROBES = { ...Object.fromEntries(Object.entries(PATTERNS).map(([k, v]) => [k, v.c])), hong: 0xd77a96, ngoc: 0x3f9a88, tim: 0x7a4f9e, reu: 0x5f7a3a, dat: 0xa8643a, kim: 0xd8a93a, lam: 0x4f6fc4, nau: 0x8c5530, xam: 0x767c8c, trang: 0xeeeef4, vang: 0xf0b93a, tang: 0xd9822b, hau: 0xe9a83a };
 const SKINS = [0xf6d2b0, 0xeec09a, 0xf9dcc0, 0xdcaa80];
 const HAIRC = [0x241915, 0x33221a, 0x43291b];
 const grad = (() => { const d = new Uint8Array([84, 168, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
@@ -180,7 +211,7 @@ export class Avatar {
     const r = this.root; while (r.children.length) r.remove(r.children[0]);
     this.aura = null;
     const L = this.look, nu = L.g === 'nu', sk = T(this.skin), robeC = this.monk ? 0xf7c51e : ROBES[L.robe] || ROBES.lam;   // sư: áo hậu vàng tươi
-    const robe = T(robeC, { map: fabricTex() }), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC, { map: hairTex() });
+    const pat = !this.monk && PATTERNS[L.robe], robe = pat ? T(0xffffff, { map: patternTex(L.robe) }) : T(robeC, { map: fabricTex() }), robeD = T(dim(robeC, 0.62)), robeDD = T(dim(robeC, 0.5)), robeL = T(lite(robeC, 0.45)), hairM = T(this.hairC, { map: hairTex() });
     const lightRobe = new THREE.Color(robeC).getHSL({}).l > 0.6;   // áo sáng màu → quần sẫm, áo sẫm → quần kem cho tách bạch
     const pants = T(this.kasaya || this.monk ? dim(robeC, 0.78) : lightRobe ? 0x3b3742 : 0xe9dfcb), sash = T(0xf2c14e), sashD = T(0xd49a2a), wood = T((MALAS[L.mala] || MALAS.go)[0]), woodL = T((MALAS[L.mala] || MALAS.go)[1]), sole = T(0x5a3418), strap = T(0x7a4a26);
     const white = WHITE, inner = T(0xf7f1e6), skD = T(dim(this.skin, 0.9));
@@ -389,4 +420,4 @@ export class Avatar {
   }
 }
 Avatar.outline = false;   // bật viền nét cho mọi nhân vật (main.js bật trên máy tính)
-export { POSES, ROBES, MALAS };
+export { POSES, ROBES, MALAS, PATTERNS };

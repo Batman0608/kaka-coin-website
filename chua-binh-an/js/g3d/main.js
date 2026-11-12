@@ -6,7 +6,7 @@
  * ========================================================================= */
 import { initSky } from './sky.js';
 import { THREE, ANIM, BOARDS, PETAL_TEX, mount } from '../temple3d.js';
-import { Avatar } from './avatar.js';
+import { Avatar, PATTERNS } from './avatar.js';
 import { initTuHanh } from './tuhanh.js';
 import { initDuyen } from './duyen.js';
 import { initShare } from './share.js';
@@ -53,6 +53,12 @@ const CUSHIONS = [
   { id: 'gam', n: 'Đệm tròn gấm đỏ', shape: 'tron', price: 80, top: 0x8e1a0e, trim: 0xffd36b, glow: null, note: 'Đệm tròn gấm đỏ, viền chỉ vàng' },
   { id: 'sen', n: 'Đệm hoa sen hồng', shape: 'sen', price: 200, top: 0xce5f84, trim: 0xffe0b0, glow: 0xff9ec4, gi: 0.5, note: 'Toà sen hồng · toả sáng hồng nhạt khi ngồi' },
   { id: 'rong', n: 'Đệm tròn tầng rồng vàng', shape: 'tron-tang', price: 450, top: 0xc9a227, trim: 0xfff2b8, glow: 0xffd36b, gi: 1.0, note: 'Đệm tròn nhiều tầng · hào quang vàng khi ngồi' },
+  { id: 'bodoan', n: 'Bồ đoàn cói bện', shape: 'bodoan', price: 120, top: 0xb08a4e, trim: 0x7a5a2a, glow: null, note: 'Bồ đoàn tròn dày bện cói như ở thiền viện, nếp xếp quanh thân' },
+  { id: 'vuongtua', n: 'Đệm vuông gấm tua vàng', shape: 'vuongtua', price: 160, top: 0x2f5aa8, trim: 0xf2c14e, glow: null, note: 'Gấm xanh lam chần nút, bốn góc có tua chỉ vàng' },
+  { id: 'batgiac', n: 'Đệm bát giác hai tầng', shape: 'batgiac', price: 260, top: 0x7a1e2a, trim: 0xe9c25a, glow: 0xffc070, gi: 0.6, note: 'Tám cạnh hai tầng, viền đồng, ánh vàng ấm khi ngồi' },
+  { id: 'may', n: 'Đệm mây ngũ sắc', shape: 'may', price: 320, top: 0xf4f0ff, trim: 0xa8c8ff, glow: 0xb8d8ff, gi: 0.8, note: 'Những cụm mây trắng bồng bềnh, ánh xanh nhạt khi ngồi' },
+  { id: 'senngoc', n: 'Toà sen ngọc bích', shape: 'sen', price: 380, top: 0x4fb89a, trim: 0xe8fff4, glow: 0x8ff0d0, gi: 0.9, note: 'Cánh sen ngọc bích, toả ánh ngọc khi ngồi' },
+  { id: 'senbach', n: 'Toà sen bạch kim ngàn cánh', shape: 'sen-bach', price: 1200, top: 0xf8f6f0, trim: 0xd8e4f0, glow: 0xffffff, gi: 2.0, note: 'Quý nhất · bốn tầng cánh sen trắng viền bạch kim, hào quang trắng toả rộng' },
   { id: 'haoquang', n: 'Toà sen vàng hào quang', shape: 'sen-vang', price: 900, top: 0xe8c23a, trim: 0xfff2c0, glow: 0xffe79a, gi: 1.7, note: 'Đẹp nhất · toà sen vàng lớn, vầng sáng rực rỡ khi ngồi' }
 ];
 const S = Object.assign({ npc: true, autoMo: true, amb: true, low: false }, store.get('settings', {}));
@@ -337,12 +343,33 @@ function cushionMesh(cfg) {
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.16, 24), matT); pad.position.y = 0.11; g.add(pad);
     if (sh === 'tron-tang') { const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.1, 24), matG); t2.position.y = 0.23; g.add(t2); const t3 = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.08, 24), matT); t3.position.y = 0.31; g.add(t3); }
     else g.add(new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 8, 24), matG)).position.set(0, 0.19, 0), g.children[g.children.length - 1].rotation.x = Math.PI / 2;
+  } else if (sh === 'bodoan') {   // bồ đoàn: trụ tròn dày, nếp xếp dọc, nút giữa
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.24, 28), matT); pad.position.y = 0.12; g.add(pad);
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2, f = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.05), matG); f.position.set(Math.cos(a) * 0.385, 0.12, Math.sin(a) * 0.385); f.rotation.y = -a; g.add(f); }
+    [0.03, 0.235].forEach(y => { const r = new THREE.Mesh(new THREE.TorusGeometry(y < 0.1 ? 0.4 : 0.36, 0.022, 6, 28), matG); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); });
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), matG); b.scale.y = 0.5; b.position.y = 0.245; g.add(b);
+  } else if (sh === 'vuongtua') {   // vuông gấm chần nút, tua 4 góc
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.84), matT); pad.position.y = 0.09; g.add(pad);
+    [[0, 0.43, 0.88, 0.04], [0, -0.43, 0.88, 0.04], [0.43, 0, 0.04, 0.88], [-0.43, 0, 0.04, 0.88]].forEach(([x, z, w, d]) => { const e = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), matG); e.position.set(x, 0.17, z); g.add(e); });   // viền chỉ vàng quanh mép
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const bt = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), matG); bt.scale.y = 0.5; bt.position.set(i * 0.24, 0.19, j * 0.24); g.add(bt); }
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([x, z]) => { const t = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 8), matG); t.rotation.x = Math.PI; t.position.set(x * 0.45, 0.09, z * 0.45); g.add(t); const k = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), matG); k.position.set(x * 0.45, 0.18, z * 0.45); g.add(k); });
+  } else if (sh === 'batgiac') {   // bát giác hai tầng
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.52, 0.06, 8), matG)).position.y = 0.03;
+    const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.48, 0.14, 8), matT); t1.position.y = 0.13; g.add(t1);
+    const r1 = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.03, 8), matG); r1.position.y = 0.205; g.add(r1);
+    const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.1, 8), matT); t2.position.y = 0.27; g.add(t2);
+    const r2 = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.025, 8), matG); r2.position.y = 0.325; g.add(r2);
+    for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2, st = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), matG); st.position.set(Math.cos(a) * 0.47, 0.13, Math.sin(a) * 0.47); g.add(st); }
+  } else if (sh === 'may') {   // đệm mây: các cụm bông xếp vòng, ngồi giữa
+    const cl = [[0, 0, 0.3], [0.28, 0.05, 0.2], [-0.28, 0.05, 0.2], [0.18, -0.26, 0.19], [-0.18, -0.26, 0.19], [0.18, 0.28, 0.18], [-0.18, 0.28, 0.18], [0.36, -0.12, 0.15], [-0.36, -0.12, 0.15]];
+    cl.forEach(([x, z, r]) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), matT); m.scale.y = 0.42; m.position.set(x, 0.1 + r * 0.25, z); g.add(m); });
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, sw = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.015, 6, 16, Math.PI * 1.3), matG); sw.position.set(Math.cos(a) * 0.42, 0.12, Math.sin(a) * 0.42); sw.rotation.y = -a; g.add(sw); }
   } else {   // hoa sen
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.12, 24), matG)).position.y = 0.06;   // đế tròn
     const petalMat = new THREE.MeshStandardMaterial({ color: cfg.top, roughness: 0.7 });
-    petalRing(0.12, 0.42, sh === 'sen-vang' ? 3 : 2, petalMat);
+    petalRing(0.12, 0.42, sh === 'sen-bach' ? 4 : sh === 'sen-vang' ? 3 : 2, petalMat);
     const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.28, 0.1, 24), matG); seat.position.y = 0.2; g.add(seat);   // nhụy ngồi
-    if (sh === 'sen-vang') { for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const st = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), matG); st.position.set(Math.cos(a) * 0.2, 0.26, Math.sin(a) * 0.2); g.add(st); } }
+    if (sh === 'sen-vang' || sh === 'sen-bach') { for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const st = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), matG); st.position.set(Math.cos(a) * 0.2, 0.26, Math.sin(a) * 0.2); g.add(st); } }
   }
   if (cfg.glow) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cushionGlowTex(), color: cfg.glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 }));
@@ -353,6 +380,19 @@ function cushionMesh(cfg) {
   return g;
 }
 let meCushion = null;
+/* áo tràng thêu bán trong cửa hàng: [mã hoạ tiết, giá hoa sen] */
+const ROBE_SHOP = [['sen', 150], ['may', 150], ['truc', 180], ['mai', 220], ['cuc', 220], ['gam', 350], ['bachlien', 450], ['rong', 800]];
+const robeThumbs = {};
+function robeThumb(id) {   // ảnh minh hoạ: nhân vật mặc thử áo
+  if (robeThumbs[id]) return robeThumbs[id];
+  return (robeThumbs[id] = new Promise(res => requestAnimationFrame(() => { try {
+    if (!thumbR) { const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); r.setSize(240, 180); r.outputColorSpace = THREE.SRGBColorSpace; thumbR = r; }
+    const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xfff2dc, 0x3a1a0c, 1.5)); const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(2, 3, 4); sc.add(dl);
+    const av = new Avatar({ look: Object.assign({}, P.look || {}, { robe: id }), seed: hash(P.name || 'x'), outline: false }); av.update(1, false); sc.add(av.root);
+    const cm = new THREE.PerspectiveCamera(30, 240 / 180, 0.05, 20); cm.position.set(0.9, 1.1, 2.6); cm.lookAt(0, 0.75, 0);
+    thumbR.render(sc, cm); res(thumbR.domElement.toDataURL('image/png'));
+  } catch (e) { res(''); } })));
+}
 /* ảnh minh họa đệm trong cửa hàng: chụp chính mô hình 3D của đệm (đúng như khi ngồi) */
 const cushThumbs = {}; let thumbR = null;
 function cushionThumb(cfg) {
@@ -678,7 +718,7 @@ function openOffer(tab = 'free') {
     const top = el('button', 'btn sm', '➕ Nạp hoa sen'); top.onclick = () => { closeModal(); SHOP.openTopup(); }; if (!SHOP.payOpen) top.hidden = true;
     bar.append(gift, top); b.append(bar);
     const tabs = el('div', 'tabs'), list = el('div', 'list');
-    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['cushion', '💺 Đệm ngồi'], ...(SHOP.payOpen ? [['merit', '💝 Hòm công đức']] : [])].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
+    [['free', '🙏 Lễ vật thường'], ['shop', '🏪 Cửa hàng'], ['cushion', '💺 Đệm ngồi'], ['robe', '👘 Áo tràng'], ...(SHOP.payOpen ? [['merit', '💝 Hòm công đức']] : [])].forEach(([k, n]) => { const x = el('button', k === tab ? 'on' : '', n); x.onclick = () => { closeModal(); if (k === 'merit') return SHOP.openDonate(temple); openOffer(k); }; tabs.append(x); });
     b.append(tabs, list);
     if (tab === 'free') {
       OFFERS.forEach(o => {
@@ -690,6 +730,23 @@ function openOffer(tab = 'free') {
       });
       b.append(el('p', 'note', 'Lễ vật thường miễn phí, mỗi món 2 giờ dâng được một lần. Muốn dâng ngay, mua lễ vật trong Cửa hàng. Thắp hương: đến lư hương lớn giữa chánh điện và bấm "Thắp hương".'));
       if (OFFERS.some(o => (cds[o.id] || 0) > Date.now())) { const go = el('button', 'btn gold sm', '🏪 Mua lễ vật dâng ngay'); go.onclick = () => { closeModal(); openOffer('shop'); }; b.append(go); }
+    } else if (tab === 'robe') {
+      P.robes = P.robes || [];
+      ROBE_SHOP.forEach(([id, price]) => {
+        const nm = PATTERNS[id].n, owned = P.robes.includes(id), using = (P.look || {}).robe === id;
+        const r = el('button', 'item shopitem cushrow' + (using ? ' on' : ''));
+        const pic = el('img', 'cushpic'); pic.alt = nm; robeThumb(id).then(u => { if (u) pic.src = u; else pic.remove(); });
+        const txt = el('div', 'cushtxt'); txt.append(el('b', '', nm), el('small', '', 'Áo tràng thêu hoạ tiết · mặc ngay khi mua, đổi lại áo cũ trong Tu tập › Tủ đồ'));
+        r.append(pic, txt, el('em', 'price', using ? 'Đang mặc' : owned ? 'Đã có · mặc' : `🪷 ${price}`));
+        r.onclick = () => {
+          if (using) return;
+          if (!owned) { if (!SHOP.spend(price)) { toast(`Cần ${price} hoa sen · nhận quà hằng ngày hoặc nạp thêm`); return; } P.robes.push(id); toast(`👘 Đã mua ${nm}`); }
+          P.look = Object.assign({}, P.look, { robe: id }); if (me.av) me.av.setLook(P.look); NET.sendLook && NET.sendLook(); save();
+          closeModal(); openOffer('robe');
+        };
+        list.append(r);
+      });
+      b.append(el('p', 'note', 'Áo tràng thêu bán bằng hoa sen. Áo trơn màu vẫn mở khoá miễn phí qua thành tích trong Tu tập.'));
     } else if (tab === 'cushion') {
       CUSHIONS.forEach(cu => {
         const owned = P.cushions.includes(cu.id), using = P.cushion === cu.id;
@@ -2228,7 +2285,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene, cushionThumb };
+window.__B3 = THREE.Box3; window.__T = THREE; window.__game = { THREE_V: THREE.Vector3, me, openOffer: (t) => openOffer(t), get W() { return W; }, P, cam, loadTemple, launchDragon: (n, r) => launchDragon(n, r), petalShower: (k) => petalShower(k), get npcs() { return npcs; }, get abbot() { return abbot; }, get resMonk() { return resMonk; }, cushionMesh: (c) => cushionMesh(c), CUSHIONS, scene, cushionThumb };
 window.__sit = (c, h) => sitOn(c, h, true);
 window.__ray = (a, b) => rayBoxes(a, b);
 window.__fest = () => fest;

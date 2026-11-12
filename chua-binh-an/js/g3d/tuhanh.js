@@ -12,7 +12,7 @@
  *  · Bạn đồng tu · Đạo tràng (nhóm) · Tụng kinh nhóm
  * ========================================================================= */
 import { THREE } from '../temple3d.js';
-import { Avatar } from './avatar.js';
+import { Avatar, PATTERNS } from './avatar.js';
 
 export function initTuHanh(X) {
   const { P, save, modal, closeModal, el, $, toast, banner, ticker, A, fmt, addBeads, addMerit, NET, scene, me, C, kinhVN, TEMPLES } = X;
@@ -95,7 +95,7 @@ export function initTuHanh(X) {
     ['seed:lan', 'Hạt giống lan', 'Bậc Phật tử tinh tấn', () => rank() >= 1], ['seed:bode', 'Hạt bồ đề', 'Bậc Cư sĩ hộ trì', () => rank() >= 2],
     ['seat:front', 'Đệm hàng đầu chánh điện', 'Bậc Cư sĩ hộ trì', () => rank() >= 2]
   ];
-  const has = (id) => T.unlock.includes(id) || ['robe:lam', 'robe:nau', 'robe:xam', 'robe:trang', 'mala:go', 'seed:cuc', 'seed:sen'].includes(id);
+  const has = (id) => T.unlock.includes(id) || (P.robes || []).includes(id.replace('robe:', '')) || ['robe:lam', 'robe:nau', 'robe:xam', 'robe:trang', 'mala:go', 'seed:cuc', 'seed:sen'].includes(id);
   let lastRank = -1;
   function checkUnlocks() {
     const r = rank(); if (lastRank >= 0 && r > lastRank) { banner('☸️ Con đường tu tập', `${RANKS[r].icon} ${RANKS[r].n}`, 'Đã mở thêm áo tràng, hạt giống, chỗ ngồi'); A.bigBell(); } lastRank = r;
@@ -103,6 +103,7 @@ export function initTuHanh(X) {
     badge();
   }
   const ROBE_N = { lam: ['Áo tràng lam', '#4f6fc4'], nau: ['Áo nâu', '#8c5530'], xam: ['Áo xám', '#767c8c'], trang: ['Áo trắng', '#eeeef4'], hong: ['Hồng sen', '#d77a96'], ngoc: ['Xanh ngọc', '#3f9a88'], tim: ['Tím Huế', '#7a4f9e'], reu: ['Xanh rêu', '#5f7a3a'], dat: ['Nâu đất', '#a8643a'], kim: ['Vàng kim', '#d8a93a'] };
+  Object.entries(PATTERNS).forEach(([k, v]) => { ROBE_N[k] = [v.n.replace('Áo tràng ', '').replace('Áo ', ''), '#' + v.c.toString(16).padStart(6, '0')]; });   // áo thêu mua trong cửa hàng
   const MALA_N = { go: ['Gỗ nâu', '#8a5328'], bode: ['Bồ đề', '#c9a46a'], tram: ['Trầm hương', '#3a2416'], ngoc: ['Ngọc bích', '#3f8f6a'], mana: ['Mã não', '#a8322a'] };
   function equip(k, v) { P.look = Object.assign({}, P.look, { [k]: v }); if (me.av) me.av.setLook(P.look); NET.sendLook(); save(); }
 
@@ -506,7 +507,7 @@ export function initTuHanh(X) {
     },
     suutap(b) {
       b.append(el('h3', '', '👘 Áo tràng'));
-      const g1 = el('div', 'colgrid'); Object.entries(ROBE_N).forEach(([k, [n, c]]) => { const ok = has('robe:' + k), x = el('button', 'colitem' + (P.look.robe === k ? ' on' : '') + (ok ? '' : ' lock')); const sw = el('i'); sw.style.background = c; x.append(sw, el('b', '', n), el('small', '', ok ? (P.look.robe === k ? 'Đang mặc' : 'Bấm để mặc') : '🔒 ' + (UNL.find(u => u[0] === 'robe:' + k) || [])[2])); x.onclick = () => { if (!ok) return; equip('robe', k); VIEWS.suutap((b.innerHTML = '', b)); }; g1.append(x); }); b.append(g1);
+      const g1 = el('div', 'colgrid'); Object.entries(ROBE_N).forEach(([k, [n, c]]) => { const ok = has('robe:' + k), x = el('button', 'colitem' + (P.look.robe === k ? ' on' : '') + (ok ? '' : ' lock')); const sw = el('i'); sw.style.background = c; x.append(sw, el('b', '', n), el('small', '', ok ? (P.look.robe === k ? 'Đang mặc' : 'Bấm để mặc') : '🔒 ' + (UNL.find(u => u[0] === 'robe:' + k) || [0, 0, 'Mua ở Cửa hàng › 👘 Áo tràng'])[2])); x.onclick = () => { if (!ok) return; equip('robe', k); VIEWS.suutap((b.innerHTML = '', b)); }; g1.append(x); }); b.append(g1);
       b.append(el('h3', '', '📿 Tràng hạt'));
       const g2 = el('div', 'colgrid'); Object.entries(MALA_N).forEach(([k, [n, c]]) => { const ok = has('mala:' + k), cur = (P.look.mala || 'go') === k, x = el('button', 'colitem' + (cur ? ' on' : '') + (ok ? '' : ' lock')); const sw = el('i'); sw.style.background = c; x.append(sw, el('b', '', n), el('small', '', ok ? (cur ? 'Đang đeo' : 'Bấm để đeo') : '🔒 ' + (UNL.find(u => u[0] === 'mala:' + k) || [])[2])); x.onclick = () => { if (!ok) return; equip('mala', k); VIEWS.suutap((b.innerHTML = '', b)); }; g2.append(x); }); b.append(g2);
       b.append(el('h3', '', '📜 Ấn & tượng hành hương'));
