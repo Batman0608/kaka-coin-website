@@ -280,13 +280,19 @@ function muralTex(kind, W, H) {
    bức tranh Phật đặt sâu trong khám nên nhìn như tượng trong điện thật (không phẳng như tranh). */
 /* tượng Phật 3D thật (glTF, đã nén): Thích Ca đồng thếp vàng, A Di Đà (bản quét tượng đá, phủ thếp vàng khi dựng) */
 const STATUE3D = {
-  adida: { url: 'assets/buddha3d/adida.glb', gild: 0xf6cf78 },                      // A Di Đà — milanautica, CC BY 4.0
+  adida: { url: 'assets/buddha3d/thien.glb', gild: 0xf3c460, rotX: -Math.PI / 2 },    // A Di Đà ngồi thiền, thếp vàng — Thunk3D, CC BY 4.0
+  tamthe_vang: { url: 'assets/buddha3d/thien.glb', gild: 0xd9a84a, rotX: -Math.PI / 2, three: true },   // Tam Thế Phật đồng vàng (Bái Đính)
+  tamthe_nga: { url: 'assets/buddha3d/xucdia.glb', three: true },                  // Tam Thế Phật màu ngà (Tam Chúc) — FrandProductions, CC BY 4.0
+  quanam: { url: 'assets/buddha3d/quanam.glb', white: true },                       // Quan Âm cẩm thạch trắng — Thunk3D scanner, CC BY 4.0
+  quanam_vang: { url: 'assets/buddha3d/quanam.glb', gild: 0xf0c45a },               // Quan Âm thếp vàng (Một Cột)
+  khmer: { url: 'assets/buddha3d/khmer.glb', tint: 0xf2c55a },                      // Phật Khmer/Thái thếp vàng (Chùa Dơi) — Aron Mimietz, CC BY 4.0
   thichca_vang: { url: 'assets/buddha3d/thichca_vang.glb', metal: true },           // Thích Ca đồng thếp vàng — Korea Heritage Service, CC BY 4.0
   thichca_go: { url: 'assets/buddha3d/thichca_go.glb', rot: Math.PI },              // Thích Ca gỗ, hào quang lá đề — Tomas Ibar, CC BY 4.0
   thichca_da: { url: 'assets/buddha3d/thichca_da.glb' },                            // Thích Ca đá phủ rêu — AshSkag, CC BY 4.0
 };
 // mỗi chùa thờ Thích Ca một pho tượng riêng; chùa không có ở đây dùng tượng theo vị Phật (ALTAR) hoặc ảnh
-const STATUE_OF = { 'binh-an': 'thichca_vang', 'long-son': 'thichca_vang', 'thien-mu': 'thichca_go', 'yen-tu': 'thichca_da' };
+const STATUE_OF = { 'binh-an': 'thichca_vang', 'long-son': 'thichca_vang', 'thien-mu': 'thichca_go', 'yen-tu': 'thichca_da',
+  'vinh-nghiem': 'adida', 'giac-lam': 'adida', 'bai-dinh': 'tamthe_vang', 'tam-chuc': 'tamthe_nga', 'mot-cot': 'quanam_vang', 'huong': 'quanam', 'linh-ung': 'quanam', 'doi': 'khmer' };
 const _statues = {};
 function loadStatue(key) {
   if (_statues[key]) return _statues[key];
@@ -295,9 +301,11 @@ function loadStatue(key) {
     const o = gl.scene;
     o.traverse(c => { if (!c.isMesh) return; const m = c.material;
       if (S.gild) { c.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: S.gild, metalness: 0.4, roughness: 0.45, emissive: 0x2a1a04 }); }   // thếp vàng lên vân đá
+      else if (S.white) { c.material = new THREE.MeshStandardMaterial({ color: 0xf6f2ea, roughness: 0.38, metalness: 0.02, emissive: 0x1a1814 }); }   // cẩm thạch trắng
+      else if (S.tint) { c.material = new THREE.MeshStandardMaterial({ map: m.map, normalMap: m.normalMap, color: S.tint, metalness: 0.5, roughness: 0.4, emissive: 0x241604 }); }
       else if (S.metal) { m.metalness = 0.55; m.roughness = 0.38; }
       else { m.metalness = Math.min(m.metalness ?? 0.5, 0.6); m.roughness = Math.max(m.roughness ?? 0.4, 0.38); } });
-    if (S.rot) { const w = new THREE.Group(); o.rotation.y = S.rot; w.add(o); return w; }
+    if (S.rot || S.rotX) { const w = new THREE.Group(); o.rotation.set(S.rotX || 0, S.rot || 0, 0); w.add(o); return w; }
     return o;
   }).catch(e => { console.warn('[Tượng 3D]', key, e); return null; }));
 }
@@ -362,14 +370,18 @@ function altarPanel(g, w, d, base, h, set) {
   // ảnh đã tách nền → vẽ trong suốt để lộ bức tranh nền phía sau; ảnh có nền sẵn → vẽ đặc
   const imgMat = cut ? new THREE.MeshBasicMaterial({ map: btex, transparent: true, alphaTest: 0.04, depthWrite: false, toneMapped: false })
                      : new THREE.MeshBasicMaterial({ map: btex, toneMapped: false });
-  const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img);
+  const img = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat); img.position.set(0, cy, zf + 0.14); nc(img); img.userData.statueImg = true;   // không gộp khối: còn ẩn được khi tượng 3D tải xong
   // tượng 3D thật (nếu có cho vị Phật này): ngồi trong khám, trước bức tranh nền; tải xong mới thay ảnh phẳng
   const skey = (INTERIOR && STATUE_OF[INTERIOR.id]) || key;
   if (STATUE3D[skey]) loadStatue(skey).then(src3 => { if (!src3) return;
-    const o = src3.clone(true), bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3()), k = ph * 0.97 / sz.y;
-    o.scale.setScalar(k); o.position.set(-(bb.min.x + bb.max.x) / 2 * k, base + 1.0 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
-    o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
-    g.add(o); img.visible = false; });
+    const three = STATUE3D[skey].three, xs = three ? [-1, 0, 1] : [0];   // Tam Thế Phật: ba pho ngồi cạnh nhau (quá khứ · hiện tại · vị lai)
+    xs.forEach(xi => {
+      const o = src3.clone(true); o.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(o), sz = bb.getSize(new THREE.Vector3());
+      let k = ph * (three ? (xi ? 0.8 : 0.9) : 0.97) / sz.y; if (three) k = Math.min(k, pw / 3.1 / sz.x);
+      o.scale.setScalar(k); o.position.set(xi * pw / 3 - (bb.min.x + bb.max.x) / 2 * k, base + 1.0 - bb.min.y * k, zf + 0.12 + sz.z * k / 2 - (bb.min.z + bb.max.z) / 2 * k);
+      o.traverse(c => { c.userData.noCollide = true; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } });
+      g.add(o); });
+    img.visible = false; });
   if (!cut) frameRect(g, 0, cy, zf + 0.17, pw + 0.14, ph + 0.14, 0.09, 0.2, gold);   // ảnh có nền → khung vàng sát quanh ảnh (như tranh treo trên vách cảnh)
   // 4) khung nổi nhiều lớp (tạo chiều sâu 3D) bao quanh khám: vàng trong → đỏ ngoài, nhô dần ra
   frameRect(g, 0, cy, zf + 0.18, nw + 0.3, nh + 0.3, 0.14, 0.28, gold);
@@ -396,7 +408,7 @@ function altarPanel(g, w, d, base, h, set) {
 }
 /* hàng tượng nhỏ dọc hai bên tường chánh điện (các mô hình ít chi tiết, nhìn từ xa vẫn đẹp)
    · Lowpoly Buddhas — Loïc Norgeot (CC BY 4.0): 8 pho đá, vàng, đồng, đồng đỏ, cẩm thạch, gỗ, đất nung, nguyên bản
-   · Yoga – Buddha Bodhisattva — T.Koeniger (CC BY 4.0): Bồ Tát tư duy bằng cẩm thạch trắng, đặt cặp ở cuối hàng */
+   · Yoga – Buddha Bodhisattva — T.Koeniger (CC BY 4.0): Bồ Tát tư duy màu đồng vàng, đặt cặp ở cuối hàng */
 let _side = null;
 function sideModels() {
   if (_side) return _side;
@@ -405,7 +417,7 @@ function sideModels() {
     const small = []; a.scene.updateMatrixWorld(true);
     a.scene.traverse(o => { if (o.isMesh) { const m = o.clone(); m.matrix.copy(o.matrixWorld); m.matrix.decompose(m.position, m.quaternion, m.scale);   // các pho xếp vòng tròn quay mặt vào giữa → xoay về cùng hướng +z
       m.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.atan2(-m.position.x, -m.position.z) + Math.PI)); m.position.set(0, 0, 0); const w = new THREE.Group(); w.add(m); small.push(w); } });
-    b.scene.traverse(o => { if (o.isMesh) o.material = new THREE.MeshStandardMaterial({ color: 0xf4efe6, roughness: 0.42, metalness: 0.05 }); });
+    b.scene.traverse(o => { if (o.isMesh && o.material) { o.material.metalness = Math.min(o.material.metalness ?? 0.5, 0.5); o.material.roughness = Math.max(o.material.roughness ?? 0.4, 0.42); } });   // Bồ Tát tư duy: giữ vân đồng vàng gốc
     return { small, botat: b.scene };
   }).catch(e => { console.warn('[Tượng hai bên]', e); return null; });
   return _side;
